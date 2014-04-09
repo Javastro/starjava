@@ -1,0 +1,69 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<project xmlns:xs="http://www.w3.org/2001/XMLSchema"
+         xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+         xmlns="http://maven.apache.org/POM/4.0.0"
+         xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/maven-v4_0_0.xsd">
+   <modelVersion>4.0.0</modelVersion>
+   <groupId>uk.ac.starlink</groupId>
+   <artifactId>sog</artifactId>
+   <packaging>jar</packaging>
+   <parent>
+      <artifactId>starlink-base</artifactId>
+      <groupId>uk.ac.starlink</groupId>
+      <version>1.0-SNAPSHOT</version>
+      <relativePath>../maven/pom.xml</relativePath>
+   </parent>
+   <name>sog</name>
+   <version>0.3</version>
+   <description>SoG - Son of GAIA SoG - Son of GAIA</description>
+   <dependencies>
+
+    
+      <dependency>
+         <groupId>uk.ac.starlink</groupId>
+         <artifactId>jsky</artifactId>
+      </dependency>
+
+    
+      <dependency>
+         <groupId>uk.ac.starlink</groupId>
+         <artifactId>jniast</artifactId>
+      </dependency>
+
+    
+      <dependency>
+         <groupId>uk.ac.starlink</groupId>
+         <artifactId>array</artifactId>
+      </dependency>
+
+    
+      <dependency>
+         <groupId>uk.ac.starlink</groupId>
+         <artifactId>diva</artifactId>
+      </dependency>
+
+    
+      <dependency>
+         <groupId>uk.ac.starlink</groupId>
+         <artifactId>jaiutil</artifactId>
+      </dependency>
+
+    
+      <dependency>
+         <groupId>uk.ac.starlink</groupId>
+         <artifactId>soapserver</artifactId>
+      </dependency>
+
+    
+      <dependency>
+         <groupId>uk.ac.starlink</groupId>
+         <artifactId>astgui</artifactId>
+      </dependency>
+      
+      <dependency>
+         <groupId>uk.ac.starlink</groupId>
+         <artifactId>hds</artifactId>
+      </dependency>
+
+  </dependencies>
+</project>

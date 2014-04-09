@@ -1,5 +1,6 @@
 /*/bin/
 /*/build/
+/*/target/
 /*/docs/
 /*/etc/
 /*/lib/
@@ -20,3 +21,4 @@
 *~
 *.toc
 splat/src/docs/sun243.pdf
+/bin

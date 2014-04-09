@@ -1,0 +1,33 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<project xmlns:xs="http://www.w3.org/2001/XMLSchema"
+         xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+         xmlns="http://maven.apache.org/POM/4.0.0"
+         xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/maven-v4_0_0.xsd">
+   <modelVersion>4.0.0</modelVersion>
+   <groupId>uk.ac.starlink</groupId>
+   <artifactId>astgui</artifactId>
+   <packaging>jar</packaging>
+   <parent>
+      <artifactId>starlink-base</artifactId>
+      <groupId>uk.ac.starlink</groupId>
+      <version>1.0-SNAPSHOT</version>
+      <relativePath>../maven/pom.xml</relativePath>
+   </parent>
+   <name>astgui</name>
+   <version>1.1</version>
+   <description>ASTGUI</description>
+   <dependencies>
+
+    
+      <dependency>
+         <groupId>uk.ac.starlink</groupId>
+         <artifactId>jniast</artifactId>
+      </dependency>
+
+      <dependency>
+         <groupId>uk.ac.starlink</groupId>
+         <artifactId>diva</artifactId>
+      </dependency>
+
+  </dependencies>
+</project>

@@ -1,0 +1,68 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!-- $id:$ -->
+<!-- note that this pom is not useful for really building - but can be used for dependencies for upload of the ant build -->
+<project xmlns="http://maven.apache.org/POM/4.0.0" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+   xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/maven-v4_0_0.xsd"
+>
+   <modelVersion>4.0.0</modelVersion>
+   <groupId>uk.ac.starlink.axis</groupId>
+   <artifactId>axis</artifactId>
+   <name>Starlink Axis customization</name>
+   <version>1.2.1</version>
+   <packaging>jar</packaging>
+   <url>http://http://dev.starlink.ac.uk/</url>
+   <issueManagement>
+      <system>Bugzilla</system>
+      <url>http://dev.starlink.ac.uk/bugzilla/</url>
+   </issueManagement>
+   <inceptionYear>1980</inceptionYear>
+   <developers>
+   </developers>
+   <licenses>
+      <license>
+         <name>GPL</name>
+         <url>http://www.opensource.org/licenses/gpl-2.0.php</url>
+      </license>
+   </licenses>
+   <scm>
+      <connection>scm:cvs::pserver:anonymous@cvs.starlink.ac.uk:/cvs:java/source/</connection>
+      <url>http://cvsweb.starlink.ac.uk/cvsweb.cgi/java/source/</url>
+   </scm>
+   <organization>
+      <name>Starlink</name>
+      <url>http://www.starlink.rl.ac.uk/</url>
+   </organization>
+  
+    <dependencies>
+      <dependency>
+         <groupId>axis</groupId>
+         <artifactId>axis-ant</artifactId>
+         <version>1.2.1</version>
+      </dependency>
+      <dependency>
+         <groupId>commons-discovery</groupId>
+         <artifactId>commons-discovery</artifactId>
+         <version>0.2</version>
+      </dependency>
+      <dependency>
+         <groupId>commons-logging</groupId>
+         <artifactId>commons-logging</artifactId>
+         <version>1.0.4</version>
+      </dependency>
+      <dependency>
+         <groupId>axis</groupId>
+         <artifactId>axis-jaxrpc</artifactId>
+         <version>1.2.1</version>
+      </dependency>
+      <dependency>
+         <groupId>axis</groupId>
+         <artifactId>axis-saaj</artifactId>
+         <version>1.2.1</version>
+      </dependency>
+     <dependency>
+         <groupId>axis</groupId>
+         <artifactId>axis-wsdl4j</artifactId>
+         <version>1.5.1</version>
+      </dependency>
+   </dependencies>
+</project>

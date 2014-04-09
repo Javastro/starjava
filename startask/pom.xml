@@ -1,0 +1,47 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<project xmlns:xs="http://www.w3.org/2001/XMLSchema" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+	xmlns="http://maven.apache.org/POM/4.0.0"
+	xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/maven-v4_0_0.xsd">
+	<modelVersion>4.0.0</modelVersion>
+	<groupId>uk.ac.starlink</groupId>
+	<artifactId>startask</artifactId>
+	<version>0.1</version>
+	<packaging>jar</packaging>
+	<parent>
+		<artifactId>starlink-base</artifactId>
+		<groupId>uk.ac.starlink</groupId>
+		<version>1.0-SNAPSHOT</version>
+		<relativePath>../maven/pom.xml</relativePath>
+	</parent>
+	<name>startask</name>
+	<description />
+	<dependencies>
+
+
+		<dependency>
+			<groupId>xerces</groupId>
+			<artifactId>xercesImpl</artifactId>
+		</dependency>
+		<dependency>
+			<groupId>xml-apis</groupId>
+			<artifactId>xml-apis</artifactId>
+		</dependency>
+		<dependency>
+			<groupId>uk.ac.starlink-third</groupId>
+			<artifactId>jini-core</artifactId>
+			<version>1.0</version>
+		</dependency>
+
+		<dependency>
+			<groupId>uk.ac.starlink-third</groupId>
+			<artifactId>jini-ext</artifactId>
+			<version>1.0</version>
+		</dependency>
+		<dependency>
+			<groupId>uk.ac.starlink.axis</groupId>
+			<artifactId>axis</artifactId>
+			<version>1.2.1</version>
+		</dependency>
+
+	</dependencies>
+</project>

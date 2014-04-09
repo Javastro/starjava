@@ -1,0 +1,42 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<project xmlns:xs="http://www.w3.org/2001/XMLSchema" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+   xmlns="http://maven.apache.org/POM/4.0.0"
+   xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/maven-v4_0_0.xsd"
+>
+   <modelVersion>4.0.0</modelVersion>
+   <groupId>uk.ac.starlink</groupId>
+   <artifactId>plastic</artifactId>
+   <packaging>jar</packaging>
+   <parent>
+      <artifactId>starlink-base</artifactId>
+      <groupId>uk.ac.starlink</groupId>
+      <version>1.0-SNAPSHOT</version>
+      <relativePath>../maven/pom.xml</relativePath>
+   </parent>
+   <name>plastic</name>
+   <version>0.4+</version>
+   <description>PLASTIC - support and utilities for the PLASTIC protocol</description>
+   <dependencies>
+      <dependency>
+         <groupId>uk.ac.starlink</groupId>
+         <artifactId>util</artifactId>
+      </dependency>
+      <dependency>
+         <groupId>xmlrpc</groupId>
+         <artifactId>xmlrpc</artifactId>
+         <version>2.0</version>
+      </dependency>
+      <dependency>
+         <groupId>uk.ac.starlink-third</groupId>
+         <artifactId>rmi-lite</artifactId>
+         <version>1.0</version>
+      </dependency>
+     <dependency>
+     <groupId>commons-codec</groupId>
+     <artifactId>commons-codec</artifactId>
+     <version>1.3</version>
+     <scope>test</scope>
+     </dependency> 
+     
+   </dependencies>
+</project>

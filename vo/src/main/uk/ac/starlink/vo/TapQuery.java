@@ -12,20 +12,24 @@ import java.util.HashSet;
 import java.util.LinkedHashMap;
 import java.util.Map;
 import java.util.Set;
+import java.util.logging.Level;
 import java.util.logging.Logger;
 import javax.xml.parsers.DocumentBuilderFactory;
 import javax.xml.parsers.ParserConfigurationException;
 import javax.xml.xpath.XPath;
 import javax.xml.xpath.XPathException;
 import javax.xml.xpath.XPathFactory;
+import org.xml.sax.InputSource;
 import org.xml.sax.SAXException;
 import org.w3c.dom.Document;
 import org.w3c.dom.Element;
 import uk.ac.starlink.table.ByteStore;
 import uk.ac.starlink.table.StarTable;
 import uk.ac.starlink.table.StoragePolicy;
+import uk.ac.starlink.table.TableSink;
 import uk.ac.starlink.table.storage.DiscardByteStore;
 import uk.ac.starlink.table.storage.LimitByteStore;
+import uk.ac.starlink.util.CountInputStream;
 import uk.ac.starlink.util.DOMUtils;
 import uk.ac.starlink.votable.DataFormat;
 import uk.ac.starlink.votable.TableElement;
@@ -57,7 +61,50 @@ public class TapQuery {
         Logger.getLogger( "uk.ac.starlink.vo" );
 
     /**
-     * Constructor.  May throw an IOException if the tables specified for
+     * Private constructor, performs common initialisation and
+     * invoked by public constructors.
+     *
+     * @param  serviceUrl  base service URL for TAP service
+     * @param  adql   text of ADQL query
+     * @param  extraParams  key->value map for optional parameters;
+     * @param  uploadLimit  maximum number of bytes that may be uploaded;
+     */
+    private TapQuery( URL serviceUrl, String adql,
+                      Map<String,String> extraParams, long uploadLimit ) {
+        serviceUrl_ = serviceUrl;
+        adql_ = adql;
+        uploadLimit_ = uploadLimit;
+
+        /* Prepare the parameter maps. */
+        stringMap_ = new LinkedHashMap<String,String>();
+        stringMap_.put( "REQUEST", "doQuery" );
+        stringMap_.put( "LANG", "ADQL" );
+        stringMap_.put( "QUERY", adql );
+        if ( extraParams != null ) {
+            stringMap_.putAll( extraParams );
+        }
+        streamMap_ = new LinkedHashMap<String,HttpStreamParam>();
+    }
+
+    /**
+     * Constructs a query with no uploaded tables.
+     *
+     * @param  serviceUrl  base service URL for TAP service
+     *                     (excluding "/[a]sync")
+     * @param  adql   text of ADQL query
+     * @param  extraParams  key->value map for optional parameters;
+     *                      if any of these match the names of standard
+     *                      parameters (upper case) the standard values will
+     *                      be overwritten, so use with care (may be null)
+     */
+    public TapQuery( URL serviceUrl, String adql,
+                     Map<String,String> extraParams ) {
+        this( serviceUrl, adql, extraParams, -1 );
+    }
+
+    /**
+     * Constructs a query with uploaded tables.
+     * May throw an IOException if the tables specified for
      * upload exceed the stated upload limit.
      *
      * @param  serviceUrl  base service URL for TAP service
@@ -72,27 +119,16 @@ public class TapQuery {
      * @param  uploadLimit  maximum number of bytes that may be uploaded;
      *                      if negative, no limit is applied,
      *                      ignored if <code>uploadMap</code> null or empty
+     * @throws   IOException   if upload tables exceed the upload limit
      */
     public TapQuery( URL serviceUrl, String adql,
                      Map<String,String> extraParams,
                      Map<String,StarTable> uploadMap, long uploadLimit )
             throws IOException {
-        serviceUrl_ = serviceUrl;
-        adql_ = adql;
-        uploadLimit_ = uploadLimit;
-
-        /* Prepare the map of string parameters. */
-        stringMap_ = new LinkedHashMap<String,String>();
-        stringMap_.put( "REQUEST", "doQuery" );
-        stringMap_.put( "LANG", "ADQL" );
-        stringMap_.put( "QUERY", adql );
-        if ( extraParams != null ) {
-            stringMap_.putAll( extraParams );
-        }
+        this( serviceUrl, adql, extraParams, uploadLimit );
 
         /* Prepare the map of streamed parameters, required for table uploads.
          * This also affects the string parameter map. */
-        streamMap_ = new LinkedHashMap<String,HttpStreamParam>();
         StringBuffer ubuf = new StringBuffer();
         if ( uploadMap != null ) {
             for ( Map.Entry<String,StarTable> upload : uploadMap.entrySet() ) {
@@ -159,10 +195,33 @@ public class TapQuery {
      * @return   result table
      */
     public StarTable executeSync( StoragePolicy storage ) throws IOException {
-        HttpURLConnection hconn =
-            UwsJob.postForm( new URL( serviceUrl_ + "/sync" ),
-                             stringMap_, streamMap_ );
-        return readResultVOTable( hconn, storage );
+        return readResultVOTable( createSyncConnection(), storage );
+    }
+
+    /**
+     * Executes this query synchronously and streams the resulting table
+     * to a table sink.
+     * If the result is a TAP error document, it will be presented as
+     * an exception thrown from this method.
+     * Overflow status of a successful result is provided by the return value.
+     *
+     * @param  sink  table destination
+     * @return   true iff the result was marked as overflowed
+     */
+    public boolean executeSync( TableSink sink )
+            throws IOException, SAXException {
+        return streamResultVOTable( createSyncConnection(), sink );
+    }
+
+    /**
+     * Opens a URL connection for the result of synchronously executing
+     * this query.
+     *
+     * @return   HTTP connection containing query result
+     */
+    public HttpURLConnection createSyncConnection() throws IOException {
+        return UwsJob.postForm( new URL( serviceUrl_ + "/sync" ),
+                                stringMap_, streamMap_ );
     }
 
     /**
@@ -443,29 +502,14 @@ public class TapQuery {
      *
      * @param   conn  connection to table resource
      * @param  storage  storage policy
+     * @return   table result of successful query
      */
     public static StarTable readResultVOTable( URLConnection conn,
                                                StoragePolicy storage )
             throws IOException {
 
-        /* Follow 303 redirects as required. */
-        conn = followRedirects( conn );
-
-        /* Get an input stream representing the content of the resource.
-         * HttpURLConnection may provide this from the getInputStream or
-         * getErrorStream method, depending on the response code. */
-        InputStream in = null;
-        try { 
-            in = conn.getInputStream();
-        }
-        catch ( IOException e ) {
-            if ( conn instanceof HttpURLConnection ) {
-                in = ((HttpURLConnection) conn).getErrorStream();
-            }
-            if ( in == null ) {
-                throw e;
-            }
-        }
+        /* Get input stream. */
+        InputStream in = getVOTableStream( conn );
 
         /* Read the result as a VOTable DOM. */
         VOElement voEl;
@@ -523,6 +567,69 @@ public class TapQuery {
             }
             return new VOStarTable( tableEl );
         }
+    }
+
+    /**
+     * Streams a VOTable document which may represent a successful result
+     * or an error.
+     * If it represents an error (in accordance with the TAP rules for
+     * expressing this), an exception will be thrown.
+     * Overflow status of a successful result is provided by the return value.
+     *
+     * @param   conn  connection to table resource
+     * @param   sink   destination for table result of succesful query
+     * @return   true iff the result was marked as overflowed
+     */
+    public static boolean streamResultVOTable( URLConnection conn,
+                                               TableSink sink )
+            throws IOException, SAXException {
+        InputStream in = getVOTableStream( conn );
+        boolean overflow =
+            DalResultStreamer.streamResultTable( new InputSource( in ), sink );
+        return overflow;
+    }
+
+    /**
+     * Gets an input stream from a URL connection that should contain
+     * a VOTable.
+     *
+     * @param  conn  connection to result of TAP service call
+     * @return  stream containing a response table (error or result)
+     */
+    public static InputStream getVOTableStream( URLConnection conn )
+            throws IOException {
+
+        /* Follow 303 redirects as required. */
+        conn = followRedirects( conn );
+
+        /* Get an input stream representing the content of the resource.
+         * HttpURLConnection may provide this from the getInputStream or
+         * getErrorStream method, depending on the response code. */
+        InputStream in = null;
+        try { 
+            in = conn.getInputStream();
+        }
+        catch ( IOException e ) {
+            if ( conn instanceof HttpURLConnection ) {
+                in = ((HttpURLConnection) conn).getErrorStream();
+            }
+            if ( in == null ) {
+                throw e;
+            }
+        }
+
+        /* Log result size if required. */
+        final Level countLevel = Level.CONFIG;
+        if ( logger_.isLoggable( countLevel ) ) {
+            in = new CountInputStream( in ) {
+                @Override
+                public void close() throws IOException {
+                    logger_.log( countLevel, getReadCount() + " bytes read" );
+                    super.close();
+                }
+            };
+        }
+        return in;
     }
 
     /**

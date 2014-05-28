@@ -6,12 +6,15 @@ import java.awt.Component;
 import java.awt.Dimension;
 import java.awt.event.KeyEvent;
 import java.net.MalformedURLException;
+import java.util.ArrayList;
+import java.util.List;
 import java.util.logging.Logger;
 import javax.swing.BorderFactory;
 import javax.swing.Box;
 import javax.swing.JComponent;
 import javax.swing.JDialog;
 import javax.swing.JMenu;
+import javax.swing.JMenuItem;
 import javax.swing.JMenuBar;
 import javax.swing.JPanel;
 import javax.swing.ListSelectionModel;
@@ -37,6 +40,7 @@ public abstract class RegistryServiceTableLoadDialog
     private final String protoName_;
     private final RegistryQueryFactory queryFactory_;
     private final boolean showCapabilities_;
+    private final JMenuItem[] menuItems_;
     private JComponent controlBox_;
     private RegistryPanel regPanel_;
     private static final Logger logger_ = 
@@ -61,6 +65,22 @@ public abstract class RegistryServiceTableLoadDialog
         protoName_ = protoName;
         queryFactory_ = queryFactory;
         showCapabilities_ = showCapabilities;
+
+        /* Prepare menu item for updating the list of registries. */
+        List<JMenuItem> menuItemList = new ArrayList<JMenuItem>();
+        final RegistrySelector regSel = queryFactory.getRegistrySelector();
+        menuItemList.add( new JMenuItem( regSel.getRegistryUpdateAction() ) );
+        menuItems_ = menuItemList.toArray( new JMenuItem[ 0 ] );
+    }
+
+    /**
+     * Returns a list of menu items for actions associated with this
+     * component.
+     *
+     * @return  registry menu item list
+     */
+    public JMenuItem[] getRegistryMenuItems() {
+        return menuItems_;
     }
 
     /**

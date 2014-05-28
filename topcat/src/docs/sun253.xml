@@ -143,6 +143,7 @@
   <!ENTITY FIG.HistogramLayerControl_form
            '&figs;HistogramLayerControl_form.gif'>
   <!ENTITY FIG.mode_flat '&figs;mode_flat.gif'>
+  <!ENTITY FIG.mode_translucent '&figs;mode_translucent.gif'>
   <!ENTITY FIG.mode_transparent '&figs;mode_transparent.gif'>
   <!ENTITY FIG.mode_auto '&figs;mode_auto.gif'>
   <!ENTITY FIG.mode_density '&figs;mode_density.gif'>
@@ -2757,6 +2758,7 @@ The common ones are:
    <dl>
    <dt><code>&amp;</code> (and)</dt>
    <dt><code>|</code> (or)</dt>
+   <dt><code>^</code> (exclusive-or)</dt>
    <dt><code>&lt;&lt;</code> (left shift)</dt>
    <dt><code>&gt;&gt;</code> (right shift)</dt>
    <dt><code>&gt;&gt;&gt;</code> (logical right shift)</dt>
@@ -7181,7 +7183,14 @@ in one of the following graphics formats:
 <dl>
 <dt>png</dt>
 <dd><p>
-    PNG bitmap.
+    PNG bitmap.  The background is opaque.
+    </p></dd>
+<dt>png-transp</dt>
+<dd><p>
+    PNG bitmap with a transparent background.
+    Background pixels that fall outside the plot surface itself
+    (for instance outside the axes for a Plane plot or outside the
+    celestial sphere for a Sky plot) are transparent.
     </p></dd>
 <dt>gif</dt>
 <dd><p>GIF bitmap; note the number of colours is limited to 256.
@@ -8502,6 +8511,43 @@ This mode works without problem for both bitmapped and vector output.
 
 </subsubsubsect>
 
+<subsubsubsect id="mode-translucent">
+<subhead><title>Translucent Mode</title></subhead>
+
+<figure>
+<caption><px>Translucent shading mode selection</px></caption>
+<figureimage src="&FIG.mode_translucent;"/>
+</figure>
+
+<p>The <label>Translucent</label> shading mode (&IMG.MODE_ALPHA;)
+colours shapes in a transparent version of the
+colour selected by their style.
+The degree of transparency is determined by how many points are
+currently being plotted on top of each other,
+and by the <label>Transparency Level</label> slider;
+as you slide further to the right, points get more transparent.
+Unlike <ref id="mode-transparent">transparent mode</ref>,
+the transparency varies according to the current point density,
+so you can usually leave the setting the same as you zoom 
+in and out.
+</p>
+
+<p><strong>Exporting:</strong>
+When the points are opaque, this mode works without problem for
+both bitmapped and vector output, but when the transparency is set
+there may be anomalies.
+Transparent points are rendered in PDF output, though the 
+transparency levels may not be exactly the same as on the screen.
+This can be fixed by using the <label>Force Bitmap</label> option
+in the <ref id="plot2-export" plaintextref="yes">Plot Export</ref> dialogue.
+For PostScript, transparent points are rendered as opaque.
+You can use <label>Force Bitmap</label> with PostScript which
+will get transparency right for this layer, but then any earlier
+layers will be completely obscured.
+</p>
+
+</subsubsubsect>
+
 <subsubsubsect id="mode-transparent">
 <subhead><title>Transparent Mode</title></subhead>
 
@@ -8521,6 +8567,9 @@ and as you slide further to the right,
 the points get more transparent.
 The higher the opaque limit, the more points have to be plotted
 on top of each other to reach colour that fully obscures the background.
+Unlike <ref id="mode-translucent">translucent mode</ref>,
+transparency of each colour is fixed by the opaque limit,
+rather than adjusting depending on the density of points currently plotted.
 </p>
 
 <p><strong>Exporting:</strong>
@@ -14526,6 +14575,7 @@ output rows result from a match in the input tables.
 <dd><p>The output table contains only rows which have an entry from 
     both of the input tables, so that every output row represents an
     actual matched pair.
+    This corresponds to an SQL <em>inner join</em>.
     </p></dd>
 
 <dt>All from 1</dt>
@@ -14533,10 +14583,12 @@ output rows result from a match in the input tables.
     <label>1 and 2</label>, but additionally the unmatched rows from
     the first table are present with the columns from the second
     table blank.
+    This corresponds to an SQL <em>left outer join</em>.
     </p></dd>
 
 <dt>All from 2</dt>
 <dd><p>As for <label>All from 1</label> but the other way round.
+    This corresponds to an SQL <em>right outer join</em>.
     </p></dd>
 
 <dt>1 or 2</dt>
@@ -14544,6 +14596,7 @@ output rows result from a match in the input tables.
     tables appears in the output.
     This is the union of rows from <label>All from 1</label> and
     <label>All from 2</label>.
+    This corresponds to an SQL <em>full outer join</em>.
     </p></dd>
 
 <dt>1 not 2</dt>
@@ -19982,6 +20035,17 @@ introduced since the last version:
         (or shift) drag.</li>
     <li>Form configuration options are now preserved, rather than reset,
         when a new table is selected in one of the plot windows.</li>
+    <li>Fixed some bugs related to TAP table uploads.</li>
+    <li>Use RegTAP as (default) alternative to RI1.0 for registry queries
+        (user documentation not yet updated).</li>
+    <li>Update the endpoint for the NVO/VAO RI1.0 registry, on advice from
+        Theresa Dower.</li>
+    <li>Upgraded Gregory Mantelet's ADQL library to version 1.2.
+        Better ADQL parsing.</li>
+    <li>Added new graphics output format <code>png-transp</code>
+        to generate PNG files with transparent backgrounds.</li>
+    <li>Fix out-by-one error in reporting of Row of min/max values
+        in Statistics window.</li>
     </ul>
     </p></dd>
 

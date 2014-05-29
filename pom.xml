@@ -31,14 +31,14 @@
 <module>fits</module>
 <!-- <module>frog</module> -->
 <module>hds</module>
-<module>hdx</module>
+<!-- <module>hdx</module> --> <!-- does not build because of missing DOM implementations.... -->
 <module>help</module>
 <!-- <module>jaiutil</module> -->
 <!--<module>jetty</module> -->
 <module>jniast</module>
 <module>jnihds</module>
 <!-- <module>jnikappa</module>-->
-<!-- <module>jpcs</module>-->
+<module>jpcs</module>
 <!-- <module>jsky</module>  -->
 <module>mirage</module>
 <module>ndtools</module> 

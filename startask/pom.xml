@@ -17,6 +17,11 @@
 	<description />
 	<dependencies>
 
+        <dependency>
+           <groupId>uk.ac.starlink</groupId>
+           <artifactId>jpcs</artifactId>
+           <version>0.1</version>
+        </dependency>
 
 		<dependency>
 			<groupId>xerces</groupId>

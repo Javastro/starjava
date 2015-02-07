@@ -4,8 +4,11 @@ import java.awt.Color;
 import java.awt.Graphics;
 import java.awt.Point;
 import java.awt.Rectangle;
+import java.awt.geom.Point2D;
+import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
 import javax.swing.Icon;
 import uk.ac.starlink.ttools.gui.ResourceIcon;
@@ -22,9 +25,12 @@ import uk.ac.starlink.ttools.plot2.LayerOpt;
 import uk.ac.starlink.ttools.plot2.PlotLayer;
 import uk.ac.starlink.ttools.plot2.PlotUtil;
 import uk.ac.starlink.ttools.plot2.Plotter;
+import uk.ac.starlink.ttools.plot2.Scaler;
+import uk.ac.starlink.ttools.plot2.Scaling;
 import uk.ac.starlink.ttools.plot2.Surface;
 import uk.ac.starlink.ttools.plot2.config.ConfigKey;
 import uk.ac.starlink.ttools.plot2.config.ConfigMap;
+import uk.ac.starlink.ttools.plot2.config.RampKeySet;
 import uk.ac.starlink.ttools.plot2.config.StyleKeys;
 import uk.ac.starlink.ttools.plot2.data.Coord;
 import uk.ac.starlink.ttools.plot2.data.CoordGroup;
@@ -32,6 +38,7 @@ import uk.ac.starlink.ttools.plot2.data.DataSpec;
 import uk.ac.starlink.ttools.plot2.data.DataStore;
 import uk.ac.starlink.ttools.plot2.data.FloatingArrayCoord;
 import uk.ac.starlink.ttools.plot2.data.FloatingCoord;
+import uk.ac.starlink.ttools.plot2.data.InputMeta;
 import uk.ac.starlink.ttools.plot2.data.TupleSequence;
 import uk.ac.starlink.ttools.plot2.geom.SliceDataGeom;
 import uk.ac.starlink.ttools.plot2.paper.Paper;
@@ -59,6 +66,9 @@ public class SpectrogramPlotter
     private final int icSpectrum_;
 
     private static final AuxScale SPECTRO_SCALE = new AuxScale( "Spectral" );
+    private static final RampKeySet RAMP_KEYS = StyleKeys.SPECTRO_RAMP;
+    private static final ConfigKey<Color> NULLCOLOR_KEY =
+        StyleKeys.createNullColorKey( "spectro", "Spectral" );
     private static final ChannelGrid DEFAULT_CHANGRID =
         new AssumedChannelGrid();
     private static final int MAX_SAMPLE = 100;
@@ -73,17 +83,37 @@ public class SpectrogramPlotter
 
         /* Spectral coordinate, containing the spectrum at each X position. */
         spectrumCoord_ =
-            FloatingArrayCoord.createCoord( "Spectrum",
-                                            "Array of spectrum channel values",
-                                            true );
+            FloatingArrayCoord.createCoord(
+                new InputMeta( "spectrum", "Spectrum" )
+               .setShortDescription( "Array of spectrum channel values" )
+               .setXmlDescription( new String[] {
+                    "<p>Provides an array of spectral samples at each",
+                    "data point.",
+                    "The value must be a numeric array",
+                    "(e.g. the value of an array-valued column).",
+                    "</p>",
+                } )
+               .setValueUsage( "array" )
+            , true );
 
-        /* X extent is the width of each spectrum.  If not supplied,
-         * an attempt is made to determine it automatically by looking at
-         * the separations of the X coordinates. */
+        /* X extent is the width of each spectrum. */
+        InputMeta xMeta = xCoord.getInput().getMeta();
+        String xName = xMeta.getLongName();
         xExtentCoord_ = 
-            FloatingCoord.createCoord( xCoord.getUserInfo().getName() + "Width",
-                                       "Extent of samples in X direction",
-                                       false );
+            FloatingCoord.createCoord(
+                new InputMeta( xMeta.getShortName() + "width",
+                               xMeta.getLongName() + " Width" )
+               .setShortDescription( xName + " extent of spectrum" )
+               .setXmlDescription( new String[] {
+                    "<p>Range on the " + xName + " axis",
+                    "over which the spectrum is plotted.",
+                    "If no value is supplied, an attempt will be made",
+                    "to determine it automatically by looking at the",
+                    "spacing of the " + xName + " coordinates",
+                    "plotted in the spectrogram.",
+                    "</p>",
+                } )
+            , false );
 
         /* Maps each row to an X position, but not to a point, since it
          * covers a vertical line. */
@@ -129,26 +159,41 @@ public class SpectrogramPlotter
         return ResourceIcon.PLOT_SPECTRO;
     }
 
+    public String getPlotterDescription() {
+        return PlotUtil.concatLines( new String[] {
+            "<p>Plots spectrograms.",
+            "A spectrogram is a sequence of spectra plotted as vertical",
+            "1-d images, each one plotted at a different horizontal",
+            "coordinate.",
+            "</p>",
+            "<p>This specialised layer is only available for",
+            "<ref id='plot2time'><code>time</code></ref> plots.",
+            "</p>",
+        } );
+    }
+
     public CoordGroup getCoordGroup() {
         return spectroCoordGrp_;
     }
 
     public ConfigKey[] getStyleKeys() {
-        return new ConfigKey[] {
-            StyleKeys.AUX_SHADER,
-            StyleKeys.SHADE_LOG,
-            StyleKeys.SHADE_FLIP,
-            StyleKeys.SHADE_NULL_COLOR,
-        };
+        List<ConfigKey> keyList = new ArrayList<ConfigKey>();
+        keyList.addAll( Arrays.asList( RAMP_KEYS.getKeys() ) );
+        keyList.add( NULLCOLOR_KEY );
+        return keyList.toArray( new ConfigKey[ 0 ] );
     }
 
     public SpectroStyle createStyle( ConfigMap config ) {
-        Shader shader = config.get( StyleKeys.AUX_SHADER );
-        boolean shadeLog = config.get( StyleKeys.SHADE_LOG );
-        boolean shadeFlip = config.get( StyleKeys.SHADE_FLIP );
-        Color nullColor = config.get( StyleKeys.SHADE_NULL_COLOR );
+        RampKeySet.Ramp ramp = RAMP_KEYS.createValue( config );
+        Shader shader = ramp.getShader();
+        Scaling scaling = ramp.getScaling();
+        Color nullColor = config.get( NULLCOLOR_KEY );
         ChannelGrid grid = DEFAULT_CHANGRID;
-        return new SpectroStyle( shader, shadeLog, shadeFlip, nullColor, grid );
+        return new SpectroStyle( shader, scaling, nullColor, grid );
+    }
+
+    public boolean hasReports() {
+        return false;
     }
 
     /**
@@ -244,9 +289,8 @@ public class SpectrogramPlotter
                                    Range spectroRange, Graphics g ) {
         ChannelGrid grid = style.grid_;
         Shader shader = style.shader_;
-        RangeScaler specScaler =
-            RangeScaler.createScaler( style.shadeLog_, style.shadeFlip_,
-                                      spectroRange );
+        Scaler specScaler =
+            Scaling.createRangeScaler( style.scaling_, spectroRange );
 
         /* Work out the data bounds of the plotting surface. */
         Rectangle plotBounds = surface.getPlotBounds();
@@ -291,8 +335,10 @@ public class SpectrogramPlotter
         /* Draw pixels. */
         TupleSequence tseq = dataStore.getTupleSequence( dataSpec );
         double[] dxs = new double[ 2 ];
-        Point gp0 = new Point();
-        Point gp3 = new Point();
+        Point2D.Double gp0 = new Point2D.Double();
+        Point2D.Double gp3 = new Point2D.Double();
+        Point gp0i = new Point();
+        Point gp3i = new Point();
         double[] dpos0 = new double[ 2 ];
         double[] dpos3 = new double[ 2 ];
         double[] chanBounds = new double[ 2 ];
@@ -320,7 +366,10 @@ public class SpectrogramPlotter
                         dpos3[ 1 ] = chanBounds[ 1 ];
                         if ( surface.dataToGraphics( dpos0, false, gp0 ) &&
                              surface.dataToGraphics( dpos3, false, gp3 ) ) {
-                            double sval = specScaler.scale( chanVector[ ic ] );
+                            PlotUtil.quantisePoint( gp0, gp0i );
+                            PlotUtil.quantisePoint( gp3, gp3i );
+                            double sval =
+                                specScaler.scaleValue( chanVector[ ic ] );
 
                             /* This could be made more efficient by setting up
                              * a lookup table of colours at the start and
@@ -329,26 +378,26 @@ public class SpectrogramPlotter
                             shader.adjustRgba( rgba, (float) sval );
                             g.setColor( new Color( rgba[ 0 ], rgba[ 1 ],
                                                    rgba[ 2 ] ) );
-                            int x03 = gp3.x - gp0.x;
-                            int y03 = gp3.y - gp0.y;
+                            int x03 = gp3i.x - gp0i.x;
+                            int y03 = gp3i.y - gp0i.y;
                             final int px;
                             final int pwidth;
                             final int py;
                             final int pheight;
                             if ( x03 > 0 ) {
-                                px = gp0.x;
+                                px = gp0i.x;
                                 pwidth = x03;
                             }
                             else {
-                                px = gp3.x;
+                                px = gp3i.x;
                                 pwidth = -x03;
                             }
                             if ( y03 > 0 ) {
-                                py = gp0.y;
+                                py = gp0i.y;
                                 pheight = y03;
                             }
                             else {
-                                py = gp3.y;
+                                py = gp3i.y;
                                 pheight = -y03;
                             }
                             assert pwidth >= 0;
@@ -497,8 +546,7 @@ public class SpectrogramPlotter
      */
     public static class SpectroStyle implements Style {
         private final Shader shader_;
-        private final boolean shadeLog_;
-        private final boolean shadeFlip_;
+        private final Scaling scaling_;
         private final Color nullColor_;
         private final ChannelGrid grid_;
 
@@ -506,17 +554,14 @@ public class SpectrogramPlotter
          * Constructor.
          *
          * @param   shader  shader
-         * @param   shadeLog  true for logarithmic shading scale,
-         *                    false for linear
-         * @param   shadeFlip  true to invert shading scale
+         * @param   scaling   maps data values to shader ramp
          * @param   nullColor  colour to use for blank spectral values
          * @param   grid    channel bounds grid
          */
-        public SpectroStyle( Shader shader, boolean shadeLog, boolean shadeFlip,
+        public SpectroStyle( Shader shader, Scaling scaling,
                              Color nullColor, ChannelGrid grid ) {
             shader_ = shader;
-            shadeLog_ = shadeLog;
-            shadeFlip_ = shadeFlip;
+            scaling_ = scaling;
             nullColor_ = nullColor;
             grid_ = grid;
         }
@@ -529,8 +574,7 @@ public class SpectrogramPlotter
         public int hashCode() {
             int code = 9703;
             code = 23 * code + shader_.hashCode();
-            code = 23 * code + ( shadeLog_ ? 1 : 3 );
-            code = 23 * code + ( shadeFlip_ ? 5 : 7 );
+            code = 23 * code + scaling_.hashCode();
             code = 23 * code + PlotUtil.hashCode( nullColor_ );
             code = 23 * code + PlotUtil.hashCode( grid_ );
             return code;
@@ -541,8 +585,7 @@ public class SpectrogramPlotter
             if ( o instanceof SpectroStyle ) {
                 SpectroStyle other = (SpectroStyle) o;
                 return this.shader_.equals( other.shader_ )
-                    && this.shadeLog_ == other.shadeLog_
-                    && this.shadeFlip_ == other.shadeFlip_
+                    && this.scaling_ == other.scaling_
                     && PlotUtil.equals( this.nullColor_, other.nullColor_ )
                     && PlotUtil.equals( this.grid_, other.grid_ );
             }

@@ -3,21 +3,24 @@ package uk.ac.starlink.topcat.plot2;
 import gnu.jel.CompilationException;
 import java.awt.BorderLayout;
 import java.awt.Dimension;
+import java.awt.event.ActionEvent;
 import java.awt.event.ActionListener;
 import javax.swing.Box;
 import javax.swing.ComboBoxModel;
 import javax.swing.JComboBox;
 import javax.swing.JComponent;
+import javax.swing.JLabel;
 import javax.swing.JPanel;
 import uk.ac.starlink.table.ColumnData;
 import uk.ac.starlink.table.ColumnInfo;
 import uk.ac.starlink.table.ConstantColumn;
-import uk.ac.starlink.table.ValueInfo;
 import uk.ac.starlink.table.gui.LabelledComponentStack;
 import uk.ac.starlink.topcat.ActionForwarder;
 import uk.ac.starlink.topcat.ColumnDataComboBoxModel;
 import uk.ac.starlink.topcat.TopcatModel;
 import uk.ac.starlink.ttools.plot2.data.Coord;
+import uk.ac.starlink.ttools.plot2.data.Input;
+import uk.ac.starlink.ttools.plot2.data.InputMeta;
 import uk.ac.starlink.util.gui.ComboBoxBumper;
 
 /**
@@ -48,12 +51,13 @@ public class CoordPanel {
         colSelectors_ = new JComboBox[ nc ][];
         LabelledComponentStack stack = new LabelledComponentStack();
         for ( int ic = 0; ic < nc; ic++ ) {
-            ValueInfo[] userInfos = coords[ ic ].getUserInfos();
-            int nu = userInfos.length;
-            colSelectors_[ ic ] = new JComboBox[ nu ];
-            for ( int iu = 0; iu < nu; iu++ ) {
-                JComboBox cs = ColumnDataComboBoxModel.createComboBox();
-                colSelectors_[ ic ][ iu ] = cs;
+            Input[] inputs = coords[ ic ].getInputs();
+            int ni = inputs.length;
+            colSelectors_[ ic ] = new JComboBox[ ni ];
+            for ( int ii = 0; ii < ni; ii++ ) {
+                InputMeta meta = inputs[ ii ].getMeta();
+                final JComboBox cs = ColumnDataComboBoxModel.createComboBox();
+                colSelectors_[ ic ][ ii ] = cs;
                 cs.addActionListener( forwarder_ );
                 JComponent line = Box.createHorizontalBox();
                 line.add( cs );
@@ -70,7 +74,28 @@ public class CoordPanel {
                 size.width = 80;
                 cs.setMinimumSize( size );
                 cs.setPreferredSize( cs.getMinimumSize() );
-                stack.addLine( userInfos[ iu ].getName(), null, line, true );
+                stack.addLine( meta.getLongName(), null, line, true );
+
+                /* Arrange for the coordinate entry labels to display tooltips
+                 * giving the current value in a stilts-friendly format. */
+                JLabel[] labels = stack.getLabels();
+                final JLabel label = labels[ labels.length - 1 ];
+                label.addMouseListener( InstantTipper.getInstance() );
+                final String shortName = meta.getShortName();
+                ActionListener tipListener = new ActionListener() {
+                    public void actionPerformed( ActionEvent evt ) {
+                        StringBuffer tbuf = new StringBuffer()
+                            .append( shortName )
+                            .append( '=' );
+                        Object colItem = cs.getSelectedItem();
+                        if ( colItem instanceof ColumnData ) {
+                            tbuf.append( colItem.toString() );
+                        }
+                        label.setToolTipText( tbuf.toString() );
+                    }
+                };
+                cs.addActionListener( tipListener );
+                tipListener.actionPerformed( null );
             }
         }
 
@@ -142,19 +167,20 @@ public class CoordPanel {
      */
     public void setTable( TopcatModel tcModel, boolean autoPopulate ) {
         int is = 1;
-        int ncuRequired = 0;
-        int ncuPopulated = 0;
+        int ninRequired = 0;
+        int ninPopulated = 0;
         for ( int ic = 0; ic < coords_.length; ic++ ) {
             JComboBox[] colsels = colSelectors_[ ic ];
             Coord coord = coords_[ ic ];
             boolean isReq = coord.isRequired();
-            ValueInfo[] userInfos = coord.getUserInfos();
-            int nu = colsels.length;
+            Input[] inputs = coord.getInputs();
+            int ni = colsels.length;
             if ( isReq ) {
-                ncuRequired += nu;
+                ninRequired += ni;
             }
-            for ( int iu = 0; iu < nu; iu++ ) {
-                JComboBox cs = colsels[ iu ];
+            for ( int ii = 0; ii < ni; ii++ ) {
+                InputMeta meta = inputs[ ii ].getMeta();
+                JComboBox cs = colsels[ ii ];
                 Object sel0 = cs.getSelectedItem();
                 String str0 = sel0 instanceof ColumnData
                             ? sel0.toString()
@@ -166,8 +192,8 @@ public class CoordPanel {
                 else {
                     ColumnDataComboBoxModel model =
                         new ColumnDataComboBoxModel( tcModel,
-                                                     userInfos[ iu ]
-                                                    .getContentClass(), true );
+                                                     inputs[ ii ]
+                                                    .getValueClass(), true );
                     cs.setModel( model );
                     cs.setEnabled( true );
 
@@ -184,7 +210,7 @@ public class CoordPanel {
                         if ( cdata != null ) {
                             model.setSelectedItem( cdata );
                             if ( isReq ) {
-                                ncuPopulated++;
+                                ninPopulated++;
                             }
                         }
                     }
@@ -194,7 +220,7 @@ public class CoordPanel {
             /* Autopopulate only if none of the existing columns can be used.  
              * There are other possibilities, such as autopopulating those
              * columns which can't be re-used, but for now keep it simple. */
-            if ( autoPopulate && ncuPopulated == 0 && ncuRequired > 0 ) {
+            if ( autoPopulate && ninPopulated == 0 && ninRequired > 0 ) {
                 autoPopulate();
             }
         }
@@ -247,9 +273,12 @@ public class CoordPanel {
                     datlabs[ iu ] = colitem.toString();
                 }
                 else if ( ! coord.isRequired() ) {
-                    ValueInfo info = coord.getUserInfos()[ iu ];
-                    coldats[ iu ] =
-                        new ConstantColumn( new ColumnInfo( info ), null );
+                    Input input = coord.getInputs()[ iu ];
+                    ColumnInfo info =
+                        new ColumnInfo( input.getMeta().getLongName(),
+                                        input.getValueClass(),
+                                        input.getMeta().getShortDescription() );
+                    coldats[ iu ] = new ConstantColumn( info, null );
                     datlabs[ iu ] = null;
                 }
                 else {

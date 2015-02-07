@@ -21,6 +21,7 @@ import uk.ac.starlink.ttools.plot2.layer.SizeForm;
 import uk.ac.starlink.ttools.plot2.layer.ShapeForm;
 import uk.ac.starlink.ttools.plot2.layer.ShapeMode;
 import uk.ac.starlink.ttools.plot2.layer.ShapePlotter;
+import uk.ac.starlink.ttools.plot2.layer.SizeXyForm;
 import uk.ac.starlink.ttools.plot2.paper.PaperTypeSelector;
 
 /**
@@ -51,8 +52,8 @@ public class CubePlotType implements PlotType {
         Coord[] coords = dataGeoms_[ 0 ].getPosCoords();
         axisNames_ = new String[ coords.length ];
         for ( int i = 0; i < coords.length; i++ ) {
-            axisNames_[ i ] =
-                ((FloatingCoord) coords[ i ]).getUserInfo().getName();
+            axisNames_[ i ] = ((FloatingCoord) coords[ i ])
+                             .getInput().getMeta().getLongName();
         }
     }
 
@@ -65,11 +66,14 @@ public class CubePlotType implements PlotType {
         ShapeForm[] forms = new ShapeForm[] {
             MarkForm.SINGLE,
             SizeForm.getInstance(),
+            SizeXyForm.getInstance(),
             MultiPointForm
-           .createVectorForm( new CartesianVectorCoordSet( axisNames_ ),
+           .createVectorForm( "XYZVector",
+                              new CartesianVectorCoordSet( axisNames_ ),
                               true ),
             MultiPointForm
-           .createErrorForm( CartesianErrorCoordSet
+           .createErrorForm( "XYZError",
+                             CartesianErrorCoordSet
                             .createAllAxesErrorCoordSet( axisNames_ ),
                              StyleKeys.ERROR_SHAPE_3D ),
             PairLinkForm.getInstance(),

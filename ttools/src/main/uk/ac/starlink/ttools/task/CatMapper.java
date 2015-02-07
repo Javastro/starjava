@@ -22,6 +22,7 @@ import uk.ac.starlink.table.WrapperStarTable;
 import uk.ac.starlink.task.BooleanParameter;
 import uk.ac.starlink.task.Environment;
 import uk.ac.starlink.task.Parameter;
+import uk.ac.starlink.task.StringParameter;
 import uk.ac.starlink.task.TaskException;
 
 /**
@@ -32,9 +33,9 @@ import uk.ac.starlink.task.TaskException;
  */
 public class CatMapper implements TableMapper {
 
-    private final Parameter seqParam_;
-    private final Parameter locParam_;
-    private final Parameter ulocParam_;
+    private final StringParameter seqParam_;
+    private final StringParameter locParam_;
+    private final StringParameter ulocParam_;
     private final BooleanParameter lazyParam_;
     private final BooleanParameter countParam_;
     private final boolean hasLazy_;
@@ -65,10 +66,10 @@ public class CatMapper implements TableMapper {
     public CatMapper( boolean hasLazy ) {
         hasLazy_ = hasLazy;
 
-        seqParam_ = new Parameter( "seqcol" );
+        seqParam_ = new StringParameter( "seqcol" );
         seqParam_.setUsage( "<colname>" );
         seqParam_.setNullPermitted( true );
-        seqParam_.setDefault( null );
+        seqParam_.setStringDefault( null );
         seqParam_.setDescription( new String[] {
             "<p>Name of a column to be added to the output table",
             "which will contain the sequence number of the input table",
@@ -78,10 +79,10 @@ public class CatMapper implements TableMapper {
             "</p>",
         } );
 
-        locParam_ = new Parameter( "loccol" );
+        locParam_ = new StringParameter( "loccol" );
         locParam_.setUsage( "<colname>" );
         locParam_.setNullPermitted( true );
-        locParam_.setDefault( null );
+        locParam_.setStringDefault( null );
         locParam_.setDescription( new String[] {
             "<p>Name of a column to be added to the output table",
             "which will contain the location",
@@ -90,10 +91,10 @@ public class CatMapper implements TableMapper {
             "</p>",
         } );
 
-        ulocParam_ = new Parameter( "uloccol" );
+        ulocParam_ = new StringParameter( "uloccol" );
         ulocParam_.setUsage( "<colname>" );
         ulocParam_.setNullPermitted( true );
-        ulocParam_.setDefault( null );
+        ulocParam_.setStringDefault( null );
         ulocParam_.setDescription( new String[] {
             "<p>Name of a column to be added to the output table",
             "which will contain the unique part of the location",
@@ -113,7 +114,7 @@ public class CatMapper implements TableMapper {
         } );
 
         lazyParam_ = new BooleanParameter( "lazy" );
-        lazyParam_.setDefault( false );
+        lazyParam_.setBooleanDefault( false );
         lazyParam_.setDescription( new String[] {
             "<p>Whether to perform table resolution lazily.",
             "If true, each table is only accessed when the time comes to",
@@ -126,7 +127,7 @@ public class CatMapper implements TableMapper {
         } );
 
         countParam_ = new BooleanParameter( "countrows" );
-        countParam_.setDefault( false );
+        countParam_.setBooleanDefault( false );
         countParam_.setDescription( new String[] {
             "<p>Whether to count the rows in the table before starting",
             "the output.  This is essentially a tuning parameter -",

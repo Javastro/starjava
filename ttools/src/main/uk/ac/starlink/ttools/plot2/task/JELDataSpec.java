@@ -16,6 +16,7 @@ import uk.ac.starlink.ttools.plot2.Equality;
 import uk.ac.starlink.ttools.plot2.data.AbstractDataSpec;
 import uk.ac.starlink.ttools.plot2.data.Coord;
 import uk.ac.starlink.ttools.plot2.data.DataSpec;
+import uk.ac.starlink.ttools.plot2.data.Input;
 import uk.ac.starlink.ttools.plot2.data.UserDataReader;
 
 /**
@@ -115,6 +116,15 @@ public class JELDataSpec extends AbstractDataSpec {
         }
     }
 
+    public boolean isCoordBlank( int icoord ) {
+        for ( String expr : coordValues_[ icoord ].getExpressions() ) {
+            if ( expr != null && expr.trim().length() > 0 ) {
+                return false;
+            }
+        }
+        return true;
+    }
+
     /**
      * Attempts to create a UserDataReader which evaluates the JEL expressions
      * for this spec.  If compilation of the expressions fails, a
@@ -162,7 +172,7 @@ public class JELDataSpec extends AbstractDataSpec {
             userCoordReaders_ = new ValueReader[ nCoord ][];
             for ( int ic = 0; ic < nCoord; ic++ ) {
                 CoordValue coordVal = coordValues[ ic ];
-                ValueInfo[] reqInfos = coordVal.getCoord().getUserInfos();
+                Input[] inputs = coordVal.getCoord().getInputs();
                 String[] ucexprs = coordVal.getExpressions();
                 int nu = ucexprs.length;
                 userCoordRows_[ ic ] = new Object[ nu ];
@@ -171,7 +181,7 @@ public class JELDataSpec extends AbstractDataSpec {
                     vrdrs[ iu ] =
                         createValueReader( ucexprs[ iu ], table, evaluator, 
                                            lib, null,
-                                           reqInfos[ iu ].getContentClass() );
+                                           inputs[ iu ].getValueClass() );
                 }
                 userCoordReaders_[ ic ] = vrdrs;
             }

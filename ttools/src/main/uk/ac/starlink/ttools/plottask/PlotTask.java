@@ -20,6 +20,7 @@ import uk.ac.starlink.task.Environment;
 import uk.ac.starlink.task.Executable;
 import uk.ac.starlink.task.IntegerParameter;
 import uk.ac.starlink.task.Parameter;
+import uk.ac.starlink.task.StringParameter;
 import uk.ac.starlink.task.Task;
 import uk.ac.starlink.task.TaskException;
 import uk.ac.starlink.ttools.plot.AuxLegend;
@@ -43,13 +44,13 @@ public abstract class PlotTask implements Task {
     private final String purpose_;
     private final PlotStateFactory stateFactory_;
     private final TablePlot plot_;
-    private final List paramList_;
+    private final List<Parameter> paramList_;
     private final IntegerParameter xpixParam_;
     private final IntegerParameter ypixParam_;
     private final BooleanParameter legendParam_;
     private final FontParameter fontParam_;
     private final PaintModeParameter painterParam_;
-    private final Parameter titleParam_;
+    private final StringParameter titleParam_;
 
     /**
      * Constructor.
@@ -63,7 +64,7 @@ public abstract class PlotTask implements Task {
         purpose_ = purpose;
         stateFactory_ = stateFactory;
         plot_ = plot;
-        paramList_ = new ArrayList();
+        paramList_ = new ArrayList<Parameter>();
 
         xpixParam_ = new IntegerParameter( "xpix" );
         xpixParam_.setMinimum( 1 );
@@ -72,7 +73,7 @@ public abstract class PlotTask implements Task {
             "<p>The width of the output graphic in pixels.",
             "</p>",
         } );
-        xpixParam_.setDefault( "400" );
+        xpixParam_.setIntDefault( 400 );
         paramList_.add( xpixParam_ );
 
         ypixParam_ = new IntegerParameter( "ypix" );
@@ -82,7 +83,7 @@ public abstract class PlotTask implements Task {
             "<p>The height of the output graphic in pixels.",
             "</p>",
         } );
-        ypixParam_.setDefault( "300" );
+        ypixParam_.setIntDefault( 300 );
         paramList_.add( ypixParam_ );
 
         fontParam_ = new FontParameter( "font" );
@@ -100,7 +101,7 @@ public abstract class PlotTask implements Task {
         } );
         paramList_.add( legendParam_ );
 
-        titleParam_ = new Parameter( "title" );
+        titleParam_ = new StringParameter( "title" );
         titleParam_.setPrompt( "Plot title" );
         titleParam_.setNullPermitted( true );
         titleParam_.setDescription( new String[] {
@@ -119,7 +120,7 @@ public abstract class PlotTask implements Task {
         paramList_.addAll( Arrays.asList( stateFactory_.getParameters() ) );
     }
 
-    protected List getParameterList() {
+    protected List<Parameter> getParameterList() {
         return paramList_;
     }
 
@@ -128,7 +129,7 @@ public abstract class PlotTask implements Task {
     }
 
     public Parameter[] getParameters() {
-        return (Parameter[]) paramList_.toArray( new Parameter[ 0 ] );
+        return paramList_.toArray( new Parameter[ 0 ] );
     }
 
     /**
@@ -153,9 +154,7 @@ public abstract class PlotTask implements Task {
         final int xpix = xpixParam_.intValue( env );
         final int ypix = ypixParam_.intValue( env );
         final PlotState state = stateFactory_.getPlotState( env );
-        legendParam_.setDefault( state.getPlotData().getSetCount() > 1
-                                      ? "true"
-                                      : "false" );
+        legendParam_.setBooleanDefault( state.getPlotData().getSetCount() > 1 );
         final boolean hasLegend = legendParam_.booleanValue( env );
         final Painter painter = painterParam_.painterValue( env );
         final Font font = fontParam_.fontValue( env );

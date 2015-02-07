@@ -16,6 +16,7 @@ import uk.ac.starlink.ttools.plot2.layer.ContourPlotter;
 import uk.ac.starlink.ttools.plot2.layer.FunctionPlotter;
 import uk.ac.starlink.ttools.plot2.layer.HistogramPlotter;
 import uk.ac.starlink.ttools.plot2.layer.LinePlotter;
+import uk.ac.starlink.ttools.plot2.layer.LinearFitPlotter;
 import uk.ac.starlink.ttools.plot2.layer.LabelPlotter;
 import uk.ac.starlink.ttools.plot2.layer.MarkForm;
 import uk.ac.starlink.ttools.plot2.layer.MultiPointForm;
@@ -25,6 +26,7 @@ import uk.ac.starlink.ttools.plot2.layer.SizeForm;
 import uk.ac.starlink.ttools.plot2.layer.ShapeForm;
 import uk.ac.starlink.ttools.plot2.layer.ShapeMode;
 import uk.ac.starlink.ttools.plot2.layer.ShapePlotter;
+import uk.ac.starlink.ttools.plot2.layer.SizeXyForm;
 import uk.ac.starlink.ttools.plot2.paper.PaperTypeSelector;
 
 /**
@@ -51,8 +53,8 @@ public class PlanePlotType implements PlotType {
         Coord[] coords = dataGeoms_[ 0 ].getPosCoords();
         axisNames_ = new String[ coords.length ];
         for ( int i = 0; i < coords.length; i++ ) {
-            axisNames_[ i ] =
-                ((FloatingCoord) coords[ i ]).getUserInfo().getName();
+            axisNames_[ i ] = ((FloatingCoord) coords[ i ])
+                             .getInput().getMeta().getLongName();
         };
     }
 
@@ -65,14 +67,17 @@ public class PlanePlotType implements PlotType {
         ShapeForm[] forms = new ShapeForm[] {
             MarkForm.SINGLE,
             SizeForm.getInstance(),
+            SizeXyForm.getInstance(),
             MultiPointForm
-           .createVectorForm( new CartesianVectorCoordSet( axisNames_ ), true ),
+           .createVectorForm( "XYVector",
+                              new CartesianVectorCoordSet( axisNames_ ), true ),
             MultiPointForm
-           .createErrorForm( CartesianErrorCoordSet
+           .createErrorForm( "XYError",
+                             CartesianErrorCoordSet
                             .createAllAxesErrorCoordSet( axisNames_ ),
                              StyleKeys.ERROR_SHAPE_2D ),
             MultiPointForm
-           .createEllipseForm( new PlaneEllipseCoordSet(), true ),
+           .createEllipseForm( "XYEllipse", new PlaneEllipseCoordSet(), true ),
             PairLinkForm.getInstance(),
             MarkForm.PAIR,
         };
@@ -81,6 +86,7 @@ public class PlanePlotType implements PlotType {
         list.addAll( Arrays.asList( shapePlotters ) );
         list.addAll( Arrays.asList( new Plotter[] {
             new LinePlotter(),
+            new LinearFitPlotter( true ),
             new LabelPlotter(),
             new ContourPlotter(),
             new HistogramPlotter( PlaneDataGeom.X_COORD, true ),

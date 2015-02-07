@@ -4,13 +4,11 @@ import java.io.IOException;
 import java.net.URL;
 import java.util.ArrayList;
 import java.util.Arrays;
-import java.util.Collection;
 import java.util.HashMap;
 import java.util.Iterator;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
-import java.util.TreeSet;
 import java.util.logging.Logger;
 import org.xml.sax.SAXException;
 import uk.ac.starlink.table.DefaultValueInfo;
@@ -37,8 +35,18 @@ public class RegTapRegistryQuery implements RegistryQuery {
     private static final Logger logger_ =
         Logger.getLogger( "uk.ac.starlink.vo" );
 
-    /** TAP endpoint for GAVO registry currently hosted at ARI Heidelberg. */
-    public static final String GAVO_REG = "http://dc.g-vo.org/tap";
+    /**
+     * Used for string aggregation of subjects.
+     * Doesn't have to be human-readable, but it does have to be recognised
+     * as a word delimiter by ivo_hasword() and should not be something
+     * that will crop up in an actual subject value. */
+    private static final String SUBJECT_DELIM = ", ";
+
+    /** TAP endpoint for high-availablity GAVO registry (DNS pointer). */
+    public static final String GAVO_REG = "http://reg.g-vo.org/tap";
+
+    /** TAP endpoint for GAVO registry hosted at ARI Heidelberg. */
+    public static final String ARI_REG = "http://dc.zah.uni-heidelberg.de/tap";
 
     /** TAP endpoint for GAVO registry hosted at AIP. */
     public static final String AIP_REG = "http://gavo.aip.de/tap";
@@ -50,8 +58,8 @@ public class RegTapRegistryQuery implements RegistryQuery {
     /** List of known registry TAP endpoints. */
     public static final String[] REGISTRIES = new String[] {
         GAVO_REG,
+        ARI_REG,
         AIP_REG,
-        INAF_REG,
     };
 
     /** Description of metadata item describing registry location. */
@@ -64,29 +72,22 @@ public class RegTapRegistryQuery implements RegistryQuery {
         new DefaultValueInfo( "Registry Query", String.class,
                               "ADQL text of query made to the registry" );
 
-    /** Configuration flag indicating whether res_subject is queried. */
-    private static final boolean USE_SUBJECT = true;
-
     /**
      * Query restriction restricting results to standard interfaces.
      * This string is suitable for use in a sequence of ANDed conditions
      * (but not at the start of it) without additional brackets.
      *
-     * <p>The examples and discussion in the RegTAP standard (PR-20140227
-     * at least) suggest the form "intf_role='std'", though other parts
-     * of the text suggest that "intf_role LIKE 'std:%' should be another
-     * option.  But in practice it looks like a lot of resources lack
-     * this value, so try to work round it.  As an alternative, allow
-     * "intf_type='vs:paramhttp'"; if you don't make any restriction
-     * at all you can get interfaces with an intf_type of vs:webbrowser
+     * <p>You might argue from looking at VOResource that the condition
+     * for this should be "intf_role LIKE 'std:%'".
+     * However, most registry records don't do that right, so following
+     * the recommendation in RegTAP 1.0 Section 10, we do as below instead.
+     * You want to restrict it somehhow, otherwise you can get
+     * interfaces with an intf_type of vs:webbrowser
      * (e.g. for TAP web pages alongside the programmatic interface),
      * which you don't want to pick up.
-     * This is a bit of a hack, but I (mbt) discussed it with Markus
-     * Demleitner (11 Apr 2014) and he didn't try very hard to persuade
-     * me to do it the Right Way.
      */
     private static final String AND_IS_STANDARD =
-        " AND (intf_role='std' OR intf_type='vs:paramhttp')";
+        " AND intf_type='vs:paramhttp'";
 
     /**
      * Constructs a query which will return RegResource lists for
@@ -110,8 +111,7 @@ public class RegTapRegistryQuery implements RegistryQuery {
         /* SELECT clause.  The columns are required both to support the
          * restrictions we need to make and to provide information to
          * populate the RegResources generated from the result table. */
-        List<String> selCols = new ArrayList<String>();
-        selCols.addAll( Arrays.asList( new String[] {
+        String[] selCols = new String[] {
             "ivoid",
             "short_name",
             "res_title",
@@ -125,32 +125,36 @@ public class RegTapRegistryQuery implements RegistryQuery {
             "cap_type",
             "cap_description",
             "std_version",
-        } ) );
-        if ( USE_SUBJECT ) {
-            selCols.add( "res_subject" );
-        }
+            "res_subjects",
+        };
         StringBuffer abuf = new StringBuffer()
            .append( "SELECT" );
-        for ( Iterator<String> it = selCols.iterator(); it.hasNext(); ) {
-           abuf.append( " " )
-               .append( it.next() );
-           if ( it.hasNext() ) {
-               abuf.append( "," );
-           }
-       }
+        for ( int i = 0; i < selCols.length; i++ ) {
+            abuf.append( i > 0 ? ", " : " " )
+                .append( selCols[ i ] );
+        }
 
-       /* FROM clause.  Join all the tables we're going to need.
-        * LEFT OUTER joins are required in some cases where the
-        * relevant fields might be absent. */
+       /* FROM clause.  Join all the tables we're going to need. */
        abuf.append( " FROM rr.resource AS res" );
        if ( standardId != null && standardId.trim().length() > 0 ) {
            abuf.append( " NATURAL JOIN rr.interface" )
                .append( " NATURAL JOIN rr.capability" );
        }
-       abuf.append( " NATURAL LEFT OUTER JOIN rr.res_role" );
-       if ( USE_SUBJECT ) {
-           abuf.append( " NATURAL LEFT OUTER JOIN rr.res_subject" );
-       }
+
+       /* Strictly speaking, these two joins do not need to be LEFT OUTER,
+        * since VOResource requires at least one curation/contact and
+        * at least one content/subject.  However, we put them in to pick
+        * up resources which may be invalid in this respect. */
+       abuf.append( " NATURAL LEFT OUTER JOIN rr.res_role" )
+           .append( " NATURAL LEFT OUTER JOIN" )
+           .append( " (SELECT" )
+           .append( " ivoid, " )
+           .append( " ivo_string_agg(res_subject, " )
+           .append( adqlCharLiteral( SUBJECT_DELIM ) )
+           .append( ")" )
+           .append( " AS res_subjects" )
+           .append( " FROM rr.res_subject" )
+           .append( " GROUP BY ivoid) AS sbj" );
 
        /* WHERE clause.  Restrict by standard_id if required,
         * and throw out any roles we are not interested in. */
@@ -249,9 +253,7 @@ public class RegTapRegistryQuery implements RegistryQuery {
                 .append( "1=ivo_nocasematch(" )
                 .append( rrName )
                 .append( ", " )
-                .append( "'%" )
-                .append( keyword )
-                .append( "%'" )
+                .append( adqlCharLiteral( "%" + keyword + "%" ) )
                 .append( ")" )
                 .toString();
         }
@@ -261,9 +263,7 @@ public class RegTapRegistryQuery implements RegistryQuery {
                 .append( "1=ivo_hasword(" )
                 .append( rrName )
                 .append( ", " )
-                .append( "'" )
-                .append( keyword )
-                .append( "'" )
+                .append( adqlCharLiteral( keyword ) )
                 .append( ")" )
                 .toString();
         }
@@ -275,30 +275,33 @@ public class RegTapRegistryQuery implements RegistryQuery {
                 .append( "1=ivo_nocasematch(" )
                 .append( "role_name" )
                 .append( ", " )
-                .append( "'%" )
-                .append( keyword )
-                .append( "%'" )
+                .append( adqlCharLiteral( "%" + keyword + "%" ) )
                 .append( ")" )
                 .append( ")" )
                 .toString();
         }
         else if ( field == ResourceField.SUBJECTS ) {
-            assert USE_SUBJECT;
             return new StringBuffer()
-                .append( "EXISTS (" )
-                .append( "SELECT 1 FROM rr.res_subject AS sub2" )
-                .append( " WHERE sub2.ivoid=res.ivoid" )
-                .append( " AND 1=ivo_nocasematch(sub2.res_subject," )
-                .append( " '%" )
-                .append( keyword )
-                .append( "%'" )
-                .append( ")" )
+                .append( "1=ivo_hasword(res_subjects, " )
+                .append( adqlCharLiteral( keyword ) )
                 .append( ")" )
                 .toString();
         }
         else {
             return null;
         }
+    }
+
+    /**
+     * Quotes a string to make it suitable for insertion in ADQL text
+     * as a character literal.  Quote characters are doubled as per
+     * the ADQL BNF.  This should protect against injection errors.
+     *
+     * @param  txt  content of the character literal
+     * @return  quoted ADQL representing <code>txt</code>
+     */
+    private static String adqlCharLiteral( String txt ) {
+        return "'" + txt.replaceAll( "'", "''" ) + "'";
     }
 
     /**
@@ -347,7 +350,7 @@ public class RegTapRegistryQuery implements RegistryQuery {
         String contactName_;
         String contactEmail_;
         String publisherName_;
-        Collection<String> subjectSet_;
+        String[] subjects_;
         Map<Integer,RegCapabilityInterface> capMap_;
 
         /**
@@ -357,14 +360,15 @@ public class RegTapRegistryQuery implements RegistryQuery {
          * @param  shortName  resource short name
          * @param  title  resource title
          * @param  refUrl  resource reference URL
+         * @param  subjects  array of subject strings
          */
         RegTapResource( String ivoid, String shortName, String title,
-                        String refUrl ) {
+                        String refUrl, String[] subjects ) {
             ivoid_ = ivoid;
             shortName_ = shortName;
             title_ = title;
             refUrl_ = refUrl;
-            subjectSet_ = new TreeSet<String>();
+            subjects_ = subjects;
             capMap_ = new LinkedHashMap<Integer,RegCapabilityInterface>();
         }
 
@@ -408,7 +412,7 @@ public class RegTapRegistryQuery implements RegistryQuery {
         }
 
         public String[] getSubjects() {
-            return subjectSet_.toArray( new String[ 0 ] );
+            return subjects_;
         }
 
         public RegCapabilityInterface[] getCapabilities() {
@@ -478,13 +482,17 @@ public class RegTapRegistryQuery implements RegistryQuery {
             final String capType = getString( row, "cap_type" );
             final String capDescription = getString( row, "cap_description" );
             final String stdVersion = getString( row, "std_version" );
-            final String subject = getString( row, "res_subject" );
+            final String subjectTxt = getString( row, "res_subjects" );
 
             /* Update this object's data structures in accordance with the
              * information received from this row. */
             if ( ! resMap_.containsKey( ivoid ) ) {
-                resMap_.put( ivoid, new RegTapResource( ivoid, shortName,
-                                                        title, refUrl ) );
+                String[] subjects = subjectTxt == null
+                                  ? new String[ 0 ]
+                                  : subjectTxt.split( SUBJECT_DELIM );
+                resMap_.put( ivoid,
+                             new RegTapResource( ivoid, shortName, title,
+                                                 refUrl, subjects ) );
             }
             RegTapResource resource = resMap_.get( ivoid );
             if ( "contact".equals( baseRole ) ) {
@@ -493,9 +501,6 @@ public class RegTapRegistryQuery implements RegistryQuery {
             }
             else if ( "publisher".equals( baseRole ) ) {
                 resource.publisherName_ = roleName;
-            }
-            if ( subject != null ) {
-                resource.subjectSet_.add( subject );
             }
             if ( intfIndex != null ) {
                 Integer ix = new Integer( intfIndex.intValue() );

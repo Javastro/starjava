@@ -7,6 +7,7 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Iterator;
 import java.util.List;
+import org.astrogrid.samp.SampUtils;
 import org.mortbay.http.HttpContext;
 import org.mortbay.http.HttpRequest;
 import org.mortbay.http.HttpResponse;
@@ -20,6 +21,7 @@ import uk.ac.starlink.task.Executable;
 import uk.ac.starlink.task.IntegerParameter;
 import uk.ac.starlink.task.Parameter;
 import uk.ac.starlink.task.ParameterValueException;
+import uk.ac.starlink.task.StringParameter;
 import uk.ac.starlink.task.Task;
 import uk.ac.starlink.task.TaskException;
 import uk.ac.starlink.ttools.Stilts;
@@ -44,8 +46,8 @@ import uk.ac.starlink.util.ObjectFactory;
 public class StiltsServer implements Task {
 
     private final IntegerParameter portParam_;
-    private final Parameter baseParam_;
-    private final Parameter tasksParam_;
+    private final StringParameter baseParam_;
+    private final StringParameter tasksParam_;
     private final TableFactoryParameter tfactParam_;
 
     /**
@@ -58,9 +60,9 @@ public class StiltsServer implements Task {
             "<p>Port number on which the server should run.",
             "</p>",
         } );
-        portParam_.setDefault( new Integer( 2112 ).toString() );
+        portParam_.setIntDefault( 2112 );
 
-        baseParam_ = new Parameter( "basepath" );
+        baseParam_ = new StringParameter( "basepath" );
         baseParam_.setPrompt( "Base path for server URLs" );
         String baseDefault = "/stilts";
         baseParam_.setDescription( new String[] {
@@ -73,9 +75,9 @@ public class StiltsServer implements Task {
             "</p>",
         } );
         baseParam_.setNullPermitted( true );
-        baseParam_.setDefault( baseDefault );
+        baseParam_.setStringDefault( baseDefault );
 
-        tasksParam_ = new Parameter( "tasks" );
+        tasksParam_ = new StringParameter( "tasks" );
         tasksParam_.setPrompt( "List of tasks provided" );
         tasksParam_.setUsage( "<task-name> ..." );
         tasksParam_.setNullPermitted( true );
@@ -90,22 +92,23 @@ public class StiltsServer implements Task {
             "also want to reduce the list for security reasons.",
             "</p>",
         } );
-        ObjectFactory taskFactory = Stilts.getTaskFactory();
-        List taskList =
-            new ArrayList( Arrays.asList( taskFactory.getNickNames() ) );
+        ObjectFactory<Task> taskFactory = Stilts.getTaskFactory();
+        List<String> taskList =
+            new ArrayList<String>( Arrays.asList( taskFactory
+                                                 .getNickNames() ) );
         taskList.removeAll( Arrays.asList( new String[] {
             "server", "funcs",
         } ) );
         StringBuffer taskBuf = new StringBuffer();
-        for ( Iterator it = taskList.iterator(); it.hasNext(); ) {
-            taskBuf.append( (String) it.next() );
+        for ( Iterator<String> it = taskList.iterator(); it.hasNext(); ) {
+            taskBuf.append( it.next() );
             if ( it.hasNext() ) {
                 taskBuf.append( ' ' );
             }
         }
         String tasksDefault = taskBuf.toString();
         TaskServlet.getTaskNames( taskFactory, tasksDefault );  // test no error
-        tasksParam_.setDefault( tasksDefault );
+        tasksParam_.setStringDefault( tasksDefault );
 
         tfactParam_ = new TableFactoryParameter( "tablefactory" );
     }
@@ -163,7 +166,7 @@ public class StiltsServer implements Task {
                 try {
                     server.start();
                     String url = "http://"
-                               + InetAddress.getLocalHost().getHostName()
+                               + SampUtils.getLocalhost()
                                + ":" + port + base + "/";
                     out.println( "Server running at " + url );
                 }

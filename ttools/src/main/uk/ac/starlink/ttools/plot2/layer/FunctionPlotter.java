@@ -8,6 +8,7 @@ import java.awt.Graphics2D;
 import java.awt.Point;
 import java.awt.Rectangle;
 import java.awt.Stroke;
+import java.awt.geom.Point2D;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
@@ -57,18 +58,49 @@ public class FunctionPlotter extends
     private final FuncAxis[] axes_;
     private static final Pattern TOKEN_REGEXP =
         Pattern.compile( "[A-Za-z_][A-Za-z0-9_]*" );
+
+    /**
+     * Interval in pixels between samples on X/Y axis.
+     * Possibly this should be a style parameter?
+     */
+    private static final double PIXEL_SPACING = 0.25;
  
     /** FunctionPlotter instance for a 2-d plotting surface.  */
     public static final FunctionPlotter PLANE =
             new FunctionPlotter( PlaneAxis.values() );
 
     private static final ConfigKey<String> XNAME_KEY =
-        new StringConfigKey( new ConfigMeta( "xname",
-                                             "Independent Variable Name" ),
-                             "x" );
+        new StringConfigKey(
+            new ConfigMeta( "xname", "Independent Variable Name" )
+           .setStringUsage( "<name>" )
+           .setShortDescription( "Independent variable name" )
+           .setXmlDescription( new String[] {
+                "<p>Name of the independent variable for use in the",
+                "function expression.",
+                "This is typically",
+                "<code>x</code> for a horizontal independent variable and",
+                "<code>y</code> for a vertical independent variable,",
+                "but any string that is a legal expression language identifier",
+                "(starts with a letter, continues with letters, numbers,",
+                "underscores) can be used.",
+                "</p>",
+            } )
+        , "x" );
     private static final ConfigKey<String> FEXPR_KEY =
-        new StringConfigKey( new ConfigMeta( "fexpr", "Function Expression" ),
-                             null );
+        new StringConfigKey(
+            new ConfigMeta( "fexpr", "Function Expression" )
+           .setStringUsage( "<expr>" )
+           .setShortDescription( "Expression for function" )
+           .setXmlDescription( new String[] {
+                "<p>An expression using TOPCAT's",
+                "<ref id='jel'>expression language</ref>",
+                "in terms of the independent variable",
+                "to define the function.",
+                "This expression must be standalone -",
+                "it cannot reference any tables.",
+                "</p>",
+            } )
+        , null );
     private final ConfigKey<FuncAxis> axisKey_;
 
     /**
@@ -80,12 +112,29 @@ public class FunctionPlotter extends
         super( "Function", ResourceIcon.PLOT_FUNCTION );
         axes_ = axes;
         axisKey_ = new OptionConfigKey<FuncAxis>(
-                       new ConfigMeta( "axis", "Independent Axis" ),
-                                       FuncAxis.class, axes_, axes_[ 0 ] ) {
+                new ConfigMeta( "axis", "Independent Axis" )
+               .setShortDescription( "Axis of independent variable" )
+               .setXmlDescription( new String[] {
+                    "<p>Which axis the independent variable varies along.",
+                    "Options are currently",
+                    "<code>" + PlaneAxis.X.getAxisName() + "</code> and",
+                    "<code>" + PlaneAxis.Y.getAxisName() + "</code>.",
+                    "</p>",
+                } )
+                , FuncAxis.class, axes_, axes_[ 0 ] ) {
             public String valueToString( FuncAxis axis ) {
                 return axis.getAxisName();
             }
-        };
+        }.setOptionUsage();
+    }
+
+    public String getPlotterDescription() {
+        return PlotUtil.concatLines( new String[] {
+            "<p>Plots an analytic function.",
+            "This layer is currently only available for the Plane plots",
+            "(including histogram).",
+            "</p>",
+        } );
     }
 
     public ConfigKey[] getStyleKeys() {
@@ -307,8 +356,9 @@ public class FunctionPlotter extends
             double[] xs = axis.getXValues( surface_ );
             int np = xs.length;
             LineTracer tracer =
-                style_.createLineTracer( g2, surface_.getPlotBounds(), np );
-            Point gpos = new Point();
+                style_.createLineTracer( g2, surface_.getPlotBounds(), np,
+                                         paperType_.isBitmap() );
+            Point2D.Double gpos = new Point2D.Double();
             double[] dpos = new double[ surface_.getDataDimCount() ];
             for ( int ip = 0; ip < np; ip++ ) {
                 double x = xs[ ip ];
@@ -334,11 +384,12 @@ public class FunctionPlotter extends
                 Rectangle plotBounds = psurf.getPlotBounds();
                 int gxlo = plotBounds.x - 1;
                 int gxhi = plotBounds.x + plotBounds.width + 1;
-                Point gpos = new Point( 0, plotBounds.y );
-                double[] xs = new double[ gxhi - gxlo ];
-                for ( int i = 0; i < gxhi - gxlo; i++ ) {
-                    gpos.x = gxlo + i;
-                    xs[ i ] = psurf.graphicsToData( gpos, null )[ 0 ];
+                int np = (int) ( ( gxhi - gxlo ) / PIXEL_SPACING );
+                double[] xs = new double[ np ];
+                Point2D.Double gpos = new Point2D.Double( gxlo, plotBounds.y );
+                for ( int ip = 0; ip < np; ip++ ) {
+                    xs[ ip ] = psurf.graphicsToData( gpos, null )[ 0 ];
+                    gpos.x += PIXEL_SPACING;
                 }
                 return xs;
             }
@@ -358,11 +409,12 @@ public class FunctionPlotter extends
                 Rectangle plotBounds = psurf.getPlotBounds();
                 int gylo = plotBounds.y - 1;
                 int gyhi = plotBounds.y + plotBounds.height + 1;
-                Point gpos = new Point( plotBounds.x, 0 );
-                double[] ys = new double[ gyhi - gylo ];
-                for ( int i = 0; i < gyhi - gylo; i++ ) {
-                    gpos.y = gylo + i;
-                    ys[ i ] = psurf.graphicsToData( gpos, null )[ 1 ];
+                int np = (int) ( ( gyhi - gylo ) / PIXEL_SPACING );
+                double[] ys = new double[ np ];
+                Point2D.Double gpos = new Point2D.Double( plotBounds.x, gylo );
+                for ( int ip = 0; ip < np; ip++ ) {
+                    ys[ ip ] = psurf.graphicsToData( gpos, null )[ 1 ];
+                    gpos.y += PIXEL_SPACING;
                 }
                 return ys;
             }

@@ -14,12 +14,15 @@ import uk.ac.starlink.ttools.plot.Shader;
 import uk.ac.starlink.ttools.plot2.AuxScale;
 import uk.ac.starlink.ttools.plot2.Captioner;
 import uk.ac.starlink.ttools.plot2.PlotLayer;
+import uk.ac.starlink.ttools.plot2.PlotUtil;
 import uk.ac.starlink.ttools.plot2.ShadeAxis;
+import uk.ac.starlink.ttools.plot2.ShadeAxisFactory;
 import uk.ac.starlink.ttools.plot2.Subrange;
 import uk.ac.starlink.ttools.plot2.config.BooleanConfigKey;
 import uk.ac.starlink.ttools.plot2.config.ConfigKey;
 import uk.ac.starlink.ttools.plot2.config.ConfigMap;
 import uk.ac.starlink.ttools.plot2.config.ConfigMeta;
+import uk.ac.starlink.ttools.plot2.config.RampKeySet;
 import uk.ac.starlink.ttools.plot2.config.StyleKeys;
 import uk.ac.starlink.ttools.plot2.config.StringConfigKey;
 
@@ -37,13 +40,7 @@ public class ShaderControl extends ConfigControl {
     private final AutoSpecifier<Boolean> visibleSpecifier_;
     private final ConfigSpecifier rangeSpecifier_;
     private static final AuxScale SCALE = AuxScale.COLOR;
-    private static final ConfigKey[] SHADER_KEYS = new ConfigKey[] {
-        StyleKeys.AUX_SHADER,
-        StyleKeys.AUX_SHADER_CLIP,
-        StyleKeys.SHADE_LOG,
-        StyleKeys.SHADE_FLIP,
-        StyleKeys.SHADE_NULL_COLOR,
-    };
+    private static final RampKeySet RAMP_KEYS = StyleKeys.AUX_RAMP;
     private static final ConfigKey<String> AUXLABEL_KEY =
         new StringConfigKey( new ConfigMeta( "auxlabel", "Aux Axis Label" ),
                              null );
@@ -64,11 +61,11 @@ public class ShaderControl extends ConfigControl {
         configger_ = configger;
         ActionListener forwarder = getActionForwarder();
 
-        AutoConfigSpecifier axisSpecifier =
-                new AutoConfigSpecifier( new ConfigKey[] {
-            AUXVISIBLE_KEY,
-            AUXLABEL_KEY,
-        } );
+        AutoConfigSpecifier axisSpecifier = new AutoConfigSpecifier(
+            new ConfigKey[] { AUXVISIBLE_KEY, AUXLABEL_KEY,
+                              StyleKeys.AUX_CROWD },
+            new ConfigKey[] { AUXVISIBLE_KEY, AUXLABEL_KEY, }
+        );
         labelSpecifier_ = axisSpecifier.getAutoSpecifier( AUXLABEL_KEY );
         visibleSpecifier_ = axisSpecifier.getAutoSpecifier( AUXVISIBLE_KEY );
         labelSpecifier_.setAutoValue( null );
@@ -86,7 +83,10 @@ public class ShaderControl extends ConfigControl {
         } );
         rangeSpecifier_.addActionListener( forwarder );
 
-        addSpecifierTab( "Map", new ConfigSpecifier( SHADER_KEYS ) );
+        ConfigKey[] shaderKeys =
+            PlotUtil.arrayConcat( RAMP_KEYS.getKeys(),
+                                  new ConfigKey[] { StyleKeys.AUX_NULLCOLOR } );
+        addSpecifierTab( "Map", new ConfigSpecifier( shaderKeys ) );
         addSpecifierTab( "Ramp", axisSpecifier );
         addSpecifierTab( "Range", rangeSpecifier_ );
     }
@@ -125,37 +125,30 @@ public class ShaderControl extends ConfigControl {
      *
      * @return   shade axis factory
      */
-    public AxisFactory createShadeAxisFactory() {
+    public ShadeAxisFactory createShadeAxisFactory() {
         final ConfigMap config = getConfig();
         final boolean visible = config.get( AUXVISIBLE_KEY );
         if ( ! visible ) {
-            return new AxisFactory() {
+            return new ShadeAxisFactory() {
                 public ShadeAxis createShadeAxis( Range range ) {
                     return null;
                 }
+                public boolean isLog() {
+                    return false;
+                }
             };
         }
-        final String label = config.get( AUXLABEL_KEY );
-        final Shader shader =
-           StyleKeys.createShader( config, StyleKeys.AUX_SHADER,
-                                           StyleKeys.AUX_SHADER_CLIP );
-        final boolean log = config.get( StyleKeys.SHADE_LOG );
-        final boolean flip = config.get( StyleKeys.SHADE_FLIP );
-        final Color nullColor = config.get( StyleKeys.SHADE_NULL_COLOR );
-        final Captioner captioner =
+        String label = config.get( AUXLABEL_KEY );
+        double crowd = config.get( StyleKeys.AUX_CROWD ).doubleValue();
+        Captioner captioner =
             StyleKeys.CAPTIONER.createValue( configger_.getConfig() );
-        return new AxisFactory() {
-            public ShadeAxis createShadeAxis( Range range ) {
-                if ( range == null ) {
-                    range = new Range();
-                }
-                double[] bounds = range.getFiniteBounds( log );
-                double lo = bounds[ 0 ];
-                double hi = bounds[ 1 ];
-                return new ShadeAxis( shader, log, flip, lo, hi,
-                                      label, captioner );
-            }
-        };
+        RampKeySet.Ramp ramp = RAMP_KEYS.createValue( config );
+        return RampKeySet
+              .createShadeAxisFactory( ramp, captioner, label, crowd );
+    }
+
+    public boolean isLog() {
+        return RAMP_KEYS.createValue( getConfig() ).getScaling().isLogLike();
     }
 
     /**
@@ -210,19 +203,5 @@ public class ShaderControl extends ConfigControl {
      */
     private static double toDouble( Double dval ) {
         return dval == null ? Double.NaN : dval.doubleValue();
-    }
-
-    /**
-     * Defines how to get a ShadeAxis for a shader range.
-     */
-    public interface AxisFactory {
-
-        /**
-         * Returns a shade axis for a given range.
-         *
-         * @param   range  data range
-         * @return   shader axis
-         */
-        ShadeAxis createShadeAxis( Range range );
     }
 }

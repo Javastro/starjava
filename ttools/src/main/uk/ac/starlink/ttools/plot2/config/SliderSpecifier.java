@@ -1,15 +1,22 @@
 package uk.ac.starlink.ttools.plot2.config;
 
+import java.awt.Dimension;
+import java.awt.Insets;
 import java.awt.event.ActionEvent;
 import java.awt.event.ActionListener;
+import javax.swing.AbstractAction;
+import javax.swing.Action;
 import javax.swing.Box;
 import javax.swing.ButtonGroup;
 import javax.swing.ButtonModel;
+import javax.swing.JButton;
 import javax.swing.JComponent;
 import javax.swing.JRadioButton;
 import javax.swing.JSlider;
 import javax.swing.JTextField;
 import javax.swing.event.ChangeListener;
+import uk.ac.starlink.ttools.gui.ResourceIcon;
+import uk.ac.starlink.ttools.plot2.PlotUtil;
 
 /**
  * Double value specifier that uses a slider to choose a value in the
@@ -24,8 +31,12 @@ public class SliderSpecifier extends SpecifierPanel<Double> {
     private final double lo_;
     private final double hi_;
     private final boolean log_;
+    private final boolean flip_;
+    private final double resetVal_;
     private final boolean txtOpt_;
+    private final boolean resetOpt_;
     private final JSlider slider_;
+    private final JButton resetButton_;
     private final JTextField txtField_;
     private final JRadioButton sliderButton_;
     private final JRadioButton txtButton_;
@@ -33,33 +44,54 @@ public class SliderSpecifier extends SpecifierPanel<Double> {
     private static final int MAX = 10000;
 
     /**
-     * Constructs a specifier with just a slider.
+     * Constructs a specifier with minimal options.
      *
      * @param   lo   slider lower bound
      * @param   hi   slider upper bound
      * @param  log  true for logarithmic slider scale, false for linear
+     * @param  reset  value reset button resets to, or NaN for no reset
      */
-    public SliderSpecifier( double lo, double hi, boolean log ) {
-        this( lo, hi, log, false );
+    public SliderSpecifier( double lo, double hi, boolean log, double reset ) {
+        this( lo, hi, log, reset, false, false );
     }
 
     /**
-     * Constructs a specifier with a slider and optionally a text entry field.
+     * Constructs a specifier with all options.
      *
      * @param   lo   slider lower bound
      * @param   hi   slider upper bound
      * @param  log  true for logarithmic slider scale, false for linear
+     * @param  reset  value reset button resets to, or NaN for no reset
+     * @param  flip  true to make slider values increase right to left
      * @param  txtOpt  true to include a text entry option
      */
     public SliderSpecifier( double lo, double hi, boolean log,
+                            final double reset, boolean flip,
                             boolean txtOpt ) {
         super( true );
         lo_ = lo;
         hi_ = hi;
         log_ = log;
+        flip_ = flip;
+        resetVal_ = reset;
         txtOpt_ = txtOpt;
         slider_ = new JSlider( MIN, MAX );
-        txtField_ = new JTextField( 8 );
+        resetOpt_ = reset >= lo && reset <= hi;
+        Action resetAct = new AbstractAction( null, ResourceIcon.ZERO ) {
+            public void actionPerformed( ActionEvent evt ) {
+                slider_.setValue( unscale( reset ) );
+            }
+        };
+        resetAct.putValue( Action.SHORT_DESCRIPTION,
+                           "Reset slider to default (" + resetVal_ + ")" );
+        resetButton_ = new JButton( resetAct );
+        resetButton_.setMargin( new Insets( 0, 0, 0, 0 ) );
+        txtField_ = new JTextField( 8 ) {
+            @Override
+            public Dimension getMaximumSize() {
+                return getPreferredSize();
+            }
+        };
         sliderButton_ = new JRadioButton();
         txtButton_ = new JRadioButton();
         ButtonGroup bgrp = new ButtonGroup();
@@ -70,11 +102,19 @@ public class SliderSpecifier extends SpecifierPanel<Double> {
 
     protected JComponent createComponent() {
         JComponent line = Box.createHorizontalBox();
-        line.add( sliderButton_ );
+        if ( txtOpt_ ) {
+            line.add( sliderButton_ );
+        }
         line.add( slider_ );
-        line.add( Box.createHorizontalStrut( 10 ) );
-        line.add( txtButton_ );
-        line.add( txtField_ );
+        if ( resetOpt_ ) {
+            line.add( Box.createHorizontalStrut( 5 ) );
+            line.add( resetButton_ );
+        }
+        if ( txtOpt_ ) {
+            line.add( Box.createHorizontalStrut( 10 ) );
+            line.add( txtButton_ );
+            line.add( txtField_ );
+        }
         final ActionListener actionForwarder = getActionForwarder();
         ActionListener radioListener = new ActionListener() {
             public void actionPerformed( ActionEvent evt ) {
@@ -87,7 +127,7 @@ public class SliderSpecifier extends SpecifierPanel<Double> {
         updateInputState();
         slider_.addChangeListener( getChangeForwarder() );
         txtField_.addActionListener( actionForwarder );
-        return txtOpt_ ? line : slider_;
+        return line;
     }
 
     public Double getSpecifiedValue() {
@@ -158,7 +198,33 @@ public class SliderSpecifier extends SpecifierPanel<Double> {
      * @return  slider value
      */
     public double getSliderValue() {
-        return scale( slider_.getValue() );
+        int i0 = slider_.getValue();
+        double d0 = scale( i0 );
+
+        /* For cosmetic reasons, try to round the value to a round number
+         * corresponding to the nearest pixel so that reporting the
+         * value as text does not include spurious (and ugly) precision.
+         * We do it by formatting the value using a pixel-sized value delta,
+         * and turning that formatted value back into a number. */
+        int npix = slider_.getOrientation() == JSlider.HORIZONTAL
+                 ? slider_.getWidth()
+                 : slider_.getHeight();
+        if ( npix > 10 ) {
+            int iPixStep = ( slider_.getMaximum() - slider_.getMinimum() )
+                         / npix;
+            double dPixStep = Math.abs( scale( i0 + iPixStep ) - d0 );
+            if ( dPixStep > 0 ) {
+                String numstr = PlotUtil.formatNumber( d0, dPixStep );
+                try {
+                    return Double.parseDouble( numstr );
+                }
+                catch ( NumberFormatException e ) {
+                }
+            }
+        }
+
+        /* If something went wrong, it's OK to use the exact value. */
+        return d0;
     }
 
     /**
@@ -168,6 +234,7 @@ public class SliderSpecifier extends SpecifierPanel<Double> {
     private void updateInputState() {
         boolean sliderActive = isSliderActive();
         slider_.setEnabled( sliderActive );
+        resetButton_.setEnabled( sliderActive );
         txtField_.setEnabled( ! sliderActive );
     }
 
@@ -179,6 +246,9 @@ public class SliderSpecifier extends SpecifierPanel<Double> {
      */
     private double scale( int ival ) {
         double f = ( ival - MIN ) / (double) ( MAX - MIN );
+        if ( flip_ ) {
+            f = 1 - f;
+        }
         return log_ ? lo_ * Math.pow( hi_ / lo_, f )
                     : lo_ + ( hi_ - lo_ ) * f;
     }
@@ -192,6 +262,9 @@ public class SliderSpecifier extends SpecifierPanel<Double> {
     private int unscale( double dval ) {
         double s = log_ ? Math.log( dval / lo_ ) / Math.log( hi_ / lo_ )
                         : ( dval - lo_ ) / ( hi_ - lo_ );
-        return (int) Math.round( s * ( MAX - MIN ) ) + MIN;
+        if ( flip_ ) {
+            s = 1 - s;
+        }
+        return (int) Math.round( s * ( MAX - MIN ) + MIN );
     }
 }

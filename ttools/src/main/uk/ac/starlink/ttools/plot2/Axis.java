@@ -41,7 +41,7 @@ public abstract class Axis {
      * @param   d  data coordinate
      * @return  graphics coordinate
      */
-    public abstract int dataToGraphics( double d );
+    public abstract double dataToGraphics( double d );
 
     /**
      * Converts a graphics position on this axis to a data coordinate.
@@ -49,7 +49,7 @@ public abstract class Axis {
      * @param   g  graphics coordinate
      * @return   data coordinate
      */
-    public abstract double graphicsToData( int g );
+    public abstract double graphicsToData( double g );
 
     /**
      * Returns the data bounds that result from performing an axis zoom
@@ -137,7 +137,7 @@ public abstract class Axis {
         for ( int it = 0; it < ticks.length; it++ ) {
             Tick tick = ticks[ it ];
             String label = tick.getLabel();
-            double gx = dataToGraphics( tick.getValue() );
+            int gx = (int) dataToGraphics( tick.getValue() );
             double tx = invert ? ghi_ - gx : gx - glo_;
             AffineTransform tTrans =
                 AffineTransform.getTranslateInstance( tx, 0 );
@@ -280,11 +280,11 @@ public abstract class Axis {
             b_ = ( flip ? ghi : glo ) - a_ * dlo;
         }
 
-        public int dataToGraphics( double d ) {
-            return (int) ( b_ + a_ * d );
+        public double dataToGraphics( double d ) {
+            return b_ + a_ * d;
         }
 
-        public double graphicsToData( int g ) {
+        public double graphicsToData( double g ) {
             return ( g - b_ ) * a1_;
         }
 
@@ -328,11 +328,17 @@ public abstract class Axis {
             a1_ = 1.0 / a_;
         }
 
-        public int dataToGraphics( double d ) {
-            return (int) ( b_ + a_ * Math.log( d ) );
+        public double dataToGraphics( double d ) {
+
+            /* Check explicitly for zero values and return a NaN rather than
+             * -Infinity.  This is a bit questionable, and there may be a
+             * case for changing the behaviour, but it avoids having to
+             * make a number of checks for infinite values downstream. */
+            return d > 0 ? b_ + a_ * Math.log( d )
+                         : Double.NaN;
         }
 
-        public double graphicsToData( int g ) {
+        public double graphicsToData( double g ) {
             return Math.exp( ( g - b_ ) * a1_ );
         }
 
@@ -359,11 +365,19 @@ public abstract class Axis {
                                 double d0, double d1, boolean isLog ) {
         if ( isLog ) {
             double d10 = d0 / d1;
-            return new double[] { dlo * d10, dhi * d10 };
+            double plo = dlo * d10;
+            double phi = dhi * d10;
+            return plo > Double.MIN_VALUE && phi < Double.MAX_VALUE
+                 ? new double[] { plo, phi }
+                 : new double[] { dlo, dhi };
         }
         else {
             double d10 = d1 - d0;
-            return new double[] { dlo - d10, dhi - d10 };
+            double plo = dlo - d10;
+            double phi = dhi - d10;
+            return plo > -Double.MAX_VALUE && phi < +Double.MAX_VALUE
+                 ? new double[] { plo, phi }
+                 : new double[] { dlo, dhi };
         }
     }
 
@@ -381,13 +395,19 @@ public abstract class Axis {
                                  double d0, double factor, boolean isLog ) {
         if ( isLog ) {
             double f1 = 1. / factor;
-            return new double[] { d0 * Math.pow( dlo / d0, f1 ),
-                                  d0 * Math.pow( dhi / d0, f1 ) };
+            double zlo = d0 * Math.pow( dlo / d0, f1 );
+            double zhi = d0 * Math.pow( dhi / d0, f1 );
+            return zlo > Double.MIN_VALUE && zhi < Double.MAX_VALUE
+                 ? new double[] { zlo, zhi }
+                 : new double[] { dlo, dhi };
         }
         else {
             double f1 = 1. / factor;
-            return new double[] { d0 + ( dlo - d0 ) * f1,
-                                  d0 + ( dhi - d0 ) * f1 };
+            double zlo = d0 + ( dlo - d0 ) * f1;
+            double zhi = d0 + ( dhi - d0 ) * f1;
+            return zlo > -Double.MAX_VALUE && zhi < +Double.MAX_VALUE
+                 ? new double[] { zlo, zhi }
+                 : new double[] { dlo, dhi };
         }
     }
 }

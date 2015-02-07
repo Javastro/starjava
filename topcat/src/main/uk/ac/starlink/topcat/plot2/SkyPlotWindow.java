@@ -10,6 +10,7 @@ import javax.swing.JComponent;
 import uk.ac.starlink.table.ColumnData;
 import uk.ac.starlink.table.ValueInfo;
 import uk.ac.starlink.topcat.ColumnDataComboBoxModel;
+import uk.ac.starlink.topcat.LineBox;
 import uk.ac.starlink.topcat.TopcatModel;
 import uk.ac.starlink.ttools.plot2.DataGeom;
 import uk.ac.starlink.ttools.plot2.PlotType;
@@ -43,6 +44,7 @@ public class SkyPlotWindow
      */
     public SkyPlotWindow( Component parent ) {
         super( "Sky Plot", parent, PLOT_TYPE, new SkyPlotTypeGui() );
+        getToolBar().addSeparator();
         addHelp( "SkyPlotWindow" );
     }
 

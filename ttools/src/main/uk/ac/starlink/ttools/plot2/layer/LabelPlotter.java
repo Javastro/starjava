@@ -3,6 +3,7 @@ package uk.ac.starlink.ttools.plot2.layer;
 import java.awt.Graphics;
 import java.awt.Point;
 import java.awt.Rectangle;
+import java.awt.geom.Point2D;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.LinkedHashMap;
@@ -19,7 +20,9 @@ import uk.ac.starlink.ttools.plot2.Glyph;
 import uk.ac.starlink.ttools.plot2.LayerOpt;
 import uk.ac.starlink.ttools.plot2.Pixer;
 import uk.ac.starlink.ttools.plot2.PlotLayer;
+import uk.ac.starlink.ttools.plot2.PlotUtil;
 import uk.ac.starlink.ttools.plot2.PointCloud;
+import uk.ac.starlink.ttools.plot2.ReportMap;
 import uk.ac.starlink.ttools.plot2.SubCloud;
 import uk.ac.starlink.ttools.plot2.Surface;
 import uk.ac.starlink.ttools.plot2.config.CaptionerKeySet;
@@ -33,6 +36,7 @@ import uk.ac.starlink.ttools.plot2.data.Coord;
 import uk.ac.starlink.ttools.plot2.data.CoordGroup;
 import uk.ac.starlink.ttools.plot2.data.DataSpec;
 import uk.ac.starlink.ttools.plot2.data.DataStore;
+import uk.ac.starlink.ttools.plot2.data.InputMeta;
 import uk.ac.starlink.ttools.plot2.data.StringCoord;
 import uk.ac.starlink.ttools.plot2.data.TupleSequence;
 import uk.ac.starlink.ttools.plot2.geom.CubeSurface;
@@ -50,25 +54,60 @@ import uk.ac.starlink.ttools.plot2.paper.PaperType3D;
 public class LabelPlotter extends AbstractPlotter<LabelStyle> {
 
     private static final StringCoord LABEL_COORD =
-        new StringCoord( "Text",
-                         "Column or expression giving the text "
-                       + "to be written near the position being labelled",
-                         true );
+        new StringCoord(
+            new InputMeta( "label", "Label" )
+           .setShortDescription( "Content of label" )
+           .setXmlDescription( new String[] {
+                "<p>Column or expression giving the text of the label",
+                "to be written near the position being labelled.",
+                "Label values may be of any type (string or numeric)",
+                "</p>",
+            } )
+        , true );
     private static final CoordGroup LABEL_CGRP =
         CoordGroup.createCoordGroup( 1, new Coord[] { LABEL_COORD } );
     private static final int MAX_CROWDLIMIT = Byte.MAX_VALUE / 2 - 1;
 
     /** Config key to control minimum pixel label spacing. */
-    private static final ConfigKey<Integer> SPACING_KEY =
-        IntegerConfigKey
-       .createSliderKey( new ConfigMeta( "spacing", "Spacing Threshold" ),
-                         12, 0.5, 200, true );
+    public static final ConfigKey<Integer> SPACING_KEY =
+        IntegerConfigKey.createSliderKey(
+            new ConfigMeta( "spacing", "Spacing Threshold" )
+           .setStringUsage( "<pixels>" )
+           .setShortDescription( "Minimum size in pixels for label group" )
+           .setXmlDescription( new String[] {
+                "<p>Determines the closest that labels can be spaced.",
+                "If a group of labels is closer to another group",
+                "than the value of this parameter,",
+                "they will not be drawn, to avoid the display becoming",
+                "too cluttered.",
+                "The effect is that you can see individual labels",
+                "when you zoom in, but not when there are many labelled points",
+                "plotted close together on the screen.",
+                "Set the value higher for less cluttered labelling.",
+                "</p>",
+            } )
+        , 12, 0.5, 200, true );
 
     /** Config key to control max label count in spacing region. */
-    private static final ConfigKey<Integer> CROWDLIMIT_KEY =
-        IntegerConfigKey
-       .createSpinnerKey( new ConfigMeta( "crowdlimit", "Crowding Limit" ),
-                          2, 1, MAX_CROWDLIMIT );
+    public static final ConfigKey<Integer> CROWDLIMIT_KEY =
+        IntegerConfigKey.createSpinnerKey(
+            new ConfigMeta( "crowdlimit", "Crowding Limit" )
+           .setStringUsage( "<n>" )
+           .setShortDescription( "Maximum labels per group" )
+           .setXmlDescription( new String[] {
+                "<p>Sets the maximum number of labels in a label group.",
+                "This many labels can appear closely spaced without being",
+                "affected by the label spacing parameter.",
+                "</p>",
+                "<p>It is useful for instance if you are looking at",
+                "pairs of points, which will always be close together;",
+                "if you set this value to 2, an isolated pair of labels",
+                "can be seen, but if it's 1 then they will only be plotted",
+                "when they are distant from each other,",
+                "which may only happen at very high magnifications.",
+                "</p>",
+            } )
+        , 2, 1, MAX_CROWDLIMIT );
 
     /** Config key set for configuring text font. */
     public static final CaptionerKeySet CAPTIONER_KEYSET =
@@ -78,7 +117,17 @@ public class LabelPlotter extends AbstractPlotter<LabelStyle> {
      * Constructor.
      */
     public LabelPlotter() {
-        super( "Label", ResourceIcon.PLOT_LABEL, LABEL_CGRP );
+        super( "Label", ResourceIcon.PLOT_LABEL, LABEL_CGRP, false );
+    }
+
+    public String getPlotterDescription() {
+        return PlotUtil.concatLines( new String[] {
+            "<p>Draws a text label at each position.",
+            "You can select the font,",
+            "where the labels appear in relation to the point positions, and",
+            "how crowded the points have to get before they are suppressed.",
+            "</p>",
+        } );
     }
 
     public ConfigKey[] getStyleKeys() {
@@ -219,6 +268,10 @@ public class LabelPlotter extends AbstractPlotter<LabelStyle> {
             LabelPlan<T> labelPlan = (LabelPlan<T>) plan;
             paintMap( labelPlan.map_, paper );
         }
+
+        public ReportMap getReport( Object plan ) {
+            return null;
+        }
     }
 
     /**
@@ -342,16 +395,19 @@ public class LabelPlotter extends AbstractPlotter<LabelStyle> {
         Map<Point,String> createMap( DataStore dataStore, GridMask gridMask ) {
             Map<Point,String> map = new LinkedHashMap<Point,String>();
             double[] dpos = new double[ surface_.getDataDimCount() ];
-            Point gp = new Point();
+            Point2D.Double gp = new Point2D.Double();
+            Point gpi = new Point();
             TupleSequence tseq = dataStore.getTupleSequence( dataSpec_ );
             while ( tseq.next() ) {
                 if ( geom_.readDataPos( tseq, icPos_, dpos ) &&
-                     surface_.dataToGraphics( dpos, true, gp ) &&
-                     gridMask.isFree( gp ) ) {
-                    String label =
-                        LABEL_COORD.readStringCoord( tseq, icLabel_ );
-                    if ( label != null && label.trim().length() > 0 ) {
-                        map.put( new Point( gp ), label );
+                     surface_.dataToGraphics( dpos, true, gp ) ) {
+                    PlotUtil.quantisePoint( gp, gpi );
+                    if ( gridMask.isFree( gpi ) ) {
+                        String label =
+                            LABEL_COORD.readStringCoord( tseq, icLabel_ );
+                        if ( label != null && label.trim().length() > 0 ) {
+                            map.put( new Point( gpi ), label );
+                        }
                     }
                 }
             }
@@ -401,22 +457,25 @@ public class LabelPlotter extends AbstractPlotter<LabelStyle> {
                                           GridMask gridMask ) {
             Map<Point,DepthString> map = new LinkedHashMap<Point,DepthString>();
             double[] dpos = new double[ surface_.getDataDimCount() ];
-            Point gp = new Point();
+            Point2D.Double gp = new Point2D.Double();
+            Point gpi = new Point();
             double[] depthArr = new double[ 1 ];
             CubeSurface surf = (CubeSurface) surface_;
             TupleSequence tseq = dataStore.getTupleSequence( dataSpec_ );
             while ( tseq.next() ) {
                 if ( geom_.readDataPos( tseq, icPos_, dpos ) &&
-                     surf.dataToGraphicZ( dpos, true, gp, depthArr ) &&
-                     gridMask.isFree( gp ) ) {
-                    String label =
-                        LABEL_COORD.readStringCoord( tseq, icLabel_ );
-                    if ( label != null && label.trim().length() > 0 ) {
-                        double depth = depthArr[ 0 ];
-                        if ( ! map.containsKey( gp ) ||
-                             depth < map.get( gp ).depth_ ) {
-                            map.put( new Point( gp ),
-                                     new DepthString( label, depth ) );
+                     surf.dataToGraphicZ( dpos, true, gp, depthArr ) ) {
+                    PlotUtil.quantisePoint( gp, gpi );
+                    if ( gridMask.isFree( gpi ) ) {
+                        String label =
+                            LABEL_COORD.readStringCoord( tseq, icLabel_ );
+                        if ( label != null && label.trim().length() > 0 ) {
+                            double depth = depthArr[ 0 ];
+                            if ( ! map.containsKey( gp ) ||
+                                 depth < map.get( gpi ).depth_ ) {
+                                map.put( new Point( gpi ),
+                                         new DepthString( label, depth ) );
+                            }
                         }
                     }
                 }

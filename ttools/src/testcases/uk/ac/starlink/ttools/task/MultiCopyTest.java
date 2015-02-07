@@ -20,7 +20,7 @@ public class MultiCopyTest extends TableTestCase {
 
     public MultiCopyTest( String name ) {
         super( name );
-        Logger.getLogger( "uk.ac.starlink.table" ).setLevel( Level.WARNING );
+        Logger.getLogger( "uk.ac.starlink" ).setLevel( Level.WARNING );
     }
 
     public void testMulti() throws Exception {
@@ -45,7 +45,11 @@ public class MultiCopyTest extends TableTestCase {
                     ((MultiTableBuilder) tfact.getTableBuilder( ofmt ))
                         .makeStarTables( new FileDataSource( ofile ),
                                          StoragePolicy.PREFER_MEMORY ) );
-            for ( int itab = 0; itab < tables.length; itab++ ) {
+            int ntest = tables.length;
+            if ( "fits".equals( ofmt ) ) {
+                ntest--;
+            }
+            for ( int itab = 0; itab < ntest; itab++ ) {
                 assertSameData( inTables[ itab ], tables[ itab ] );
             }
 
@@ -70,7 +74,7 @@ public class MultiCopyTest extends TableTestCase {
                               .getRow( inTables[ 1 ].getRowCount() - 1 ),
                                tablesN[ 1 ].getRow( 0 ) );
 
-            assertEquals( 2, tables.length );
+            assertEquals( 3, tables.length );
         }
     }
 }

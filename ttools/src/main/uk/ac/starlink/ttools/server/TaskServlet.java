@@ -6,7 +6,6 @@ import java.io.PrintStream;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
-import java.util.Comparator;
 import java.util.HashSet;
 import java.util.List;
 import javax.servlet.ServletConfig;
@@ -40,7 +39,7 @@ import uk.ac.starlink.util.ObjectFactory;
  */
 public class TaskServlet extends HttpServlet {
 
-    private ObjectFactory taskFactory_;
+    private ObjectFactory<Task> taskFactory_;
     private StarTableFactory tableFactory_;
     private StarTableOutput tableOutput_;
     private JDBCAuthenticator jdbcAuth_;
@@ -117,7 +116,7 @@ public class TaskServlet extends HttpServlet {
             assert taskFactory_.isRegistered( taskName );
             Task task;
             try { 
-                task = (Task) taskFactory_.createObject( taskName );
+                task = taskFactory_.createObject( taskName );
             }
             catch ( LoadException e ) {
                 replyError( response, 500, e );
@@ -303,14 +302,7 @@ public class TaskServlet extends HttpServlet {
 
         out.println( "<h3>Parameters</h3>" );
         out.println( "<dl>" );
-        Arrays.sort( params, new Comparator() {
-            public int compare( Object o1, Object o2 ) {
-                Parameter p1 = (Parameter) o1;
-                Parameter p2 = (Parameter) o2;
-                return ((Parameter) o1).getName()
-                      .compareTo( ((Parameter) o2).getName() ); 
-            }
-        } );
+        Arrays.sort( params, Parameter.BY_NAME );
         for ( int i = 0; i < params.length; i++ ) {
             Parameter param = params[ i ];
             out.println( "<dt><b><a name='" + param.getName() + "'>"
@@ -332,7 +324,7 @@ public class TaskServlet extends HttpServlet {
      * @throws   IllegalArgumentException  if any unknown task name
      *           is included in <code>taskList</code>
      */
-    public static String[] getTaskNames( ObjectFactory taskFactory,
+    public static String[] getTaskNames( ObjectFactory<Task> taskFactory,
                                          String taskList ) {
         Collection knownTasks =
             new HashSet( Arrays.asList( taskFactory.getNickNames() ) );

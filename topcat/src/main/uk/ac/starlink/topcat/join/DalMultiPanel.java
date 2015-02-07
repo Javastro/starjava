@@ -3,7 +3,6 @@ package uk.ac.starlink.topcat.join;
 import gnu.jel.CompilationException;
 import java.awt.BorderLayout;
 import java.awt.Color;
-import java.awt.Dimension;
 import java.awt.event.ActionEvent;
 import java.awt.event.ActionListener;
 import java.awt.event.FocusEvent;
@@ -44,13 +43,12 @@ import uk.ac.starlink.table.Tables;
 import uk.ac.starlink.table.WrapperRowSequence;
 import uk.ac.starlink.table.WrapperStarTable;
 import uk.ac.starlink.topcat.BasicAction;
-import uk.ac.starlink.topcat.BitsRowSubset;
 import uk.ac.starlink.topcat.ColumnDataComboBoxModel;
 import uk.ac.starlink.topcat.ColumnSelector;
 import uk.ac.starlink.topcat.ColumnSelectorModel;
 import uk.ac.starlink.topcat.ControlWindow;
 import uk.ac.starlink.topcat.ResourceIcon;
-import uk.ac.starlink.topcat.RowSubset;
+import uk.ac.starlink.topcat.Scheduler;
 import uk.ac.starlink.topcat.TablesListComboBox;
 import uk.ac.starlink.topcat.ToggleButtonModel;
 import uk.ac.starlink.topcat.TopcatEvent;
@@ -67,7 +65,6 @@ import uk.ac.starlink.ttools.cone.MocCoverage;
 import uk.ac.starlink.ttools.cone.ParallelResultRowSequence;
 import uk.ac.starlink.ttools.cone.QuerySequenceFactory;
 import uk.ac.starlink.ttools.task.TableProducer;
-import uk.ac.starlink.util.gui.ErrorDialog;
 import uk.ac.starlink.util.gui.ShrinkWrapper;
 
 /**
@@ -189,10 +186,11 @@ public class DalMultiPanel extends JPanel {
         cList.add( srSysLabel );
 
         /* Align the positional fields. */
-        alignLabels( new JLabel[] { raSelector_.getLabel(),
-                                    decSelector_.getLabel(),
-                                    srSelector_.getLabel(), } );
-        alignLabels( new JLabel[] { raSysLabel, decSysLabel, srSysLabel, } );
+        TopcatUtils.alignComponents( new JLabel[] { raSelector_.getLabel(),
+                                                    decSelector_.getLabel(),
+                                                    srSelector_.getLabel(), } );
+        TopcatUtils.alignComponents( new JLabel[] { raSysLabel, decSysLabel,
+                                                    srSysLabel, } );
 
         /* Custom service controls. */
         JComponent servicePanel = service_.getControlPanel();
@@ -723,26 +721,6 @@ public class DalMultiPanel extends JPanel {
     }
 
     /**
-     * Reshapes a set of components so that they all have the same
-     * preferred size (that of the largest one).
-     *
-     * @param   labels  labels to align
-     */
-    private static void alignLabels( JLabel[] labels ) {
-        int maxw = 0;
-        int maxh = 0;
-        for ( int i = 0; i < labels.length; i++ ) {
-            Dimension prefSize = labels[ i ].getPreferredSize();
-            maxw = Math.max( maxw, prefSize.width );
-            maxh = Math.max( maxh, prefSize.height );
-        }
-        Dimension prefSize = new Dimension( maxw, maxh );
-        for ( int i = 0; i < labels.length; i++ ) {
-            labels[ i ].setPreferredSize( prefSize );
-        }
-    }
-
-    /**
      * Turns a table into a TableProducer.
      *
      * @param  table  input table
@@ -866,6 +844,10 @@ public class DalMultiPanel extends JPanel {
                     return Math.toDegrees( getDoubleValue( srData_ ) );
                 }
 
+                public long getIndex() {
+                    return irow_;
+                }
+
                 private double getDoubleValue( ColumnData cdata )
                         throws IOException {
                     if ( cdata != null ) {
@@ -893,6 +875,7 @@ public class DalMultiPanel extends JPanel {
         private final ResultHandler resultHandler_;
         private final TopcatModel inTcModel_;
         private final StarTable inTable_;
+        private final Scheduler scheduler_;
         private int inRow_;
         private int outRow_;
         private volatile Thread coneThread_;
@@ -915,6 +898,11 @@ public class DalMultiPanel extends JPanel {
             resultHandler_ = resultHandler;
             inTcModel_ = inTcModel;
             inTable_ = inTable;
+            scheduler_ = new Scheduler( DalMultiPanel.this ) {
+                public boolean isActive() {
+                    return DalMultiPanel.this.isActive( MatchWorker.this );
+                };
+            };
         }
 
         /**
@@ -932,7 +920,7 @@ public class DalMultiPanel extends JPanel {
 
             /* Initialise progress GUI. */
             final int nrow = (int) inTable_.getRowCount();
-            schedule( new Runnable() {
+            scheduler_.schedule( new Runnable() {
                 public void run() {
                     progBar_.setMinimum( 0 );
                     progBar_.setMaximum( nrow );
@@ -981,20 +969,11 @@ public class DalMultiPanel extends JPanel {
             /* In case of error in result acquisition or processing,
              * inform the user. */
             catch ( final Exception e ) {
-                schedule( new Runnable() {
-                    public void run() {
-                        ErrorDialog.showError( DalMultiPanel.this,
-                                               "Multi-" + service_.getName()
-                                             + " Error", e );
-                    }
-                } );
+                scheduler_.scheduleError( "Multi-" + service_.getName()
+                                        + " Error", e );
             }
             catch ( final OutOfMemoryError e ) {
-                schedule( new Runnable() {
-                    public void run() {
-                        TopcatUtils.memoryError( e );
-                    }
-                } );
+                scheduler_.scheduleMemoryError( e );
             }
 
             /* In any case, deinstall this worker thread.  No further actions
@@ -1002,7 +981,7 @@ public class DalMultiPanel extends JPanel {
              * worker thread might take over). */
             finally {
                 done_ = true;
-                schedule( new Runnable() {
+                scheduler_.schedule( new Runnable() {
                     public void run() {
                         setActive( null );
                     }
@@ -1034,30 +1013,13 @@ public class DalMultiPanel extends JPanel {
          * Updates the progress bar to display the current I/O row state.
          */
         private void updateProgress() {
-            schedule( new Runnable() {
+            scheduler_.schedule( new Runnable() {
                 public void run() {
                     progBar_.setValue( ( inRow_ + 1 ) );
                     progBar_.setString( ( inRow_ ) + " -> "
                                       + ( outRow_ ) );
                 }
             } );
-        }
-
-        /**
-         * Schedules a runnable to execute on the event dispatch thread,
-         * as long as this worker is still the active one.
-         * If this worker has been deinstalled, the event is discarded.
-         */
-        private void schedule( final Runnable runnable ) {
-            if ( isActive( MatchWorker.this ) ) {
-                SwingUtilities.invokeLater( new Runnable() {
-                    public void run() {
-                        if ( isActive( MatchWorker.this ) ) {
-                            runnable.run();
-                        }
-                    }
-                } );
-            }
         }
     }
 
@@ -1143,13 +1105,13 @@ public class DalMultiPanel extends JPanel {
         }
 
         /**
-         * Schedules a runnable on the event dispatch thread, which will
-         * execute only if this handler's match worker is still active.
+         * Returns a scheduler which will perform actions on the EDT
+         * only as long as this handler's match worker is still active.
          *
-         * @param  runnable  object to run
+         * @return  scheduler
          */
-        protected void schedule( Runnable runnable ) {
-            matchWorker_.schedule( runnable );
+        public Scheduler getScheduler() {
+            return matchWorker_.scheduler_;
         }
     }
 
@@ -1184,14 +1146,9 @@ public class DalMultiPanel extends JPanel {
 
             /* Either note that there are no results. */
             if ( nrow == 0 ) {
-                schedule( new Runnable() {
-                    public void run() {
-                        JOptionPane
-                       .showMessageDialog( parent_, "No matches were found",
-                                           "Empty Match",
-                                           JOptionPane.ERROR_MESSAGE );
-                    }
-                } );
+                getScheduler().scheduleMessage( "No matches were found",
+                                                "Empty Match",
+                                                JOptionPane.ERROR_MESSAGE );
             }
 
             /* Or invoke the method that does the work. */
@@ -1209,7 +1166,7 @@ public class DalMultiPanel extends JPanel {
          */
         protected void addTable( final String name, final StarTable table ) {
             final ControlWindow controlWindow = ControlWindow.getInstance();
-            schedule( new Runnable() {
+            getScheduler().schedule( new Runnable() {
                 public void run() {
                     TopcatModel outTcModel =
                         controlWindow.addTable( table, name, true );
@@ -1336,6 +1293,8 @@ public class DalMultiPanel extends JPanel {
             return new ResultHandler() {
                 public void processResult( StarTable streamTable )
                         throws IOException {
+
+                    /* Prepare mask containing matched rows. */
                     RowSequence rseq = streamTable.getRowSequence();
                     final BitSet matchMask = new BitSet();
                     try {
@@ -1353,75 +1312,24 @@ public class DalMultiPanel extends JPanel {
                     finally {
                         rseq.close();
                     }
-                    schedule( new Runnable() {
-                        public void run() {
-                            addSubset( parent, inTcModel, matchMask );
-                        }
-                    } );
-                }
 
-                /**
-                 * Using input from the user, adds a new (or reused) Row Subset
-                 * to the given TopcatModel based on a given BitSet.
-                 *
-                 * @param  parent   parent component
-                 * @param  tcModel   topcat model
-                 * @param  matchMask  mask for included rows
-                 */
-                public void addSubset( JComponent parent, TopcatModel tcModel,
-                                       BitSet matchMask ) {
+                    /* With user guidance, turn these into a subset. */
                     int nmatch = matchMask.cardinality();
-                    Box nameLine = Box.createHorizontalBox();
-                    JComboBox nameSelector =
-                         tcModel.createNewSubsetNameSelector();
-                    nameSelector.setSelectedItem( "multi"
-                                                + service_.getLabel() );
-                    nameLine.add( new JLabel( "Subset name: " ) );
-                    nameLine.add( nameSelector );
-                    Object msg = new Object[] {
+                    final String[] msgLines = new String[] {
                         "Multiple " + service_.getName() + " successful; " +
                         "matches found for " + nmatch + " rows.",
                         " ",
                         "Define new subset for matched rows",
-                        nameLine,
                     };
-                    int opt =
-                        JOptionPane.showOptionDialog(
-                             parent, msg,
-                             "Multi-" + service_.getName() + " Success",
-                             JOptionPane.OK_CANCEL_OPTION,
-                             JOptionPane.QUESTION_MESSAGE, null, null, null );
-                    String name = getSubsetName( nameSelector );
-                    if ( opt == JOptionPane.OK_OPTION && name != null ) {
-                        tcModel.addSubset( new BitsRowSubset( name,
-                                                              matchMask ) );
-                    }
-                }
-
-                /**
-                 * Returns the subset name corresponding to the currently
-                 * selected value of a row subset selector box.
-                 *
-                 * @param rsetSelector  combo box returned by
-                 *        TopcatModel.createNewSubsetNameSelector
-                 * @return   subset name as string, or null
-                 */
-                private String getSubsetName( JComboBox rsetSelector ) {
-                    Object item = rsetSelector.getSelectedItem();
-                    if ( item == null ) {
-                        return null;
-                    }
-                    else if ( item instanceof String ) {
-                        String name = (String) item;
-                        return name.trim().length() > 0 ? name : null;
-                    }
-                    else if ( item instanceof RowSubset ) {
-                        return ((RowSubset) item).getName();
-                    }
-                    else {
-                        assert false;
-                        return item.toString();
-                    }
+                    final String dfltName = "multi" + service_.getLabel();
+                    final String title =
+                        "Multi-" + service_.getName() + " Success";
+                    getScheduler().schedule( new Runnable() {
+                        public void run() {
+                            TopcatUtils.addSubset( parent, inTcModel, matchMask,
+                                                   dfltName, msgLines, title );
+                        }
+                    } );
                 }
             };
         }

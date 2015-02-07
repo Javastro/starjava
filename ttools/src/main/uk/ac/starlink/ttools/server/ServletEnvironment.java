@@ -90,7 +90,7 @@ public class ServletEnvironment implements TableEnvironment {
         if ( isDefault && param instanceof OutputTableParameter ) {
             OutputTableParameter outParam = (OutputTableParameter) param;
             OutputFormatParameter formatParam = outParam.getFormatParameter();
-            formatParam.setDefault( "votable" );
+            formatParam.setStringDefault( "votable" );
             String format = formatParam.stringValue( this );
             StarTableWriter writer;
             try {
@@ -100,7 +100,8 @@ public class ServletEnvironment implements TableEnvironment {
                 throw new ParameterValueException( param,
                     "Unknown table output format " + format, e );
             }
-            outParam.setValueFromConsumer( new ServletTableConsumer( writer ) );
+            outParam.setValueFromConsumer( this,
+                                           new ServletTableConsumer( writer ) );
         }
 
         /* Configure output table consumer modes to cause tables to be written
@@ -109,7 +110,7 @@ public class ServletEnvironment implements TableEnvironment {
             OutputModeParameter outParam = (OutputModeParameter) param;
             OutputFormatParameter formatParam =
                 new OutputFormatParameter( "ofmt" );
-            formatParam.setDefault( "votable" );
+            formatParam.setStringDefault( "votable" );
             String format = formatParam.stringValue( this );
             StarTableWriter writer;
             try {
@@ -119,7 +120,8 @@ public class ServletEnvironment implements TableEnvironment {
                 throw new ParameterValueException( param,
                     "Unknown table output format " + format, e );
             }
-            outParam.setValueFromConsumer( new ServletTableConsumer( writer ) );
+            outParam.setValueFromConsumer( this,
+                                           new ServletTableConsumer( writer ) );
         }
 
         /* Configure graphics output to cause graphics to be written to 
@@ -127,10 +129,10 @@ public class ServletEnvironment implements TableEnvironment {
         else if ( isDefault && param instanceof PaintModeParameter ) {
             PaintModeParameter pmParam = (PaintModeParameter) param;
             ChoiceParameter formatParam = pmParam.getFormatParameter();
-            formatParam.setDefault( "png" );
+            formatParam.setStringDefault( "png" );
             GraphicExporter exporter =
                 (GraphicExporter) formatParam.objectValue( this );
-            pmParam.setValueFromPainter( new ServletPainter( exporter ) );
+            pmParam.setValueFromPainter( this, new ServletPainter( exporter ) );
         }
 
         /* Other parameters will be acquired from the servlet parameters
@@ -141,7 +143,7 @@ public class ServletEnvironment implements TableEnvironment {
 
             /* No value supplied: use parameter default. */
             if ( isDefault ) {
-                stringVal = param.getDefault();
+                stringVal = param.getStringDefault();
             }
 
             /* Multiple-valued parameter: concatenate different values. */

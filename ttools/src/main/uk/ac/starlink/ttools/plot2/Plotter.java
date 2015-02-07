@@ -40,6 +40,15 @@ public interface Plotter<S extends Style> {
     Icon getPlotterIcon();
 
     /**
+     * Returns an XML description of this plotter.
+     *
+     * <p>Note: really this should appear at the LayerType level.
+     *
+     * @return   one or more &lt;p&gt; elements
+     */
+    String getPlotterDescription();
+
+    /**
      * Returns an object describing which data coordinates are used for
      * this plotter and how they are arranged in supplied DataSpec objects.
      *
@@ -66,6 +75,15 @@ public interface Plotter<S extends Style> {
      * @return   plotter-specific plot style
      */
     S createStyle( ConfigMap config ) throws ConfigException;
+
+    /**
+     * Indicates whether the drawings produced by this plotter will
+     * return general interest report information to upstream plotting code.
+     *
+     * @return   true if the plot report may return interesting information
+     * @see   Drawing#getReport
+     */
+    boolean hasReports();
 
     /**
      * Creates a PlotLayer based on the given geometry, data and style.

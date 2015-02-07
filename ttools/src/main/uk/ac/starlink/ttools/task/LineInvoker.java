@@ -41,7 +41,7 @@ import uk.ac.starlink.util.gui.MemoryMonitor;
 public class LineInvoker {
 
     private final String toolName_;
-    private final ObjectFactory taskFactory_;
+    private final ObjectFactory<Task> taskFactory_;
     private static Logger logger_ = Logger.getLogger( "uk.ac.starlink.ttools" );
 
     /**
@@ -51,7 +51,7 @@ public class LineInvoker {
      * @param   taskFactory  factory which can create the tasks known to
      *          the application
      */
-    public LineInvoker( String toolName, ObjectFactory taskFactory ) {
+    public LineInvoker( String toolName, ObjectFactory<Task> taskFactory ) {
         toolName_ = toolName;
         taskFactory_ = taskFactory;
     }
@@ -69,6 +69,7 @@ public class LineInvoker {
         int verbosity = 0;
         boolean bench = false;
         boolean memgui = false;
+        boolean allowunused = false;
         PrintStream out = System.out;
         PrintStream err = System.err;
 
@@ -93,9 +94,7 @@ public class LineInvoker {
                         "STIL version "
                         + IOUtils.getResourceContents( StarTable.class,
                                                        "stil.version" ),
-                        "Starjava revision: "
-                        + IOUtils.getResourceContents( Stilts.class,
-                                                       "revision-string" ),
+                        "Starjava revision: " + Stilts.getStarjavaRevision(),
                         "JVM: " + InvokeUtils.getJavaVM(),
                         "",
                         "Author: Mark Taylor",
@@ -159,6 +158,14 @@ public class LineInvoker {
                 else if ( arg.equals( "-memgui" ) ) {
                     it.remove();
                     memgui = true;
+                }
+                else if ( arg.equals( "-allowunused" ) ) {
+                    it.remove();
+                    allowunused = true;
+                }
+                else if ( arg.equals( "-noallowunused" ) ) {
+                    it.remove();
+                    allowunused = false;
                 }
                 else if ( arg.equals( "-checkversion" ) && it.hasNext() ) {
                     it.remove();
@@ -251,44 +258,50 @@ public class LineInvoker {
         if ( taskFactory_.isRegistered( taskName ) ) {
             Task task = null;
             try {
-                task = (Task) taskFactory_.createObject( taskName );
+                task = taskFactory_.createObject( taskName );
                 String[] taskArgs = (String[])
                                     argList.toArray( new String[ 0 ] );
+                LineWord[] words = new LineWord[ taskArgs.length ];
+                for ( int i = 0; i < taskArgs.length; i++ ) {
+                    words[ i ] = new LineWord( taskArgs[ i ] );
+                }
+                env.setWords( words );
                 String helpText = helpMessage( env, task, taskName, taskArgs );
                 if ( helpText != null ) {
                     out.println( "\n" + helpText );
                     return 0;
                 }
                 else {
-                    LineWord[] words = new LineWord[ taskArgs.length ];
-                    for ( int i = 0; i < taskArgs.length; i++ ) {
-                        words[ i ] = new LineWord( taskArgs[ i ] );
-                    }
-                    env.setWords( words );
                     long start = System.currentTimeMillis();
                     Executable exec = task.createExecutable( env );
                     String[] unused = env.getUnused();
-                    if ( unused.length == 0 ) {
+                    if ( unused.length > 0 ) {
                         logParameterValues( taskName, env );
-                        JFrame monwin = memgui ? startMemoryMonitor( "STILTS" )
-                                               : null;
-                        exec.execute();
-                        if ( monwin != null ) {
-                            monwin.dispose();
+                        if ( allowunused ) {
+                            logger_.warning( getUnusedWarning( unused ) );
                         }
-                        if ( bench ) {
-                            long millis = System.currentTimeMillis() - start;
-                            String secs =
-                                Float.toString( ( millis / 100L ) * 0.1f );
-                            err.println( "Elapsed time: " + secs + "s" );
+                        else {
+                            err.println( "\n" + getUnusedWarning( unused ) );
+                            err.println( getTaskUsage( task, taskName ) );
+                            return 1;
                         }
-                        return 0;
                     }
                     else {
-                        err.println( "\n" + getUnusedWarning( unused ) );
-                        err.println( getTaskUsage( task, taskName ) );
-                        return 1;
+                        logParameterValues( taskName, env );
                     }
+                    JFrame monwin = memgui ? startMemoryMonitor( "STILTS" )
+                                           : null;
+                    exec.execute();
+                    if ( monwin != null ) {
+                        monwin.dispose();
+                    }
+                    if ( bench ) {
+                        long millis = System.currentTimeMillis() - start;
+                        String secs =
+                            Float.toString( ( millis / 100L ) * 0.1f );
+                        err.println( "Elapsed time: " + secs + "s" );
+                    }
+                    return 0;
                 }
             }
             catch ( TaskException e ) {
@@ -423,14 +436,15 @@ public class LineInvoker {
      * @return  help text, or null
      */
     private String helpMessage( LineTableEnvironment env, Task task,
-                                String taskName, String[] taskArgs ) {
+                                String taskName, String[] taskArgs )
+            throws TaskException {
         for ( int i = 0; i < taskArgs.length; i++ ) {
             String arg = taskArgs[ i ];
             String helpFor = null;
             if ( arg.equals( "-help" ) ||
                  arg.equals( "-h" ) ||
                  arg.equalsIgnoreCase( "help" ) ) {
-                return getTaskUsage( task, taskName );
+                return getTaskUsage( env, task, taskName );
             }
             else if ( arg.toLowerCase().startsWith( "-help=" ) ) {
                 helpFor = arg.substring( 6 ).trim().toLowerCase();
@@ -458,6 +472,15 @@ public class LineInvoker {
                 for ( int j = 0; j < params.length; j++ ) {
                     Parameter param = params[ j ];
                     if ( env.paramNameMatches( helpFor, param ) ) {
+                        return getParamHelp( env, taskName, param );
+                    }
+                }
+
+                /* If that fails, look for environment-sensitive parameters. */
+                if ( task instanceof DynamicTask ) {
+                    Parameter param =
+                        ((DynamicTask) task).getParameterByName( env, helpFor );
+                    if ( param != null ) {
                         return getParamHelp( env, taskName, param );
                     }
                 }
@@ -502,7 +525,7 @@ public class LineInvoker {
     private String getUsage( String topic ) {
         if ( topic != null ) {
             try {
-                Task task = (Task) taskFactory_.createObject( topic );
+                Task task = taskFactory_.createObject( topic );
                 return getTaskUsage( task, topic );
             }
             catch ( LoadException e ) {
@@ -570,18 +593,19 @@ public class LineInvoker {
             .append( " [-help]" )
             .append( " [-version]" )
             .append( " [-verbose]" )
+            .append( " [-allowunused]" )
+            .append( " [-prompt]" )
+            .append( " [-bench]" )
+            .append( '\n' )
+            .append( pad )
+            .append( " [-debug]" )
+            .append( " [-batch]" )
             .append( " [-memory]" )
             .append( " [-disk]" )
-            .append( " [-debug]" )
-            .append( '\n' )
-            .append( pad )
-            .append( " [-prompt]" )
-            .append( " [-batch]" )
-            .append( " [-bench]" )
             .append( " [-memgui]" )
-            .append( " [-checkversion <vers>]" )
             .append( '\n' )
             .append( pad )
+            .append( " [-checkversion <vers>]" )
             .append( " [-stdout <file>]" )
             .append( " [-stderr <file>]" )
             .append( '\n' )
@@ -615,29 +639,48 @@ public class LineInvoker {
      * @return   usage string
      */
     private static String getTaskUsage( Task task, String taskName ) {
-        String prefix = "Usage: " + taskName;
-        StringBuffer usage = new StringBuffer();
-        usage.append( getPrefixedTaskUsage( task, prefix ) );
-        String pad = prefix.replaceAll( ".", " " );
-     // usage.append( pad )
-     //      .append( " [help=<arg-name>]" )
-     //      .append( '\n' );
-        return usage.toString();
+        try {
+            return getTaskUsage( null, task, taskName );
+        }
+        catch ( TaskException e ) {
+            throw new AssertionError( e );
+        }
     }
 
     /**
-     * Returns a usage string for a task, prefixed by a given string.
+     * Returns a usage string for a task known to this application,
+     * including with environment-sensitive adjustments if applicable.
      *
+     * @param   env   optionally partially populated execution environment,
+     *                or null
      * @param   task   task object
+     * @param   taskName  task nickname (the one by which it is known to
+     *          the user)
+     * @return   usage string
+     */
+    private static String getTaskUsage( Environment env, Task task,
+                                        String taskName )
+            throws TaskException {
+        Parameter[] params = task instanceof DynamicTask && env != null
+                           ? ((DynamicTask) task).getContextParameters( env )
+                           : task.getParameters();
+        return getPrefixedParameterUsage( params, "Usage: " + taskName );
+    }
+
+    /**
+     * Returns a usage string for a set of parameters,
+     * prefixed by a given string.
+     *
+     * @param   params   parameter array
      * @param   prefix   string to prepend to the first line
      * @return   usage string
      */
-    public static String getPrefixedTaskUsage( Task task, String prefix ) {
+    public static String getPrefixedParameterUsage( Parameter[] params,
+                                                    String prefix ) {
 
         /* Assemble two lists of usage elements: one for parameters 
          * which must be specified by name, and another for parameters
          * which can be specified only by position. */
-        Parameter[] params = task.getParameters();
         List namedWords = new ArrayList();
         List numberedWords = new ArrayList();
         int iPos = 0;
@@ -732,7 +775,7 @@ public class LineInvoker {
     public static String getParamHelp( TableEnvironment env, String taskName,
                                        Parameter param ) {
         boolean byPos = param.getPosition() > 0;
-        boolean isOptional = param.getDefault() != null 
+        boolean isOptional = param.getStringDefault() != null 
                           || param.isNullPermitted();
         StringBuffer sbuf = new StringBuffer();
         if ( taskName != null ) {
@@ -766,11 +809,20 @@ public class LineInvoker {
         catch ( SAXException e ) {
             sbuf.append( "      ???" );
         }
-        if ( param.getDefault() != null ||
+        Class clazz = param.getValueClass();
+        String clazzName = clazz.getCanonicalName();
+        String javaPrefix = "java.lang.";
+        String clazzAbbrev = clazzName.startsWith( javaPrefix )
+                           ? clazzName.substring( javaPrefix.length() )
+                           : clazzName;
+        sbuf.append( "\n\n   Type:\n" )
+            .append( "      " )
+            .append( clazzAbbrev );
+        if ( param.getStringDefault() != null ||
              param.isNullPermitted() ) {
             sbuf.append( "\n\n   Default:\n" )
                 .append( "      " )
-                .append( param.getDefault() );
+                .append( param.getStringDefault() );
         }
         if ( param instanceof ExtraParameter ) {
             sbuf.append( "\n\n" )

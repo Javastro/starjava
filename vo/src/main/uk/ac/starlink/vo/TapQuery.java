@@ -92,7 +92,7 @@ public class TapQuery {
      * @param  serviceUrl  base service URL for TAP service
      *                     (excluding "/[a]sync")
      * @param  adql   text of ADQL query
-     * @param  extraParams  key->value map for optional parameters;
+     * @param  extraParams  key-&gt;value map for optional parameters;
      *                      if any of these match the names of standard
      *                      parameters (upper case) the standard values will
      *                      be overwritten, so use with care (may be null)
@@ -110,20 +110,24 @@ public class TapQuery {
      * @param  serviceUrl  base service URL for TAP service
      *                     (excluding "/[a]sync")
      * @param  adql   text of ADQL query
-     * @param  extraParams  key->value map for optional parameters;
+     * @param  extraParams  key-&gt;value map for optional parameters;
      *                      if any of these match the names of standard
      *                      parameters (upper case) the standard values will
      *                      be overwritten, so use with care (may be null)
-     * @param  uploadMap  name->table map of tables to be uploaded to
+     * @param  uploadMap  name-&gt;table map of tables to be uploaded to
      *                    the service for the query (may be null)
      * @param  uploadLimit  maximum number of bytes that may be uploaded;
      *                      if negative, no limit is applied,
      *                      ignored if <code>uploadMap</code> null or empty
+     * @param  vowriter   serializer for producing content of uploaded tables;
+     *                    ignored if <code>uploadMap</code> null or empty,
+     *                    if null a default value is used
      * @throws   IOException   if upload tables exceed the upload limit
      */
     public TapQuery( URL serviceUrl, String adql,
                      Map<String,String> extraParams,
-                     Map<String,StarTable> uploadMap, long uploadLimit )
+                     Map<String,StarTable> uploadMap,
+                     long uploadLimit, VOTableWriter vowriter )
             throws IOException {
         this( serviceUrl, adql, extraParams, uploadLimit );
 
@@ -131,6 +135,10 @@ public class TapQuery {
          * This also affects the string parameter map. */
         StringBuffer ubuf = new StringBuffer();
         if ( uploadMap != null ) {
+            if ( vowriter == null ) {
+                vowriter = new VOTableWriter( DataFormat.BINARY, true,
+                                              VOTableVersion.V12 );
+            }
             for ( Map.Entry<String,StarTable> upload : uploadMap.entrySet() ) {
                 String tname = upload.getKey();
                 String tlabel = toParamLabel( tname );
@@ -143,8 +151,10 @@ public class TapQuery {
                     .append( "param:" )
                     .append( tlabel );
                 HttpStreamParam streamParam =
-                    createUploadStreamParam( table, uploadLimit );
+                    createUploadStreamParam( table, uploadLimit, vowriter );
                 streamMap_.put( tlabel, streamParam );
+                logger_.info( "Preparing upload parameter " + tlabel
+                            + " using VOTable serializer " + vowriter );
             }
         }
         if ( ubuf.length() > 0 ) {
@@ -173,7 +183,7 @@ public class TapQuery {
     /**
      * Returns the map of string parameters to be passed to the TAP service.
      *
-     * @return   name->value map for TAP string parameters
+     * @return   name-&gt;value map for TAP string parameters
      */
     public Map<String,String> getStringParams() {
         return stringMap_;
@@ -182,7 +192,7 @@ public class TapQuery {
     /**
      * Returns the map of streamed parameters to be passed to the TAP service.
      *
-     * @return  name->value map for TAP stream parameters
+     * @return  name-&gt;value map for TAP stream parameters
      */
     public Map<String,HttpStreamParam> getStreamParams() {
         return streamMap_;
@@ -242,6 +252,59 @@ public class TapQuery {
 
     /**
      * Blocks until the TAP query represented by a given UWS job has completed,
+     * then returns the URL from which the successful result can be obtained.
+     * If the job does not complete successfully, an IOException is thrown
+     * instead.
+     *
+     * @param  uwsJob  started UWS job representing an async TAP query
+     * @param  pollMillis  polling interval in milliseconds
+     * @return   open URL connection to result stream
+     */
+    public static URL waitForResultUrl( UwsJob uwsJob, long pollMillis )
+            throws IOException, InterruptedException {
+        String phase = uwsJob.waitForFinish( pollMillis );
+        assert UwsStage.forPhase( phase ) == UwsStage.FINISHED;
+        if ( "COMPLETED".equals( phase ) ) {
+            return new URL( uwsJob.getJobUrl() + "/results/result" );
+        }
+        else if ( "ABORTED".equals( phase ) ) {
+            throw new IOException( "TAP query did not complete ("
+                                 + phase + ")" );
+        }
+        else if ( "ERROR".equals( phase ) ) {
+            String errText = null;
+
+            /* We read the error text from the /error job resource,
+             * which TAP says has to be a VOTable.  This is always
+             * present.  In some cases it might be better to read
+             * from the errorSummary element of the job resource
+             * (e.g. xpath /job/errorSummary/message/text()), since
+             * that might contain a shorter and more human-friendly
+             * message, but (a) many/most TAP servers do not supply
+             * this at time of writing and (b) it's difficult to
+             * navigate the UWS document in the presence of namespaces
+             * which often refer to different/older versions of the
+             * UWS protocol. */
+            URL errUrl = new URL( uwsJob.getJobUrl() + "/error" );
+            logger_.info( "Read error VOTable from " + errUrl );
+            try {
+                errText = readErrorInfo( errUrl.openStream() );
+            }
+            catch ( Throwable e ) {
+                throw (IOException)
+                      new IOException( "TAP Execution error"
+                                     + " (can't get detail)" )
+                     .initCause( e );
+            }
+            throw new IOException( "TAP execution error: " + errText );
+        }
+        else {
+            throw new IOException( "Unknown UWS execution phase " + phase );
+        }
+    }
+
+    /**
+     * Blocks until the TAP query represented by a given UWS job has completed,
      * then returns a table based on the result.
      * In case of job failure, an exception will be thrown instead.
      *
@@ -253,50 +316,14 @@ public class TapQuery {
     public static StarTable waitForResult( UwsJob uwsJob, StoragePolicy storage,
                                            long pollMillis )
             throws IOException, InterruptedException {
+        URL resultUrl;
         try {
-            String phase = uwsJob.waitForFinish( pollMillis );
-            assert UwsStage.forPhase( phase ) == UwsStage.FINISHED;
-            if ( "COMPLETED".equals( phase ) ) {
-                return getResult( uwsJob, storage );
-            }
-            else if ( "ABORTED".equals( phase ) ) {
-                throw new IOException( "TAP query did not complete ("
-                                     + phase + ")" );
-            }
-            else if ( "ERROR".equals( phase ) ) {
-                String errText = null;
-
-                /* We read the error text from the /error job resource,
-                 * which TAP says has to be a VOTable.  This is always
-                 * present.  In some cases it might be better to read
-                 * from the errorSummary element of the job resource
-                 * (e.g. xpath /job/errorSummary/message/text()), since
-                 * that might contain a shorter and more human-friendly
-                 * message, but (a) many/most TAP servers do not supply
-                 * this at time of writing and (b) it's difficult to
-                 * navigate the UWS document in the presence of namespaces
-                 * which often refer to different/older versions of the
-                 * UWS protocol. */
-                URL errUrl = new URL( uwsJob.getJobUrl() + "/error" );
-                logger_.info( "Read error VOTable from " + errUrl );
-                try {
-                    errText = readErrorInfo( errUrl.openStream() );
-                }
-                catch ( Throwable e ) {
-                    throw (IOException)
-                          new IOException( "TAP Execution error"
-                                         + " (can't get detail)" )
-                         .initCause( e );
-                }
-                throw new IOException( "TAP execution error: " + errText );
-            }
-            else {
-                throw new IOException( "Unknown UWS execution phase " + phase );
-            }
+            resultUrl = waitForResultUrl( uwsJob, pollMillis );
         }
         catch ( UwsJob.UnexpectedResponseException e ) {
             throw asIOException( e, null );
         }
+        return readResultVOTable( resultUrl.openConnection(), storage );
     }
 
     /**
@@ -440,15 +467,15 @@ public class TapQuery {
      *
      * @param   table  table to upload
      * @param   uploadLimit  maximum number of bytes permitted; -1 if no limit
+     * @param   vowriter   serializer for producing content of uploaded tables
      * @return  stream parameter
      */
     private static HttpStreamParam
                    createUploadStreamParam( final StarTable table,
-                                            long uploadLimit )
+                                            long uploadLimit,
+                                            final VOTableWriter vowriter )
             throws IOException {
         final Map<String,String> headerMap = new LinkedHashMap<String,String>();
-        final VOTableWriter vowriter =
-            new VOTableWriter( DataFormat.BINARY, true, VOTableVersion.V12 );
         headerMap.put( "Content-Type", "application/x-votable+xml" );
         if ( uploadLimit < 0 ) {
             return new HttpStreamParam() {

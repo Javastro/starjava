@@ -20,8 +20,8 @@ import uk.ac.starlink.util.URLUtils;
  */
 public class Stilts {
 
-    private static ObjectFactory taskFactory_;
-    private static ObjectFactory modeFactory_;
+    private static ObjectFactory<Task> taskFactory_;
+    private static ObjectFactory<ProcessingMode> modeFactory_;
     static { init(); }
 
     public static final String VERSION_RESOURCE = "stilts.version";
@@ -48,20 +48,18 @@ public class Stilts {
     /**
      * Returns the factory which can create any of the known output modes.
      *
-     * @return   factory which creates
-     *           {@link uk.ac.starlink.ttools.mode.ProcessingMode} objects.
+     * @return   factory which creates processing modes
      */
-    public static ObjectFactory getModeFactory() {
+    public static ObjectFactory<ProcessingMode> getModeFactory() {
         return modeFactory_;
     }
 
     /**
      * Returns the factory which can create any of the known tasks.
      *
-     * @return   factory which creates
-     *           {@link uk.ac.starlink.task.Task} objects.
+     * @return   factory which creates tasks
      */
-    public static ObjectFactory getTaskFactory() {
+    public static ObjectFactory<Task> getTaskFactory() {
         return taskFactory_;
     }
 
@@ -75,10 +73,19 @@ public class Stilts {
     }
 
     /**
+     * Returns the revision string for the starjava repository, if available.
+     *
+     * @return  revision string
+     */
+    public static String getStarjavaRevision() {
+        return IOUtils.getResourceContents( Stilts.class, "revision-string" );
+    }
+
+    /**
      * Initialises factories.
      */
     private static void init() {
-        taskFactory_ = new ObjectFactory( Task.class );
+        taskFactory_ = new ObjectFactory<Task>( Task.class );
         String taskPkg = "uk.ac.starlink.ttools.task.";
         taskFactory_.register( "calc", taskPkg + "Calc" );
         taskFactory_.register( "cdsskymatch", taskPkg + "CdsUploadSkyMatch" );
@@ -97,6 +104,7 @@ public class Stilts {
         taskFactory_.register( "taplint", taskPkg + "TapLint" );
         taskFactory_.register( "tapquery", taskPkg + "TapQuerier" );
         taskFactory_.register( "tapresume", taskPkg + "TapResume" );
+        taskFactory_.register( "tapskymatch", taskPkg + "TapUploadSkyMatch" );
         taskFactory_.register( "tcat", taskPkg + "TableCat" );
         taskFactory_.register( "tcatn", taskPkg + "TableCatN" );
         taskFactory_.register( "tcopy", taskPkg + "TableCopy" );
@@ -113,7 +121,15 @@ public class Stilts {
         taskFactory_.register( "votcopy", taskPkg + "VotCopy" );
         taskFactory_.register( "votlint", taskPkg + "VotLint" );
 
-        modeFactory_ = new ObjectFactory( ProcessingMode.class );
+        String plot2Pkg = "uk.ac.starlink.ttools.plot2.task.";
+        taskFactory_.register( "plot2plane", plot2Pkg + "PlanePlot2Task" );
+        taskFactory_.register( "plot2sky", plot2Pkg + "SkyPlot2Task" );
+        taskFactory_.register( "plot2cube", plot2Pkg + "CubePlot2Task" );
+        taskFactory_.register( "plot2sphere", plot2Pkg + "SpherePlot2Task" );
+        taskFactory_.register( "plot2time", plot2Pkg + "TimePlot2Task" );
+
+        modeFactory_ =
+            new ObjectFactory<ProcessingMode>( ProcessingMode.class );
         String modePkg = "uk.ac.starlink.ttools.mode.";
         modeFactory_.register( "out", modePkg + "CopyMode" );
         modeFactory_.register( "meta", modePkg + "MetadataMode" );
@@ -125,5 +141,6 @@ public class Stilts {
         modeFactory_.register( "samp", modePkg + "SampMode" );
         modeFactory_.register( "plastic", modePkg + "PlasticMode" );
         modeFactory_.register( "tosql", modePkg + "JdbcMode" );
+        modeFactory_.register( "gui", modePkg + "SwingMode" );
     }
 }

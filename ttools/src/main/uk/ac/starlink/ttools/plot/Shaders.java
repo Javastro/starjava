@@ -188,6 +188,18 @@ public class Shaders {
     /** Shader copied from SPECX blue2yellow lookup table. */
     public static final Shader LUT_SPECXB2Y;
 
+    /** Shader copied from Matplotlib BRG lookup table. */
+    public static final Shader LUT_BRG;
+
+    /** Shader copied from Matplotlib Paired lookup table. */
+    public static final Shader LUT_PAIRED;
+
+    /** Shader copied from Matplotlib gist_rainbow lookup table. */
+    public static final Shader LUT_RAINBOW3;
+
+    /** Shader copied from Matplotlib Set1 lookup table. */
+    public static final Shader LUT_SET1;
+
     /** Selection of lookup table-based shaders. */
     public final static Shader[] LUT_SHADERS = new Shader[] {
         LUT_AIPS0 = new ResourceLutShader( "AIPS0", "aips0.lut" ),
@@ -214,6 +226,10 @@ public class Shaders {
         LUT_GNUPLOT = new ResourceLutShader( "Gnuplot", "MPL_gnuplot.lut" ),
         LUT_GNUPLOT2 = new ResourceLutShader( "Gnuplot2", "MPL_gnuplot2.lut" ),
         LUT_SPECXB2Y = new ResourceLutShader( "SpecxBY", "specxbl2yel.lut" ),
+        LUT_BRG = new ResourceLutShader( "BRG", "brg.lut" ),
+        LUT_RAINBOW3 = new ResourceLutShader( "Rainbow3", "gist_rainbow.lut" ),
+        LUT_PAIRED = new ResourceLutShader( "Paired", "paired.lut" ),
+        LUT_SET1 = new ResourceLutShader( "Set1", "set1.lut" ),
     };
 
     /* ColorBrewer.
@@ -947,6 +963,77 @@ public class Shaders {
         }
     }
 
+    /**
+     * Shader implementation which quantises the colour map into a
+     * set of discrete colour values.
+     */
+    private static class QuantisedShader implements Shader {
+
+        private final Shader base_;
+        private final float nlevel_;
+
+        /**
+         * Constructor.
+         *
+         * @param  base  base shader
+         * @param  nlevel   number of discrete colours for output
+         */
+        public QuantisedShader( Shader base, double nlevel ) {
+            base_ = base;
+            nlevel_ = (float) nlevel;
+        }
+
+        public void adjustRgba( float[] rgba, float value ) {
+            base_.adjustRgba( rgba, quantise( value ) );
+        }
+
+        private float quantise( float value ) {
+            return (int) ( value * nlevel_ ) / nlevel_;
+        }
+
+        public boolean isAbsolute() {
+            return base_.isAbsolute();
+        }
+
+        public String getName() {
+            return base_.getName() + "-" + (int) Math.round( nlevel_ );
+        }
+
+        public Icon createIcon( boolean horizontal, int width, int height,
+                                int xpad, int ypad ) {
+            Color baseColor = base_ instanceof BasicShader   
+                            ? ((BasicShader) base_).baseColor_
+                            : null;
+            return create1dIcon( this, horizontal,
+                                 baseColor == null ? Color.BLACK : baseColor,
+                                 width, height, xpad, ypad );
+        }
+
+        @Override
+        public int hashCode() {
+            int code = 4392;
+            code = 23 * code + base_.hashCode();
+            code = 23 * code + Float.floatToIntBits( nlevel_ );
+            return code;
+        }
+
+        @Override
+        public boolean equals( Object o ) {
+            if ( o instanceof QuantisedShader ) {
+                QuantisedShader other = (QuantisedShader) o;
+                return this.base_.equals( other.base_ )
+                    && this.nlevel_ == other.nlevel_;
+            }
+            else {
+                return false;
+            }
+        }
+
+        @Override
+        public String toString() {
+            return getName();
+        }
+    }
 
     /**
      * Shader implementation which scales one component of the sRGB array
@@ -1265,9 +1352,22 @@ public class Shaders {
      *                  value 0 in this one (must be in range 0-1)
      * @param   frac1   parameter value in base shader corresponding to
      *                  value 1 in this one (must be in range 0-1)
+     * @return   new shader
      */
     public static Shader stretch( Shader shader, float frac0, float frac1 ) {
         return new StretchedShader( shader, frac0, frac1 );
+    }
+
+    /**
+     * Returns a shader which splits the colour map into a set of
+     * discrete levels.
+     *
+     * @param  shader  base shader
+     * @param  nlevel  number of discrete colour levels required
+     * @return  new shader
+     */
+    public static Shader quantise( Shader shader, double nlevel ) {
+        return new QuantisedShader( shader, nlevel );
     }
 
     /**

@@ -416,14 +416,17 @@ public class TablePipeTest extends TableTestCase {
         assertTrue( nrow > 2 );
         assertSameData( inTable_, apply( "repeat 1" ) );
         assertSameData( inTable_, apply( "repeat 1000000; head " + nrow ) );
-        assertSameData( inTable_, apply( "repeat 999; tail " + nrow ) );
+        assertSameData( inTable_, apply( "repeat -table 999; tail " + nrow ) );
         assertSameData( inTable_,
                         apply( "repeat 10; rowrange " + ( nrow + 1 )
                                                       + " +" + nrow ) );
         assertSameData( inTable_,
                         apply( "repeat 10; rowrange " + ( nrow * 4 + 1 )
                                                       + " +" + nrow ) );
-        assertEquals( nrow * 99, apply( "repeat 99" ).getRowCount() );
+        assertSameData( inTable_,
+                        apply( "repeat -row 3*3; every 9" ) );
+        assertEquals( nrow * 99, apply( "repeat -table 99" ).getRowCount() );
+        assertEquals( nrow * 99, apply( "repeat -row 99" ).getRowCount() );
         assertEquals( 0, apply( "repeat 0" ).getRowCount() );
     }
 
@@ -474,6 +477,11 @@ public class TablePipeTest extends TableTestCase {
         assertEquals( "salt+vinegar", dval.getValue() );
 
         assertEquals(
+            new Long( 23 ),
+            apply( "setparam -type long x 20; setparam y 3+param$x" )
+           .getParameterByName( "y" ).getValue() );
+
+        assertEquals(
             new Double( 3.1 ),
             apply( "setparam x 3.1" ).getParameterByName( "x" ).getValue() );
         assertEquals(
@@ -484,9 +492,9 @@ public class TablePipeTest extends TableTestCase {
             apply( "setparam x false" ).getParameterByName( "x" ).getValue() );
 
         assertEquals(
-            new Double( 3.0 ),
-            apply( "setparam -type double x 3" ).getParameterByName( "x" )
-                                                .getValue() );
+            new Double( 1.0 ),
+            apply( "setparam -type double x cos(0)" ).getParameterByName( "x" )
+                                                     .getValue() );
         assertEquals(
             new Float( 3.0f ),
             apply( "setparam -type float x 3" ).getParameterByName( "x" )
@@ -497,7 +505,7 @@ public class TablePipeTest extends TableTestCase {
                                               .getValue() );
         assertEquals(
             new Integer( 3 ),
-            apply( "setparam -type int x 3" ).getParameterByName( "x" )
+            apply( "setparam -type int x 1+1+1" ).getParameterByName( "x" )
                                              .getValue() );
         assertEquals(
             new Short( (short) 3 ),

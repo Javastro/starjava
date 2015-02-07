@@ -1,27 +1,32 @@
 package uk.ac.starlink.ttools.cone;
 
+import java.io.BufferedInputStream;
+import java.io.BufferedReader;
 import java.io.IOException;
+import java.io.InputStream;
+import java.io.InputStreamReader;
 import java.io.OutputStream;
 import java.net.URL;
 import java.net.URLConnection;
+import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.LinkedHashMap;
+import java.util.List;
 import java.util.Map;
 import java.util.logging.Logger;
+import org.json.JSONObject;
+import org.json.JSONTokener;
 import org.xml.sax.SAXException;
-import uk.ac.starlink.table.AbstractStarTable;
 import uk.ac.starlink.table.ColumnInfo;
-import uk.ac.starlink.table.RowSequence;
 import uk.ac.starlink.table.StarTable;
 import uk.ac.starlink.table.TableSink;
-import uk.ac.starlink.table.Tables;
-import uk.ac.starlink.table.UnrepeatableSequenceException;
-import uk.ac.starlink.table.ValueInfo;
+import uk.ac.starlink.util.CgiQuery;
 import uk.ac.starlink.vo.HttpStreamParam;
 import uk.ac.starlink.vo.TapQuery;
 import uk.ac.starlink.vo.UwsJob;
 import uk.ac.starlink.votable.DataFormat;
-import uk.ac.starlink.votable.VOTableWriter;
 import uk.ac.starlink.votable.VOTableVersion;
+import uk.ac.starlink.votable.VOTableWriter;
 
 /**
  * UploadMatcher implementation for the CDS Xmatch service.
@@ -36,15 +41,24 @@ public class CdsUploadMatcher implements UploadMatcher {
     private final URL serviceUrl_;
     private final String tableId_;
     private final double srArcsec_;
-    private final CdsFindMode findMode_;
+    private final ServiceFindMode serviceMode_;
+    private final boolean uploadFirst_;
 
     /** URL for the CDS Xmatch service. */
     public static final String XMATCH_URL =
         "http://cdsxmatch.u-strasbg.fr/xmatch/api/v1/sync";
 
+    /** Alias for Simbad flat view table. */
+    public static final String SIMBAD_NAME = "simbad";
+
+    /** Whether it is safe/recommended to upload empty tables to match. */
+    public static final boolean UPLOAD_EMPTY = false;
+
+    /* Names of columns in uploaded table. */
+    private static final String ID_NAME = "__UPLOAD_ID__";
     private static final String RA_NAME = "__UPLOAD_RA__";
     private static final String DEC_NAME = "__UPLOAD_DEC__";
-    private static final String ID_NAME = "__UPLOAD_ID__";
+
     private static Logger logger_ =
         Logger.getLogger( "uk.ac.starlink.ttools.cone" );
 
@@ -52,16 +66,17 @@ public class CdsUploadMatcher implements UploadMatcher {
      * Constructor.
      *
      * @param  serviceUrl   URL of Xmatch service
-     * @param  tableId    identifier of remote table
-     * @param  srArcsec      match radius in arcseconds
-     * param   findMode      type of match
+     * @param  tableId      identifier of remote table
+     * @param  srArcsec     match radius in arcseconds
+     * @param  serviceMode  type of match
      */
     public CdsUploadMatcher( URL serviceUrl, String tableId, double srArcsec,
-                             CdsFindMode findMode ) {
+                             ServiceFindMode serviceMode ) {
         serviceUrl_ = serviceUrl;
         tableId_ = tableId;
         srArcsec_ = srArcsec;
-        findMode_ = findMode;
+        serviceMode_ = serviceMode;
+        uploadFirst_ = serviceMode_ != ServiceFindMode.BEST_REMOTE;
     }
 
     public boolean streamRawResult( ConeQueryRowSequence coneSeq,
@@ -72,7 +87,7 @@ public class CdsUploadMatcher implements UploadMatcher {
         /* Prepare string parameters. */
         final String uploadIndex;
         final String remoteIndex;
-        if ( findMode_.isUploadFirst() ) {
+        if ( uploadFirst_ ) {
             uploadIndex = "1";
             remoteIndex = "2";
         }
@@ -84,11 +99,15 @@ public class CdsUploadMatcher implements UploadMatcher {
         stringMap.put( "REQUEST", "xmatch" );
         stringMap.put( "RESPONSEFORMAT", "votable" );
         stringMap.put( "distMaxArcsec", Double.toString( srArcsec_ ) );
-        stringMap.put( "selection", findMode_.getSelectionValue() );
+        stringMap.put( "selection",
+                       serviceMode_.isBestOnly() ? "best" : "all" );
         stringMap.put( "cat" + remoteIndex, tableId_ );
         stringMap.put( "colRA" + uploadIndex, RA_NAME );
         stringMap.put( "colDec" + uploadIndex, DEC_NAME );
         stringMap.put( "cols" + uploadIndex, ID_NAME );
+        if ( serviceMode_.isScoreOnly() ) {
+            stringMap.put( "cols" + remoteIndex, "" );
+        }
         if ( maxrec >= 0 ) {
             stringMap.put( "MAXREC", Long.toString( maxrec ) );
         }
@@ -101,7 +120,9 @@ public class CdsUploadMatcher implements UploadMatcher {
         headerMap.put( "Content-Type", "application/x-votable+xml" );
         final VOTableWriter vowriter =
             new VOTableWriter( DataFormat.BINARY, true, VOTableVersion.V12 );
-        final StarTable coneTable = new UploadConeTable( coneSeq, rowMapper );
+        final StarTable coneTable =
+            new UploadConeTable( coneSeq, rowMapper,
+                                 ID_NAME, RA_NAME, DEC_NAME );
         HttpStreamParam param = new HttpStreamParam() {
             public Map<String,String> getHttpHeaders() {
                 return headerMap;
@@ -131,14 +152,9 @@ public class CdsUploadMatcher implements UploadMatcher {
         }
     }
 
-    public StarTable createOutputTable( StarTable rawResult,
-                                        StarTable uploadTable,
-                                        RowMapper<?> rowMapper ) {
-        ColumnPlan cplan = new ColumnPlan( Tables.getColumnInfos( rawResult ),
-                                           Tables.getColumnInfos( uploadTable ),
-                                           findMode_.isUploadFirst() );
-        return new XmatchOutputTable( rawResult, uploadTable, rowMapper,
-                                      cplan );
+    public ColumnPlan getColumnPlan( ColumnInfo[] resultCols,
+                                     ColumnInfo[] uploadCols ) {
+        return new CdsColumnPlan( resultCols, uploadCols, uploadFirst_ );
     }
 
     /**
@@ -157,8 +173,8 @@ public class CdsUploadMatcher implements UploadMatcher {
         if ( txt.length() == 0 ) {
             return null;
         }
-        else if ( txt.equalsIgnoreCase( "simbad" ) ) {
-            return "simbad";
+        else if ( txt.equalsIgnoreCase( SIMBAD_NAME ) ) {
+            return SIMBAD_NAME;
         }
         else {
             return "vizier:" + txt;
@@ -166,242 +182,192 @@ public class CdsUploadMatcher implements UploadMatcher {
     }
 
     /**
-     * Table suitable for uploading based on a sequence of positional queries
-     * and an RowMapper.
-     * The resulting table contains just three columns: ID, RA, Dec.
+     * Reads the list of VizieR table aliases that can be used with
+     * the Xmatch service.  This is expected to be a short list
+     * (a few tens of entries).
      *
-     * <p>This is a one-shot sequential table - only one row sequence
-     * may be taken out from it.
+     * @return alias list
      */
-    private static class UploadConeTable extends AbstractStarTable {
-        private ConeQueryRowSequence coneSeq_;
-        private final RowMapper<?> rowMapper_;
-        private final ColumnInfo[] colInfos_;
-
-        /**
-         * Constructor.
-         *
-         * @param  coneSeq  sequence of positional queries
-         * @param  rowMapper  maps index of query to an identifier object
-         */
-        UploadConeTable( ConeQueryRowSequence coneSeq, RowMapper rowMapper ) {
-            coneSeq_ = coneSeq;
-            rowMapper_ = rowMapper;
-            colInfos_ = new ColumnInfo[] {
-                new ColumnInfo( ID_NAME, rowMapper_.getIdClass(),
-                                "Row identifier" ),
-                new ColumnInfo( RA_NAME, Double.class, "ICRS Right Ascension" ),
-                new ColumnInfo( DEC_NAME, Double.class, "ICRS Declination" ),
-            };
-        }
-
-        public int getColumnCount() {
-            return colInfos_.length;
-        }
-
-        public ColumnInfo getColumnInfo( int icol ) {
-            return colInfos_[ icol ];
-        }
-
-        public long getRowCount() {
-            return -1;
-        }
-
-        public synchronized RowSequence getRowSequence() throws IOException {
-            if ( coneSeq_ == null ) {
-                throw new UnrepeatableSequenceException();
+    public static String[] readAliases() throws IOException {
+        String url = XMATCH_URL + "/tables?action=getPrettyNames";
+        logger_.info( "Reading VizieR aliases from " + url );
+        List<String> aliasList = new ArrayList<String>();
+        BufferedReader rdr = getLineReader( url );
+        try {
+            for ( String line; ( line = rdr.readLine() ) != null; ) {
+                aliasList.add( line );
             }
-            final ConeQueryRowSequence coneSeq = coneSeq_;
-            coneSeq_ = null;
-            return new RowSequence() {
-                private int irow_;
-                private Object[] row_;
-                public boolean next() throws IOException {
-                    boolean hasNext = coneSeq.next();
-                    row_ = hasNext
-                         ? new Object[] {
-                               rowMapper_.rowIndexToId( irow_++ ),
-                               new Double( coneSeq.getRa() ),
-                               new Double( coneSeq.getDec() ),
-                           }
-                         : null;
-                    assert ! hasNext || isRowCompatible( row_, colInfos_ );
-                    return hasNext;
-                }
-                public Object[] getRow() {
-                    return row_;
-                }
-                public Object getCell( int icol ) {
-                    return row_[ icol ];
-                }
-                public void close() throws IOException {
-                    coneSeq.close();
-                }
-            };
         }
-
-        /**
-         * Determines whether the contents of a given row are
-         * compatible with a given list of column metadata objects.
-         * Used for assertions.
-         *
-         * @param  row  tuple of values
-         * @param  infos  matching tuple of value metadata objects
-         * @return  true iff compatible
-         */
-        private boolean isRowCompatible( Object[] row, ValueInfo[] infos ) {
-            int n = row.length;
-            if ( infos.length != n ) {
-                return false;
-            }
-            for ( int i = 0; i < n; i++ ) {
-                Object cell = row[ i ];
-                if ( cell != null &&
-                     ! infos[ i ].getContentClass()
-                      .isAssignableFrom( cell.getClass() ) ) {
-                    return false;
-                }
-            }
-            return true;
+        finally {
+            rdr.close();
         }
+        String[] aliases = aliasList.toArray( new String[ 0 ] );
+        logger_.info( "Got " + aliases.length + " VizieR aliases" );
+        Arrays.sort( aliases );
+        return aliases;
     }
 
     /**
-     * Table which combines a raw result generated by {@link #streamRawResult}
-     * and an input table representing the uploaded data to give a
-     * joined output table.
+     * Reads the list of VizieR table names that can be used with
+     * the Xmatch service.  This is expected to be several thousand
+     * entries long.
+     *
+     * @return  table name list
      */
-    private static class XmatchOutputTable extends AbstractStarTable {
-        private final StarTable rawResult_;
-        private final StarTable uploadTable_;
-        private final RowMapper<?> rowMapper_;
-        private final ColumnPlan cplan_;
-        private final int ncol_;
-        private final int icolId_;
-
-        /**
-         * Constructor.
-         *
-         * @param   rawResult  table generated by an earlier call to
-         *                     <code>streamRawResult</code>
-         * @param   uploadTable  table with rows corresponding to those
-         *                       which generated the input query sequence;
-         *                       this table must have random access
-         * @param   rowMapper   ties rows in uploaded table to rows in
-         *                     result table 
-         * @param   cplan      rule for working out how to get the columns
-         *                     in the output table from the rows in the
-         *                     upload and raw result tables
-         */
-        XmatchOutputTable( StarTable rawResult, StarTable uploadTable,
-                           RowMapper rowMapper, ColumnPlan cplan ) {
-            rawResult_ = rawResult;
-            uploadTable_ = uploadTable;
-            rowMapper_ = rowMapper;
-            cplan_ = cplan;
-            ncol_ = cplan.getOutputColumnCount();
-            icolId_ = cplan.getIdColumnIndex();
-            getParameters().addAll( rawResult.getParameters() );
-            if ( ! uploadTable.isRandom() ) {
-                throw new IllegalArgumentException( "non-random upload table" );
+    public static String[] readVizierNames() throws IOException {
+        String url = XMATCH_URL + "/tables?action=getVizieRTableNames";
+        logger_.info( "Reading VizieR table names from " + url );
+        List<String> nameList = new ArrayList<String>();
+        BufferedReader rdr = getLineReader( url );
+        try {
+            for ( String line; ( line = rdr.readLine() ) != null; ) {
+                String name = line.replaceAll( "[\\[\\]\",]", "" ).trim();
+                if ( name.length() > 0 ) {
+                    nameList.add( name );
+                }
             }
         }
-
-        public int getColumnCount() {
-            return ncol_;
+        finally {
+            rdr.close();
         }
+        String[] names = nameList.toArray( new String[ 0 ] );
+        logger_.info( "Got " + names.length + "VizieR table names" );
+        Arrays.sort( names );
+        return names;
+    }
 
-        public ColumnInfo getColumnInfo( int icol ) {
-            int loc = cplan_.getOutputColumnLocation( icol );
-            return loc >= 0 ? rawResult_.getColumnInfo( loc )
-                            : uploadTable_.getColumnInfo( -loc - 1 );
-        }
-
-        public long getRowCount() {
-            return rawResult_.getRowCount();
-        }
-
-        public boolean isRandom() {
-            return rawResult_.isRandom();
-        }
-
-        public Object[] getRow( long irow ) throws IOException {
-            return toOutputRow( rawResult_.getRow( irow ) );
-        }
-
-        public Object getCell( long irow, int icol ) throws IOException {
-            int loc = cplan_.getOutputColumnLocation( icol );
-            if ( loc >= 0 ) {
-                return rawResult_.getCell( irow, loc );
+    /**
+     * Reads basic table metadata for a given VizieR table.
+     *
+     * @param  vizName  vizier table name or ID
+     * @return   basic metadata object
+     */
+    public static VizierMeta readVizierMetadata( String vizName )
+            throws IOException {
+        CgiQuery query = new CgiQuery( XMATCH_URL + "/tables" );
+        query.addArgument( "action", "getInfo" );
+        query.addArgument( "tabName", vizName );
+        URL url = query.toURL();
+        logger_.info( "Reading " + vizName + " metadata from " + url );
+        InputStream in = new BufferedInputStream( url.openStream() );
+        JSONObject infoObj;
+        try {
+            JSONTokener jt = new JSONTokener( in );
+            Object next = jt.nextValue();
+            if ( next instanceof JSONObject ) {
+                return new VizierMeta( (JSONObject) next );
             }
             else {
-                Object idUp = rawResult_.getCell( irow, icolId_ );
-                long irUp = rowIdToIndex( idUp );
-                return uploadTable_.getCell( irUp, -loc - 1 );
+                throw new IOException( "Unexpected JSON object from " + url );
             }
         }
-
-        public RowSequence getRowSequence() throws IOException {
-            final RowSequence resSeq = rawResult_.getRowSequence();
-            return new RowSequence() {
-                public boolean next() throws IOException {
-                    return resSeq.next();
-                }
-                public Object[] getRow() throws IOException {
-                    return toOutputRow( resSeq.getRow() );
-                }
-                public Object getCell( int icol ) throws IOException {
-                    int loc = cplan_.getOutputColumnLocation( icol );
-                    if ( loc >= 0 ) {
-                        return resSeq.getCell( loc );
-                    }
-                    else {
-                        Object idUp = resSeq.getCell( icolId_ );
-                        long irUp = rowIdToIndex( idUp );
-                        return uploadTable_.getCell( irUp, -loc - 1 );
-                    }
-                }
-                public void close() throws IOException {
-                    resSeq.close();
-                }
-            };
-        }
-
-        /**
-         * Turns a row of the raw result table into a row of the output table.
-         *
-         * @param  resRow  raw result table row
-         * @return  output table row
-         */
-        private Object[] toOutputRow( Object[] resRow ) throws IOException {
-            long irUp = rowIdToIndex( resRow[ icolId_ ] );
-            Object[] upRow = uploadTable_.getRow( irUp );
-            Object[] row = new Object[ ncol_ ];
-            for ( int icol = 0; icol < ncol_; icol++ ) {
-                int loc = cplan_.getOutputColumnLocation( icol );
-                row[ icol ] = loc >= 0 ? resRow[ loc ]
-                                       : upRow[ -loc - 1 ];
-            }
-            return row;
-        }
-
-        /**
-         * Turns a rowId value into an index into the upload table.
-         *
-         * @param   id  row identifier object
-         * @return  upload table row index
-         */
-        private <I> long rowIdToIndex( Object id ) {
-            RowMapper<I> im = (RowMapper<I>) rowMapper_;
-            return im.rowIdToIndex( im.getIdClass().cast( id ) );
+        finally {
+            in.close();
         }
     }
 
     /**
-     * Describes the arrangement of columns in the output table based on
-     * the columns in the upload and raw result tables.
+     * Metadata provided for Vizier tables by the CDS Xmatch service.
      */
-    private static class ColumnPlan {
+    public static class VizierMeta {
+        private final String name_;
+        private final String prettyName_;
+        private final Long rowCount_;
+        private final String desc_;
+
+        /**
+         * Constructs an instance from a JSON object.
+         *
+         * @param   jobj   vizier table info JSON object
+         */
+        private VizierMeta( JSONObject jobj ) {
+            name_ = jobj.optString( "name", null );
+            prettyName_ = jobj.optString( "prettyName", null );
+            desc_ = jobj.optString( "desc", null );
+            long nbrows = jobj.optLong( "nbrows", -1L );
+            rowCount_ = nbrows >=0 ? new Long( nbrows ) : null;
+        }
+
+        /**
+         * Returns the canonical VizieR table ID.
+         *
+         * @return  table name
+         */
+        public String getName() {
+            return name_;
+        }
+
+        /**
+         * Returns a table alias, if available.
+         *
+         * @return  table alias, or null
+         */
+        public String getPrettyName() {
+            return prettyName_;
+        }
+
+        /**
+         * Returns a table description.
+         *
+         * @return  table description
+         */
+        public String getDescription() {
+            return desc_;
+        }
+
+        /**
+         * Returns table row count.
+         *
+         * @return  row count, or null
+         */
+        public Long getRowCount() {
+            return rowCount_;
+        }
+
+        @Override
+        public String toString() {
+            StringBuffer sbuf = new StringBuffer();
+            if ( name_ != null ) {
+                sbuf.append( "name: " )
+                    .append( name_ );
+            }
+            if ( prettyName_ != null ) {
+                sbuf.append( "; " )
+                    .append( "prettyName: " )
+                    .append( prettyName_ );
+            }
+            if ( rowCount_ != null ) {
+                sbuf.append( "; " )
+                    .append( "rowCount: " )
+                    .append( rowCount_ );
+            }
+            if ( desc_ != null ) {
+                sbuf.append( "; " )
+                    .append( "desc: " )
+                    .append( desc_ );
+            }
+            return sbuf.toString();
+        }
+    }
+
+    /**
+     * Returns a BufferedReader to read text lines from a URL,
+     * suitable for VizieR output.
+     *
+     * @param  urltxt  target URL
+     * @return  UTF8 reader
+     */
+    private static BufferedReader getLineReader( String urltxt )
+            throws IOException {
+        URL url = new URL( urltxt );
+        return new BufferedReader( new InputStreamReader( url.openStream(),
+                                                          "utf8" ) );
+    }
+
+    /**
+     * ColumnPlan implementation for this matcher.
+     */
+    private static class CdsColumnPlan implements ColumnPlan {
 
         private final int ncUp_;
         private final int ncRem_;
@@ -422,15 +388,15 @@ public class CdsUploadMatcher implements UploadMatcher {
          *                         the remote table is table 2;
          *                         false for the other way round
          */
-        ColumnPlan( ColumnInfo[] resultCols, ColumnInfo[] uploadCols,
-                    boolean isUploadFirst ) {
+        CdsColumnPlan( ColumnInfo[] resultCols, ColumnInfo[] uploadCols,
+                       boolean isUploadFirst ) {
             int ncRes = resultCols.length;
             ncUp_ = uploadCols.length;
             ncRem_ = ncRes - 2;
             ncOut_ = ncUp_ + ncRem_ + 1;
 
             /* The way the CDS Xmatch service is currently defined/documented,
-             * the first output column is a separation value. 
+             * the first output column is a separation value.
              * Then come all the included columns of table 1,
              * then all the included columns of table 2. */
             icDist_ = 0;
@@ -463,35 +429,10 @@ public class CdsUploadMatcher implements UploadMatcher {
             }
         }
 
-        /**
-         * Returns the number of columns in the output table.
-         *
-         * @return  output column count
-         */
         public int getOutputColumnCount() {
             return ncOut_;
         }
 
-        /**
-         * Returns the index of the identifier column in the result table.
-         *
-         * @return   identifer column index
-         */
-        public int getIdColumnIndex() {
-            return icId_;
-        }
-
-        /**
-         * Returns a coded value indicating where to find the column
-         * corresponding to a given output column.
-         * If the result is positive, then return_value is
-         * a column index in the raw result table.
-         * If the result is negative, then (-return_value-1) is
-         * column index in the upload table
-         *
-         * @param  icolOutput  column index in output table
-         * @return   coded location for column source
-         */
         public int getOutputColumnLocation( int icolOutput ) {
             assert 0 <= jc0Up_
                 && jc0Up_ <= jc0Rem_
@@ -515,6 +456,14 @@ public class CdsUploadMatcher implements UploadMatcher {
             else {
                 throw new IllegalArgumentException( "out of range" );
             }
+        }
+
+        public int getResultIdColumnIndex() {
+            return icId_;
+        }
+
+        public int getResultScoreColumnIndex() {
+            return icDist_;
         }
     }
 }

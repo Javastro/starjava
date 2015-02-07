@@ -23,7 +23,29 @@ public abstract class BinSizer {
     private static final Logger logger_ =
         Logger.getLogger( "uk.ac.starlink.ttools.plot2.layer" );
     public static final ConfigKey<BinSizer> BINSIZER_KEY =
-        new BinSizerConfigKey( new ConfigMeta( "binsize", "Bin Size" ), 20 );    
+        new BinSizerConfigKey(
+            new ConfigMeta( "binsize", "Bin Size" )
+           .setStringUsage( "+<width>|-<count>" )
+           .setShortDescription( "Bin size specification" )
+           .setXmlDescription( new String[] {
+                "<p>Configures the width of histogram bins.",
+                "If the supplied string is a positive number,",
+                "it is interpreted as a fixed width in the data coordinates",
+                "of the X axis",
+                "(if the X axis is logarithmic, the value is a fixed factor).",
+                "If it is a negative number, then it will be interpreted",
+                "as the approximate number of bins to display across",
+                "the width of the plot",
+                "(though an attempt is made to use only round numbers",
+                "for bin widths).",
+                "</p>",
+                "<p>When setting this value graphically,",
+                "you can use either the slider to adjust the bin count",
+                "or the numeric entry field to fix the bin width.",
+                "</p>",
+            } )
+        , 20 );
+
     /**
      * Provides a bin width value for a given axis data range.
      *
@@ -160,6 +182,8 @@ public abstract class BinSizer {
      */
     private static class BinSizerConfigKey extends ConfigKey<BinSizer> {
 
+        private final int dfltNbin_;
+
         /**
          * Constructor.
          *
@@ -168,6 +192,7 @@ public abstract class BinSizer {
          */
         BinSizerConfigKey( ConfigMeta meta, int dfltNbin ) {
             super( meta, BinSizer.class, new CountBinSizer( dfltNbin, true ) );
+            dfltNbin_ = dfltNbin;
         }
 
         public BinSizer stringToValue( String txt ) {
@@ -208,7 +233,7 @@ public abstract class BinSizer {
 
         public Specifier<BinSizer> createSpecifier() {
             final SliderSpecifier sliderSpecifier =
-                    new SliderSpecifier( 400, 2, true, true );
+                    new SliderSpecifier( 2, 400, true, dfltNbin_, true, true );
             return new SpecifierPanel<BinSizer>( true ) {
                 protected JComponent createComponent() {
                     sliderSpecifier.addActionListener( getActionForwarder() );

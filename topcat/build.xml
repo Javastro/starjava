@@ -84,7 +84,7 @@
   <!-- Define the package name and current versions -->
   <property name="Name" value="TOPCAT"/>
   <property name="name" value="topcat"/>
-  <property name="version" value="4.1+"/>
+  <property name="version" value="4.2-2"/>
 
   <!-- The Java package name -->
   <property name="package.name" value="uk.ac.starlink.topcat"/>
@@ -122,6 +122,7 @@
   <property name="user.doc" value="sun253"/>
   <property name="src.docs" value="${src.dir}/docs"/>
   <property name="xdoc.etc" value="${star.dir}/etc/xdoc"/>
+  <property name="gbin.docs" value="${star.dir}/docs/gbin"/>
 
   <!-- Directory containing any script required to execute or setup package-->
   <property name="script.dir" value="${src.dir}/script"/>
@@ -142,7 +143,8 @@
 
   <!-- File types that should not be passed through a filterchain when
    !   copying -->
-  <property name="unfiltered.files" value="**/*.gif,**/*.jpg,**/*.ico"/>
+  <property name="unfiltered.files"
+            value="**/*.gif,**/*.png,**/*.jpg,**/*.ico"/>
 
   <!-- Directories to receive the various build components -->
   <property name="build.dir" value="${basedir}/build"/>
@@ -765,12 +767,13 @@
                 shortname="${Name}"
                 aboutmenuname="${Name}"
                 bundleid="${package.name}"
-                stubfile="${src.dir}/lib/MacOS/TopcatStub"
+                stubfile="${src.dir}/lib/MacOS/TopcatUJAStub"
                 icon="${src.dir}/lib/MacOS/Topcat.icns"
                 infostring="${Name} ${copyright.string}"
                 jvmversion="1.5+"
                 vmoptions=""
                 version="${version}"
+                workingdirectory="$USER_HOME"
                 jar="${dist.lib.pkg}/topcat-full.jar">
 
       <!-- demo data lives in ${src.etc}/demo (see target build_demo) -->
@@ -786,6 +789,16 @@
       <javaproperty name="apple.laf.useScreenMenuBar" value="true"/>
 
     </osxjarbundler>
+
+    <!-- Hack the Java section of the Info.plist file so that the section
+     !   key is headed JavaUJAS instead of Java.  This key is then used
+     !   by the (also hacked) TopcatUJAStub stub file to interrogate the plist.
+     !   This appears to be necessary to prevent OSX from doing something
+     !   magic with the Java section.
+     !   See https://github.com/tofi86/universalJavaApplicationStub/issues/9 -->
+    <replace file="${dist.osx}/${Name}.app/Contents/Info.plist"
+             token="&lt;key&gt;Java&lt;/key&gt;"
+             value="&lt;key&gt;JavaUJAS&lt;/key&gt;"/>
 
     <!-- Copy the docs into the release directory -->
     <mkdir dir="${dist.osx}/docs"/>
@@ -1402,6 +1415,8 @@
                includes="images/*"/>
       <fileset dir="${xdoc.etc}"
                includes="docs.dtd"/>
+      <fileset dir="${gbin.docs}"
+               includes="gbin-stil-*.xdoc"/>
     </copy>
 
     <!-- Write a file containing entity definitions for all the image files

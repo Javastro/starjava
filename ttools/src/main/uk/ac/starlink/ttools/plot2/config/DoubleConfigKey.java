@@ -24,6 +24,9 @@ public abstract class DoubleConfigKey extends ConfigKey<Double> {
      */
     protected DoubleConfigKey( ConfigMeta meta, double dflt ) {
         super( meta, Double.class, new Double( dflt ) );
+        if ( meta.getStringUsage() == null ) {
+            meta.setStringUsage( "<number>" );
+        }
     }
 
     public String valueToString( Double value ) {
@@ -104,13 +107,14 @@ public abstract class DoubleConfigKey extends ConfigKey<Double> {
      * @param  log  true for logarithmic slider scale, false for linear
      * @return  key
      */
-    public static DoubleConfigKey createSliderKey( ConfigMeta meta, double dflt,
+    public static DoubleConfigKey createSliderKey( ConfigMeta meta,
+                                                   final double dflt,
                                                    final double lo,
                                                    final double hi,
                                                    final boolean log ) {
         return new DoubleConfigKey( meta, dflt ) {
             public Specifier<Double> createSpecifier() {
-                return new SliderSpecifier( lo, hi, log );
+                return new SliderSpecifier( lo, hi, log, dflt );
             }
         };
     }

@@ -65,7 +65,7 @@ public class TableRowHeader extends JTable {
                 return 1;
             }
             public Object getValueAt( int irow, int icol ) {
-                return new Integer( rowNumber( irow ) ) + "  ";
+                return new Long( rowNumber( irow ) ) + "  ";
             }
         };
         setModel( rowModel );
@@ -78,12 +78,13 @@ public class TableRowHeader extends JTable {
          * events on this table when the master model changes. */
         listener = new TableModelListener() {
             public void tableChanged( TableModelEvent evt ) {
-                TableModel mmodel = masterTable.getModel();
-                if ( mmodel != masterModel ) {
-                    masterModel.removeTableModelListener( this );
-                    masterModel = mmodel;
-                    masterModel.addTableModelListener( this );
-                }
+
+                /* Probably one could be more conservative about how the
+                 * TableModelEvents are propagated here, since some of them
+                 * will not affect the content of the row model.
+                 * However, TableModelEvent seems to be a bit underdocumented,
+                 * so play it safe for now.  I don't *think* this is causing
+                 * performance problems anywhere.  */
                 rowModel.fireTableDataChanged();
             }
         };
@@ -106,7 +107,14 @@ public class TableRowHeader extends JTable {
 
         /* Set up the sole column. */
         TableColumn col = new TableColumn( 0, 64, rend, null ) {
+            Integer prefWidth_;
+            public void setPreferredWidth( int width ) {
+                prefWidth_ = new Integer( width );
+            }
             public int getPreferredWidth() {
+                if ( prefWidth_ != null ) {
+                    return prefWidth_.intValue();
+                }
                 JTable tab = TableRowHeader.this;
                 int nrow = masterTable.getRowCount();
                 if ( nrow > 0 ) {
@@ -114,7 +122,7 @@ public class TableRowHeader extends JTable {
                     int last = StarJTable.getCellWidth( tab, nrow - 1, 0);
                     int guess = tab.getCellRenderer( 0, 0 )
                                    .getTableCellRendererComponent( tab, 
-                                        new Integer( nrow + 1 ) + "  ",
+                                        new Long( nrow + 1 ) + "  ",
                                         false, false, 0, 0 )
                                    .getPreferredSize().width;
                     return 8 + Math.max( Math.max( first, last ), guess );
@@ -131,6 +139,25 @@ public class TableRowHeader extends JTable {
         setColumnModel( tcm );
     }
 
+    /**
+     * Sets the longest value that will be used in the row header field.
+     * This is used to configure the size of the column in pixels,
+     * so the value used should be the one that generates the longest text;
+     * typically the largest number, but for instance "-1" is longer than "1".
+     *
+     * <p>If no value is set, a guess will be made based on the number of rows.
+     *
+     * @param  num  longest number
+     */
+    public void setLongestNumber( long num ) {
+        int width = getCellRenderer( 0, 0 )
+                   .getTableCellRendererComponent( this, new Long( num ) + " ",
+                                                   false, false, 0, 0 )
+                   .getPreferredSize().width
+                  + 8;
+        getColumnModel().getColumn( 0 ).setPreferredWidth( width );
+    }
+
     public Dimension getPreferredScrollableViewportSize() {
         return getPreferredSize();
     }
@@ -140,7 +167,13 @@ public class TableRowHeader extends JTable {
      * master table's TableModel has been changed.
      */
     public void modelChanged() {
-        listener.tableChanged( null );
+        TableModel mmodel = masterTable.getModel();
+        if ( mmodel != masterModel ) {
+            masterModel.removeTableModelListener( listener );
+            masterModel = mmodel;
+            masterModel.addTableModelListener( listener );
+        }
+        rowModel.fireTableDataChanged();
     }
 
     /**
@@ -153,7 +186,7 @@ public class TableRowHeader extends JTable {
      * @param  irow  the row index of the displayed row (starts at zero)
      * @return  the number of the row it should be labelled
      */
-    public int rowNumber( int irow ) {
+    public long rowNumber( int irow ) {
         return irow + 1;
     }
 

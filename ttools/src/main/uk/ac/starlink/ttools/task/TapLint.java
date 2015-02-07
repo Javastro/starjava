@@ -14,6 +14,7 @@ import uk.ac.starlink.task.Executable;
 import uk.ac.starlink.task.IntegerParameter;
 import uk.ac.starlink.task.Parameter;
 import uk.ac.starlink.task.ParameterValueException;
+import uk.ac.starlink.task.StringParameter;
 import uk.ac.starlink.task.Task;
 import uk.ac.starlink.task.TaskException;
 import uk.ac.starlink.task.URLParameter;
@@ -32,11 +33,11 @@ public class TapLint implements Task {
 
     private final TapLinter tapLinter_;
     private final URLParameter urlParam_;
-    private final DefaultMultiParameter stagesParam_;
+    private final StringMultiParameter stagesParam_;
     private final IntegerParameter repeatParam_;
     private final IntegerParameter truncParam_;
     private final BooleanParameter debugParam_;
-    private final Parameter reportParam_;
+    private final StringParameter reportParam_;
     private final Parameter[] params_;
 
     /**
@@ -55,7 +56,7 @@ public class TapLint implements Task {
         } );
         paramList.add( urlParam_ );
 
-        stagesParam_ = new DefaultMultiParameter( "stages", ' ' );
+        stagesParam_ = new StringMultiParameter( "stages", ' ' );
         stagesParam_.setPrompt( "Codes for validation stages to run" );
         tapLinter_ = new TapLinter();
         Map<String,Stage> stageMap = tapLinter_.getKnownStages();
@@ -86,7 +87,7 @@ public class TapLint implements Task {
             }
         }
         stagesParam_.setUsage( subuf.toString() + "[ ...]" );
-        stagesParam_.setDefault( sdbuf.toString() );
+        stagesParam_.setStringDefault( sdbuf.toString() );
         stagesParam_.setDescription( new String[] {
             "<p>Lists the validation stages which the validator will perform.",
             "Each stage is represented by a short code, as follows:",
@@ -106,7 +107,7 @@ public class TapLint implements Task {
         } );
         paramList.add( stagesParam_ );
 
-        reportParam_ = new Parameter( "report" );
+        reportParam_ = new StringParameter( "report" );
         reportParam_.setPrompt( "Message types to report" );
         ReportType[] types = ReportType.values();
         StringBuilder dbuf = new StringBuilder();
@@ -137,7 +138,7 @@ public class TapLint implements Task {
             dbuf.toString(),
             "</p>",
         } );
-        reportParam_.setDefault( tchrs );
+        reportParam_.setStringDefault( tchrs );
         paramList.add( reportParam_ );
 
         repeatParam_ = new IntegerParameter( "maxrepeat" );
@@ -150,7 +151,7 @@ public class TapLint implements Task {
             "repetitions of essentially the same error.",
             "</p>",
         } );
-        repeatParam_.setDefault( "9" );
+        repeatParam_.setIntDefault( 9 );
         paramList.add( repeatParam_ );
 
         truncParam_ = new IntegerParameter( "truncate" );
@@ -159,7 +160,7 @@ public class TapLint implements Task {
             "<p>Limits the line length written to the output.",
             "</p>",
         } );
-        truncParam_.setDefault( "640" );
+        truncParam_.setIntDefault( 640 );
         paramList.add( truncParam_ );
 
         debugParam_ = new BooleanParameter( "debug" );
@@ -169,7 +170,7 @@ public class TapLint implements Task {
             "output along with the normal validation messages.",
             "</p>",
         } );
-        debugParam_.setDefault( "false" );
+        debugParam_.setBooleanDefault( false );
         paramList.add( debugParam_ );
 
         params_ = paramList.toArray( new Parameter[ 0 ] );
@@ -184,7 +185,7 @@ public class TapLint implements Task {
     }
 
     public Executable createExecutable( Environment env ) throws TaskException {
-        URL serviceUrl = urlParam_.urlValue( env );
+        URL serviceUrl = urlParam_.objectValue( env );
         PrintStream out = env.getOutputStream();
         String typeStr = reportParam_.stringValue( env );
         List<ReportType> typeList = new ArrayList<ReportType>();

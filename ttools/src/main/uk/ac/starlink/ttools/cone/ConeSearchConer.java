@@ -7,6 +7,7 @@ import uk.ac.starlink.task.ChoiceParameter;
 import uk.ac.starlink.task.Environment;
 import uk.ac.starlink.task.Parameter;
 import uk.ac.starlink.task.ParameterValueException;
+import uk.ac.starlink.task.StringParameter;
 import uk.ac.starlink.task.TaskException;
 import uk.ac.starlink.task.URLParameter;
 import uk.ac.starlink.ttools.task.LineTableEnvironment;
@@ -23,10 +24,11 @@ import uk.ac.starlink.vo.ConeSearch;
 public class ConeSearchConer implements Coner {
 
     private final URLParameter urlParam_;
-    private final ChoiceParameter verbParam_;
+    private final ChoiceParameter<String> verbParam_;
     private final ChoiceParameter<ServiceType> serviceParam_;
     private final BooleanParameter believeemptyParam_;
-    private final Parameter formatParam_;
+    private final StringParameter formatParam_;
+    private int nside_;
     private static final String BELIEVE_EMPTY_NAME = "emptyok";
     private static final String INCONSISTENT_EMPTY_ADVICE =
             BELIEVE_EMPTY_NAME + "=false";
@@ -35,6 +37,7 @@ public class ConeSearchConer implements Coner {
      * Constructor.
      */
     public ConeSearchConer() {
+        nside_ = -1;
         ServiceType[] serviceTypes = new ServiceType[] {
             new ConeServiceType(),
             new SiaServiceType(),
@@ -80,8 +83,9 @@ public class ConeSearchConer implements Coner {
         } );
         serviceParam_.setDefaultOption( serviceTypes[ 0 ] );
 
-        verbParam_ = new ChoiceParameter( "verb",
-                                          new String[] { "1", "2", "3", } );
+        verbParam_ =
+            new ChoiceParameter<String>( "verb",
+                                         new String[] { "1", "2", "3", } );
         verbParam_.setNullPermitted( true );
         verbParam_.setPrompt( "Verbosity level of search responses (1..3)" );
         verbParam_.setDescription( new String[] {
@@ -92,7 +96,7 @@ public class ConeSearchConer implements Coner {
         } );
 
         believeemptyParam_ = new BooleanParameter( BELIEVE_EMPTY_NAME );
-        believeemptyParam_.setDefault( "true" );
+        believeemptyParam_.setBooleanDefault( true );
         believeemptyParam_.setPrompt( "Believe metadata from empty results?" );
         believeemptyParam_.setDescription( new String[] {
             "<p>Whether the table metadata which is returned from a search",
@@ -110,7 +114,7 @@ public class ConeSearchConer implements Coner {
             "</p>",
         } );
 
-        formatParam_ = new Parameter( "dataformat" );
+        formatParam_ = new StringParameter( "dataformat" );
         formatParam_.setPrompt( "Data format type for DAL outputs" );
         formatParam_.setNullPermitted( true );
         StringBuffer formatsDescrip = new StringBuffer();
@@ -171,7 +175,7 @@ public class ConeSearchConer implements Coner {
     public ConeSearcher createSearcher( Environment env, boolean bestOnly )
             throws TaskException {
         ServiceType serviceType = serviceParam_.objectValue( env );
-        URL url = urlParam_.urlValue( env );
+        URL url = urlParam_.objectValue( env );
         boolean believeEmpty = believeemptyParam_.booleanValue( env );
         StarTableFactory tfact = LineTableEnvironment.getTableFactory( env );
         return serviceType
@@ -180,8 +184,18 @@ public class ConeSearchConer implements Coner {
 
     public Coverage getCoverage( Environment env ) throws TaskException {
         ServiceType serviceType = serviceParam_.objectValue( env );
-        URL url = urlParam_.urlValue( env );
-        return serviceType.getCoverage( url );
+        URL url = urlParam_.objectValue( env );
+        return serviceType.getCoverage( url, nside_ );
+    }
+
+    /**
+     * Sets the NSIDE parameter for MOC coverage maps.
+     * Defaults to -1, which means no settting (up to service).
+     *
+     * @param  nside  HEALPix NSIDE parameter for MOCs
+     */
+    public void setNside( int nside ) {
+        nside_ = nside;
     }
 
     /**
@@ -249,9 +263,10 @@ public class ConeSearchConer implements Coner {
          * Returns a coverage footprint for use with the service specified.
          *
          * @param  url  cone search service URL
+         * @param  nside  MOC nside parameter
          * @return  coverage footprint, or null
          */
-        abstract Coverage getCoverage( URL url );
+        abstract Coverage getCoverage( URL url, int nside );
 
         public String toString() {
             return name_;
@@ -326,8 +341,8 @@ public class ConeSearchConer implements Coner {
             };
         }
 
-        public Coverage getCoverage( URL url ) {
-            return new MocServiceCoverage( url );
+        public Coverage getCoverage( URL url, int nside ) {
+            return UrlMocCoverage.getServiceMoc( url, nside );
         }
     }
 
@@ -363,7 +378,7 @@ public class ConeSearchConer implements Coner {
             /* SIZE = 0 has a special meaning for SIA: it means any image
              * containing the given image.  This is a sensible default in 
              * most cases. */
-            srParam.setDefault( "0" );
+            srParam.setStringDefault( "0" );
             srParam.setNullPermitted( false );
         }
 
@@ -375,7 +390,7 @@ public class ConeSearchConer implements Coner {
                                             final boolean believeEmpty,
                                             StarTableFactory tfact )
                 throws TaskException {
-            formatParam_.setDefault( "image/fits" );
+            formatParam_.setStringDefault( "image/fits" );
             String format = formatParam_.stringValue( env );
             return new SiaConeSearcher( url, format, believeEmpty, tfact ) {
                 @Override
@@ -385,7 +400,7 @@ public class ConeSearchConer implements Coner {
             };
         }
 
-        public Coverage getCoverage( URL url ) {
+        public Coverage getCoverage( URL url, int nside ) {
             return null;
         }
     }
@@ -445,7 +460,7 @@ public class ConeSearchConer implements Coner {
             };
         }
 
-        public Coverage getCoverage( URL url ) {
+        public Coverage getCoverage( URL url, int nside ) {
             return null;
         }
     } 

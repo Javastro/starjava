@@ -80,7 +80,7 @@
   <!-- Define the package name and current versions -->
   <property name="Name" value="TTOOLS"/>
   <property name="name" value="ttools"/>
-  <property name="version" value="2.5-2+"/>
+  <property name="version" value="3.0-2"/>
 
   <!-- The Java package name -->
   <property name="package.name" value="uk.ac.starlink.ttools"/>
@@ -1191,6 +1191,13 @@
           classpathref="classpath">
       <sysproperty key="java.awt.headless" value="true"/>
     </java>
+    <java classname="uk.ac.starlink.ttools.build.LayersWriter"
+          failonerror="yes"
+          fork="yes"
+          dir="${build.docs}"
+          classpathref="classpath">
+      <sysproperty key="java.awt.headless" value="true"/>
+    </java>
     <java classname="uk.ac.starlink.ttools.build.FilterDoc"
           failonerror="yes"
           output="${build.docs}/filter-docs.xml"
@@ -1208,6 +1215,16 @@
           classpathref="classpath">
       <sysproperty key="java.awt.headless" value="true"/>
     </java>
+    <java classname="uk.ac.starlink.ttools.build.LayerTypeDoc"
+          failonerror="yes"
+          output="${build.docs}/layertype-docs.xml"
+          logerror="yes"
+          classpathref="classpath"/>
+    <java classname="uk.ac.starlink.ttools.build.ShapeModeDoc"
+          failonerror="yes"
+          output="${build.docs}/shapemode-docs.xml"
+          logerror="yes"
+          classpathref="classpath"/>
 
     <!-- Write XML files containing MatchEngine usage information
      !   for inclusion in the user document. -->

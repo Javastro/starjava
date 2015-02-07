@@ -5,17 +5,15 @@ import gnu.jel.CompiledExpression;
 import gnu.jel.Evaluator;
 import gnu.jel.Library;
 import java.io.PrintStream;
-import java.util.List;
 import java.util.logging.Level;
 import java.util.logging.Logger;
-import uk.ac.starlink.table.ColumnStarTable;
 import uk.ac.starlink.table.StarTable;
 import uk.ac.starlink.task.Environment;
 import uk.ac.starlink.task.Executable;
 import uk.ac.starlink.task.Parameter;
+import uk.ac.starlink.task.StringParameter;
 import uk.ac.starlink.task.Task;
 import uk.ac.starlink.task.TaskException;
-import uk.ac.starlink.ttools.jel.DummyJELRowReader;
 import uk.ac.starlink.ttools.jel.JELRowReader;
 import uk.ac.starlink.ttools.jel.JELUtils;
 import uk.ac.starlink.ttools.jel.StarTableJELRowReader;
@@ -28,14 +26,14 @@ import uk.ac.starlink.ttools.jel.StarTableJELRowReader;
  */
 public class Calc implements Task {
 
-    private final Parameter exprParam_;
+    private final StringParameter exprParam_;
     private final InputTableParameter tableParam_;
 
     private final static Logger logger_ =
         Logger.getLogger( "uk.ac.starlink.ttools.task" );
 
     public Calc() {
-        exprParam_ = new Parameter( "expression" );
+        exprParam_ = new StringParameter( "expression" );
         exprParam_.setPosition( 1 );
         exprParam_.setUsage( "<expr>" );
         exprParam_.setPrompt( "Expression to evaluate" );
@@ -77,29 +75,16 @@ public class Calc implements Task {
 
     public Executable createExecutable( Environment env ) throws TaskException {
 
-        /* Create a dummy table, since a JELRowReader is required.  However,
-         * we will be using no table data. */
-        StarTable table = ColumnStarTable.makeTableWithRows( 0 );
-
-        /* If an (optional) table is supplied, use its parameter list by 
-         * transferring it into the dummy table. */
-        List paramList = table.getParameters();
-        try {
-            paramList.clear();
-            String tname = tableParam_.stringValue( env );
-            if ( tname != null && tname.trim().length() > 0 ) {
-                paramList.addAll( tableParam_.tableValue( env )
-                                             .getParameters() );
-            }
-        }
-        catch ( UnsupportedOperationException e ) {
-            logger_.log( Level.WARNING, "Immutable table parameter list: " + e,
-                         e );
-            assert false;
-        }
+        /* Get a row reader.  This doesn't have any data, but if a table
+         * was given on the command line then that table's parameters
+         * may be used for expression evaluation. */
+        String tname = tableParam_.stringValue( env );
+        StarTable table = tname == null || tname.trim().length() == 0
+                        ? null
+                        : tableParam_.tableValue( env );
+        final JELRowReader rdr = JELUtils.createDatalessRowReader( table );
 
         /* Compile the expression. */
-        final JELRowReader rdr = new DummyJELRowReader( table );
         Library lib = JELUtils.getLibrary( rdr );
         String expr = exprParam_.stringValue( env );
         final PrintStream out = env.getOutputStream();

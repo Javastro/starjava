@@ -26,14 +26,13 @@ public class ModeDoc {
     }
 
     private void write() throws LoadException {
-        ObjectFactory modeFact = Stilts.getModeFactory();
+        ObjectFactory<ProcessingMode> modeFact = Stilts.getModeFactory();
         String[] mnames = modeFact.getNickNames();
         Arrays.sort( mnames );
         OutputModeParameter omodeParam = new OutputModeParameter( "omode" );
         for ( int i = 0; i < mnames.length; i++ ) {
             String name = mnames[ i ];
-            ProcessingMode mode = (ProcessingMode)
-                                  modeFact.createObject( name );
+            ProcessingMode mode = modeFact.createObject( name );
             out_.println( "<subsubsect id=\"mode-" + name + "\">" );
             out_.println( "<subhead><title><code>" + name 
                         + "</code></title></subhead>" );
@@ -41,7 +40,7 @@ public class ModeDoc {
             out_.println( "<strong>Usage:</strong>" );
             out_.print( "<verbatim>" );
             out_.print( "<![CDATA[" );
-            out_.print( omodeParam.getModeUsage( name, "   " ) );
+            out_.print( omodeParam.getModeUsage( name, 3 ) );
             out_.print( "]]>" );
             out_.print( "</verbatim>" );
             out_.print( "</p>" );
@@ -57,7 +56,7 @@ public class ModeDoc {
                 out_.println( "<p>Additional parameters for this output mode "
                             + "are:<dl>" );
                 for ( int j = 0; j < params.length; j++ ) {
-                    out_.println( UsageWriter.xmlItem( params[ j ] ) );
+                    out_.println( UsageWriter.xmlItem( params[ j ], false ) );
                 }
                 out_.println( "</dl></p>" );
             }

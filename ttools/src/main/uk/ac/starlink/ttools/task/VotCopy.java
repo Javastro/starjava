@@ -27,6 +27,7 @@ import uk.ac.starlink.task.Environment;
 import uk.ac.starlink.task.Executable;
 import uk.ac.starlink.task.ExecutionException;
 import uk.ac.starlink.task.Parameter;
+import uk.ac.starlink.task.StringParameter;
 import uk.ac.starlink.task.Task;
 import uk.ac.starlink.task.TaskException;
 import uk.ac.starlink.task.UsageException;
@@ -50,25 +51,25 @@ public class VotCopy implements Task {
         Logger.getLogger( "uk.ac.starlink.ttools.task" );
     private static final String SAX_PROPERTY = "http://xml.org/sax/properties/";
 
-    private final Parameter inParam_;
-    private final Parameter outParam_;
+    private final StringParameter inParam_;
+    private final StringParameter outParam_;
     private final ChoiceParameter<DataFormat> formatParam_;
     private final ChoiceParameter<VOTableVersion> versionParam_;
     private final XmlEncodingParameter xencParam_;
     private final BooleanParameter cacheParam_;
     private final BooleanParameter hrefParam_;
     private final BooleanParameter nomagicParam_;
-    private final Parameter baseParam_;
+    private final StringParameter baseParam_;
 
     /**
      * Constructor.
      */
     public VotCopy() {
-        inParam_ = new Parameter( "in" );
+        inParam_ = new StringParameter( "in" );
         inParam_.setPosition( 1 );
         inParam_.setPrompt( "Input votable" );
         inParam_.setUsage( "<location>" );
-        inParam_.setDefault( "-" );
+        inParam_.setStringDefault( "-" );
         inParam_.setDescription( new String[] {
             "<p>Location of the input VOTable.",
             "May be a URL, filename, or \"-\" to indicate standard input.",
@@ -77,11 +78,11 @@ public class VotCopy implements Task {
             "</p>",
         } );
 
-        outParam_ = new Parameter( "out" );
+        outParam_ = new StringParameter( "out" );
         outParam_.setPosition( 2 );
         outParam_.setPrompt( "Output votable" );
         outParam_.setUsage( "<location>" );
-        outParam_.setDefault( "-" );
+        outParam_.setStringDefault( "-" );
         outParam_.setDescription( new String[] {
             "<p>Location of the output VOTable.",
             "May be a filename or \"-\" to indicate standard output.",
@@ -96,8 +97,7 @@ public class VotCopy implements Task {
         formatParam_.setPosition( 3 );
         formatParam_.setPrompt( "Output votable format" );
         formatParam_.setNullPermitted( true );
-        formatParam_.setDefault( DataFormat.TABLEDATA.toString()
-                                                     .toLowerCase() );
+        formatParam_.setDefaultOption( DataFormat.TABLEDATA );
         formatParam_.setPreferExplicit( true );
         formatParam_.setDescription( new String[] {
             "<p>Determines the encoding format of the table data in the ",
@@ -118,7 +118,7 @@ public class VotCopy implements Task {
                                 .toArray( new VOTableVersion[ 0 ] ) );
         versionParam_.setPrompt( "Output votable version" );
         versionParam_.setNullPermitted( true );
-        versionParam_.setDefault( null );
+        versionParam_.setStringDefault( null );
         versionParam_.setDescription( new String[] {
             "<p>Determines the version of the VOTable standard to which",
             "the output will conform.",
@@ -172,9 +172,9 @@ public class VotCopy implements Task {
             "<code>" + formatParam_.getName() + "</code>=BINARY/FITS.",
             "</p>",
         } );
-        nomagicParam_.setDefault( "true" );
+        nomagicParam_.setBooleanDefault( true );
 
-        baseParam_ = new Parameter( "base" );
+        baseParam_ = new StringParameter( "base" );
         baseParam_.setUsage( "<location>" );
         baseParam_.setPrompt( "Base location for FITS/BINARY href data" );
         baseParam_.setNullPermitted( true );
@@ -237,7 +237,7 @@ public class VotCopy implements Task {
                                     + forceVersion + " - v1.3+ only" );
         }
         boolean nomagic = nomagicParam_.booleanValue( env );
-        cacheParam_.setDefault( format == DataFormat.FITS );
+        cacheParam_.setBooleanDefault( format == DataFormat.FITS );
         PrintStream pstrm = env.getOutputStream();
         boolean inline;
         if ( format == DataFormat.TABLEDATA ||
@@ -247,10 +247,10 @@ public class VotCopy implements Task {
         else {
             if ( format == DataFormat.BINARY ||
                  format == DataFormat.BINARY2 ) {
-                hrefParam_.setDefault( "false" );
+                hrefParam_.setBooleanDefault( false );
             }
             else if ( format == DataFormat.FITS ) {
-                hrefParam_.setDefault( "true" );
+                hrefParam_.setBooleanDefault( true );
             }
             else {
                 assert false;
@@ -261,15 +261,16 @@ public class VotCopy implements Task {
         if ( ! inline ) {
             baseParam_.setNullPermitted( false );
             if ( outLoc != null && ! outLoc.equals( "-" ) ) {
-                baseParam_.setDefault( new File( outLoc ).getName()
-                                      .replaceFirst( "\\.[a-zA-Z0-9]*$", "" ) );
+                baseParam_
+               .setStringDefault( new File( outLoc ).getName()
+                                 .replaceFirst( "\\.[a-zA-Z0-9]*$", "" ) );
             }
             base = baseParam_.stringValue( env );
         }
         else {
             base = null;
         }
-        Charset xenc = xencParam_.charsetValue( env );
+        Charset xenc = xencParam_.objectValue( env );
         boolean strict = LineTableEnvironment.isStrictVotable( env );
         boolean cache = cacheParam_.booleanValue( env );
         StoragePolicy policy = LineTableEnvironment.getStoragePolicy( env );

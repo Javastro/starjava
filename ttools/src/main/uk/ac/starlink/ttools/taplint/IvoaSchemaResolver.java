@@ -36,6 +36,7 @@ public class IvoaSchemaResolver implements LSResourceResolver {
     /** Namespace URI for VOSI availability schema. */
     public static final String AVAILABILITY_URI;
 
+    private static final String TABLES_URI;
     private static final String VORESOURCE_URI;
     private static final String TAPREGEXT_URI;
     private static final String STC_URI;
@@ -56,12 +57,15 @@ public class IvoaSchemaResolver implements LSResourceResolver {
         map.put( AVAILABILITY_URI =
                  "http://www.ivoa.net/xml/VOSIAvailability/v1.0",
                  base.getResource( "VOSIAvailability-v1.0.xsd" ) );
+        map.put( TABLES_URI =
+                 "http://www.ivoa.net/xml/VOSITables/v1.0",
+                 base.getResource( "VOSITables-v1.0.xsd" ) );
         map.put( VORESOURCE_URI =
                  "http://www.ivoa.net/xml/VOResource/v1.0",
                  base.getResource( "VOResource-v1.0.xsd" ) );
         map.put( TAPREGEXT_URI =
                  "http://www.ivoa.net/xml/TAPRegExt/v1.0",
-                 base.getResource( "TAPRegExt-v1.0.xsd" ) );
+                 base.getResource( "TAPRegExt-v1.0-Erratum1.xsd" ) );
         map.put( STC_URI =
                  "http://www.ivoa.net/xml/STC/stc-v1.30.xsd",
                  base.getResource( "stc-v1.30.xsd" ) );
@@ -103,7 +107,7 @@ public class IvoaSchemaResolver implements LSResourceResolver {
             /* No local copy, return null to fall back to default resolution
              * behaviour, and warn that a non-standard schema is in use. */
             else {
-                reporter_.report( ReportType.WARNING, "UNSC",
+                reporter_.report( FixedCode.W_UNSC,
                                   "Schema from unknown namespace "
                                 + "during validation: " + namespaceURI );
                 return null;

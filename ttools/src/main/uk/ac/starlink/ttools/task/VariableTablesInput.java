@@ -157,15 +157,7 @@ public class VariableTablesInput implements TablesInput {
             new InputTableParameter( naming.pName_ + label );
         inParam.setUsage( "<table" + label + ">" );
         inParam.setPrompt( "Location of " + naming.pWord_ + " table " + label );
-        inParam.setDescription( inParam.getDescription()
-                               .replaceFirst( "the input table",
-                                              naming.pWord_
-                                            + " table #" + label ) );
-        InputFormatParameter fmtParam = inParam.getFormatParameter();
-        fmtParam.setDescription( fmtParam.getDescription()
-                                .replaceFirst( "the input table",
-                                               naming.pWord_
-                                             + " table #" + label ) );
+        inParam.setTableDescription( naming.pWord_ + " table #" + label );
         return inParam;
     }
 
@@ -178,17 +170,12 @@ public class VariableTablesInput implements TablesInput {
      */
     private static FilterParameter getFilterParameter( String label,
                                                        Naming naming ) {
+        char chr = naming.pName_.charAt( 0 );
         FilterParameter filterParam =
-            new FilterParameter( naming.pName_.charAt( 0 ) + "cmd" + label );
-        filterParam.setPrompt( "Processing command(s) for " + naming.pWord_
-                             + " table " + label );
-        filterParam.setDescription( new String[] {
-            "<p>Commands to operate on " + naming.pWord_,
-            "table #" + label + ",",
-            "before any other processing takes place.",
-            "</p>",
-            filterParam.getDescription(),
-        } );
+            new FilterParameter( chr + "cmd" + label );
+        filterParam.setTableDescription( naming.pWord_ + " table #" + label,
+                                         createInputParameter( label, naming ),
+                                         Boolean.TRUE );
         return filterParam;
     }
 

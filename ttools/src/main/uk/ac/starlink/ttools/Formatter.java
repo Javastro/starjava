@@ -3,12 +3,16 @@ package uk.ac.starlink.ttools;
 import java.io.ByteArrayInputStream;
 import java.io.IOException;
 import java.io.InputStream;
+import java.util.LinkedHashMap;
+import java.util.List;
+import java.util.Map;
 import java.util.StringTokenizer;
 import javax.xml.parsers.DocumentBuilder;
 import javax.xml.parsers.DocumentBuilderFactory;
 import javax.xml.parsers.ParserConfigurationException;
 import org.xml.sax.SAXException;
 import org.w3c.dom.Document;
+import org.w3c.dom.DocumentType;
 import org.w3c.dom.Element;
 import org.w3c.dom.Node;
 import org.w3c.dom.Text;
@@ -22,6 +26,7 @@ import org.w3c.dom.Text;
 public class Formatter {
 
     private final DocumentBuilder db_;
+    private final Map<String,String> entityMap_;
     private String manualName_ = "SUN/256";
 
     /**
@@ -34,6 +39,7 @@ public class Formatter {
         catch ( ParserConfigurationException e ) {
             throw new RuntimeException( e.getMessage(), e );
         }
+        entityMap_ = new LinkedHashMap<String,String>();
     }
 
     /**
@@ -64,6 +70,18 @@ public class Formatter {
      */
     public String getManualName() {
         return manualName_;
+    }
+
+    /**
+     * Adds an internal entity declaration to this formatter. 
+     * Any entities added here are declared in the document declaration
+     * of XML parsed by the {@link #formatXML formatXML} method.
+     *
+     * @param  entName  internal entity name
+     * @param  entValue  entity value
+     */
+    public void addEntity( String entName, String entValue ) {
+        entityMap_.put( entName, entValue );
     }
 
     /**
@@ -148,9 +166,12 @@ public class Formatter {
             else if ( child instanceof Text ) {
                 result.appendWords( ((Text) child).getData() );
             }
+            else if ( child instanceof DocumentType ) {
+            }
             else {
                 throw new IllegalArgumentException( "Can't serialize node " + 
-                                                    child.getClass() );
+                                                    child.getClass()
+                                                   .getName() );
             }
         }
     }
@@ -163,7 +184,23 @@ public class Formatter {
      * @return  DOM
      */
     private Document readDOM( String xml ) throws SAXException {
-        String dxml = "<DOC>" + xml + "</DOC>";
+        StringBuffer sbuf = new StringBuffer()
+            .append( "<?xml version='1.0'?>" )
+            .append( "<!DOCTYPE doc [" );
+        for ( Map.Entry<String,String> entry : entityMap_.entrySet() ) {
+            sbuf.append( "<!ENTITY " )
+                .append( entry.getKey() )
+                .append( " " )
+                .append( "'" )
+                .append( entry.getValue() )
+                .append( "'" )
+                .append( ">" );
+        }
+        sbuf.append( "]>" )
+            .append( "<DOC>" )
+            .append( xml )
+            .append( "</DOC>" );
+        String dxml = sbuf.toString();
         try {
             InputStream in = new ByteArrayInputStream( dxml.getBytes() );
             Document doc = db_.parse( in );
@@ -172,6 +209,58 @@ public class Formatter {
         catch ( IOException e ) {
             throw new RuntimeException( e.getMessage(), e ); // shouldn't happen
         }
+    }
+
+    /**
+     * Utility method for writing a number of unbreakable words on the
+     * terminal.  Line breaks are introduced where required to avoid
+     * overrunning screen lines (currently, 80 characters).
+     * The first line is indented the given number of spaces,
+     * subsequent lines start aligned with the end of the first word:
+     * <pre>
+     *     aaaa bbb cccc d eee ...
+     *          xxxxxx yy
+     * </pre>
+     *
+     * @param   wordList  list of words
+     * @param   indent  number of spaces to indent lines
+     * @return   formatted string
+     */
+    public static String formatWords( List<String> wordList, int indent ) {
+        StringBuffer sbuf = new StringBuffer();
+        StringBuffer line = new StringBuffer( nspaces( indent ) );
+        String pad = nspaces( indent + wordList.get( 0 ).length() + 1 );
+        int nw = 0;
+        for ( String word : wordList ) {
+            if ( line.length() + word.length() > 78 &&
+                 line.length() > pad.length() + 1 ) {
+                sbuf.append( line )
+                    .append( '\n' );
+                line = new StringBuffer( pad );
+                nw = 0;
+            }
+            if ( nw++ > 0 ) {
+                line.append( ' ' );
+            }
+            line.append( word );
+        }
+        sbuf.append( line )
+            .append( '\n' );
+        return sbuf.toString();
+    }
+
+    /**
+     * Returns a string consisting of a given number of space characters.
+     *
+     * @param  n  character count
+     * @return  padding string
+     */
+    private static String nspaces( int n ) {
+        StringBuffer sbuf = new StringBuffer( n );
+        for ( int i = 0; i < n; i++ ) {
+            sbuf.append( ' ' );
+        }
+        return sbuf.toString();
     }
 
     /**
@@ -266,10 +355,7 @@ public class Formatter {
                 }
                 sbuf_.append( '\n' );
             }
-            line_ = new StringBuffer();
-            for ( int i = 0; i < indent_; i++ ) {
-                line_.append( ' ' );
-            }
+            line_ = new StringBuffer( nspaces( indent_ ) );
             for ( int i = 0; i < level_; i++ ) {
                 line_.append( pad1_ );
             }

@@ -27,9 +27,14 @@ public abstract class PaintMode {
 
     private final String name_;
 
-    private static final PaintMode SWING_MODE = new SwingPaintMode();
-    private static final PaintMode CGI_MODE = new CgiPaintMode();
-    private static final PaintMode DISCARD_MODE = new DiscardPaintMode();
+    /** Mode used for displaying a live plot on the display. */
+    public static final PaintMode SWING_MODE = new SwingPaintMode();
+
+    /** Mode used for standard output in CGI form. */
+    public static final PaintMode CGI_MODE = new CgiPaintMode();
+
+    /** Mode used to perform the plot internally, but produce no output. */
+    public static final PaintMode DISCARD_MODE = new DiscardPaintMode();
 
     /**
      * Constructor.
@@ -109,7 +114,15 @@ public abstract class PaintMode {
         }
 
         public String getDescription( PaintModeParameter modeParam ) {
-            return "Plot will be displayed in a window on the screen.";
+            StringBuffer sbuf = new StringBuffer();
+            return new StringBuffer()
+                .append( "Plot will be displayed in a window on the screen.\n" )
+                .append( "This plot is \"live\"; " )
+                .append( "it can be resized and " )
+                .append( "(except for old-style plots)\n" )
+                .append( "navigated around with mouse actions " )
+                .append( "in the same way as plots in TOPCAT." )
+                .toString();
         }
 
         public String getModeUsage( PaintModeParameter modeParam ) {
@@ -160,7 +173,7 @@ public abstract class PaintMode {
                 throws TaskException {
             OutputStreamParameter outParam = param.getOutputParameter();
             ChoiceParameter formatParam = param.getFormatParameter();
-            final Destination dest = outParam.destinationValue( env );
+            final Destination dest = outParam.objectValue( env );
             String out = outParam.stringValue( env );
             GraphicExporter dfltExp = null;
             if ( out != null ) {
@@ -175,7 +188,7 @@ public abstract class PaintMode {
                 }
             }
             if ( dfltExp != null ) {
-                formatParam.setDefault( dfltExp.getName() );
+                formatParam.setStringDefault( dfltExp.getName() );
             }
             final GraphicExporter exporter =
                 (GraphicExporter) formatParam.objectValue( env );
@@ -306,9 +319,11 @@ public abstract class PaintMode {
 
         public String getDescription( PaintModeParameter modeParam ) {
             return "Behaves as "
-                 + "<code>" + SWING_MODE + "</code> or "
-                 + "<code>" + outMode_ + "</code> mode"
-                 + " depending on presence of "
+                 + "<code><ref id='paintmode-swing'>" + SWING_MODE
+                                                      + "</ref></code> or "
+                 + "<code><ref id='paintmode-out'>" + outMode_
+                                                    + "</ref></code> "
+                 + " mode depending on presence of "
                  + "<code>" + modeParam.getOutputParameter().getName()
                             + "</code> parameter";
         }

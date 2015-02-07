@@ -62,7 +62,7 @@ public abstract class AxisController<P,A> implements Configger {
     protected AxisController( SurfaceFactory<P,A> surfFact, String navHelpId ) {
         surfFact_ = surfFact;
         navHelpId_ = navHelpId;
-        mainControl_ = new ConfigControl( "Axes", ResourceIcon.AXIS_EDIT );
+        mainControl_ = new ConfigControl( "Axes", ResourceIcon.AXIS_CONFIG );
         stickyModel_ =
             new ToggleButtonModel( "Lock Axes", ResourceIcon.AXIS_LOCK,
                                    "Do not auto-rescale axes" );

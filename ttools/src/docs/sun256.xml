@@ -16,6 +16,12 @@
   <!ENTITY URL.STIL_JAVADOCS
            "http://www.starlink.ac.uk/stil/javadocs/uk/ac/starlink/table/">
 
+  <!-- Define javadoc base URLs. -->
+  <!ENTITY corejavadocs "http://java.sun.com/j2se/1.5.0/docs/api/">
+  <!ENTITY stiljavadocs "http://www.starlink.ac.uk/stil/javadocs/">
+  <!ENTITY stiltsjavadocs "http://andromeda.star.bris.ac.uk/starjavadocs/">
+  <!ENTITY starjavasrc "https://github.com/Starlink/starjava/blob/master/">
+
   <!ENTITY flag-verbose '
      <dt><code>-v[erbose]</code></dt>
      <dd><p>May cause more information about progress to be written as
@@ -35,6 +41,10 @@
   <!-- Description of graphical output modes. -->
   <!ENTITY paintmode-docs SYSTEM 'paintmode-docs.xml'>
 
+  <!-- Description of plot2 objects. -->
+  <!ENTITY layertype-docs SYSTEM 'layertype-docs.xml'>
+  <!ENTITY shapemode-docs SYSTEM 'shapemode-docs.xml'>
+
   <!-- Summary paragraphs containing usage for each commmand. -->
   <!ENTITY calc-summary SYSTEM 'calc-summary.xml'>
   <!ENTITY cdsskymatch-summary SYSTEM 'cdsskymatch-summary.xml'>
@@ -42,6 +52,11 @@
   <!ENTITY funcs-summary SYSTEM 'funcs-summary.xml'>
   <!ENTITY pixfoot-summary SYSTEM 'pixfoot-summary.xml'>
   <!ENTITY pixsample-summary SYSTEM 'pixsample-summary.xml'>
+  <!ENTITY plot2cube-summary SYSTEM 'plot2cube-summary.xml'>
+  <!ENTITY plot2plane-summary SYSTEM 'plot2plane-summary.xml'>
+  <!ENTITY plot2sky-summary SYSTEM 'plot2sky-summary.xml'>
+  <!ENTITY plot2sphere-summary SYSTEM 'plot2sphere-summary.xml'>
+  <!ENTITY plot2time-summary SYSTEM 'plot2time-summary.xml'>
   <!ENTITY plot2d-summary SYSTEM 'plot2d-summary.xml'>
   <!ENTITY plot3d-summary SYSTEM 'plot3d-summary.xml'>
   <!ENTITY plothist-summary SYSTEM 'plothist-summary.xml'>
@@ -53,6 +68,7 @@
   <!ENTITY taplint-summary SYSTEM 'taplint-summary.xml'>
   <!ENTITY tapquery-summary SYSTEM 'tapquery-summary.xml'>
   <!ENTITY tapresume-summary SYSTEM 'tapresume-summary.xml'>
+  <!ENTITY tapskymatch-summary SYSTEM 'tapskymatch-summary.xml'>
   <!ENTITY tcat-summary SYSTEM 'tcat-summary.xml'>
   <!ENTITY tcatn-summary SYSTEM 'tcatn-summary.xml'>
   <!ENTITY tcopy-summary SYSTEM 'tcopy-summary.xml'>
@@ -88,6 +104,13 @@
   <!ENTITY matcher-2d_ellipse-usage SYSTEM 'matcher-2d_ellipse-usage.xml'>
   <!ENTITY matcher-sky.1d-usage SYSTEM 'matcher-sky.1d-usage.xml'>
 
+  <!-- Layer type descriptions for plot2 commands. -->
+  <!ENTITY plot2plane-layers SYSTEM 'plot2plane-layers.xml'>
+  <!ENTITY plot2sky-layers SYSTEM 'plot2sky-layers.xml'>
+  <!ENTITY plot2cube-layers SYSTEM 'plot2cube-layers.xml'>
+  <!ENTITY plot2sphere-layers SYSTEM 'plot2sphere-layers.xml'>
+  <!ENTITY plot2time-layers SYSTEM 'plot2time-layers.xml'>
+
   <!-- Automatically generated plot example text. -->
   <!ENTITY plot2d-examples SYSTEM 'plot2d-examples.xml'>
   <!ENTITY plot3d-examples SYSTEM 'plot3d-examples.xml'>
@@ -109,7 +132,7 @@
 
 <docnumber>256</docnumber>
 
-<docdate>7 March 2014</docdate>
+<docdate>6 February 2015</docdate>
 
 <contactlist>
 <contact>STILTS web page:
@@ -206,10 +229,16 @@ same ground as the STIL and TOPCAT user documents
     </p></dd>
 <dt>Plotting</dt>
 <dd><p>
+    <ref id="plot2plane"><code>plot2plane</code></ref>,
+    <ref id="plot2sky"><code>plot2sky</code></ref>,
+    <ref id="plot2cube"><code>plot2cube</code></ref>,
+    <ref id="plot2sphere"><code>plot2sphere</code></ref> and
+    <ref id="plot2time"><code>plot2time</code></ref>
+    (also deprecated old-style plot commands
     <ref id="plot2d"><code>plot2d</code></ref>,
     <ref id="plot3d"><code>plot3d</code></ref> and
-    <ref id="plothist"><code>plothist</code></ref>
-    (see <ref id="plot" plaintextref="yes"/>).
+    <ref id="plothist"><code>plothist</code></ref>)
+    (see <ref id="plot2" plaintextref="yes"/>).
     </p></dd>
 <dt>Sky Pixel Operations</dt>
 <dd><p>
@@ -225,8 +254,9 @@ same ground as the STIL and TOPCAT user documents
 <dd><p>
     <ref id="cdsskymatch"><code>cdsskymatch</code></ref>,
     <ref id="coneskymatch"><code>coneskymatch</code></ref>,
-    <ref id="tapquery"><code>tapquery</code></ref>
-    <ref id="tapresume"><code>tapresume</code></ref>
+    <ref id="tapquery"><code>tapquery</code></ref>,
+    <ref id="tapresume"><code>tapresume</code></ref>,
+    <ref id="tapskymatch"><code>tapskymatch</code></ref>,
     <ref id="taplint"><code>taplint</code></ref> and
     <ref id="regquery"><code>regquery</code></ref>.
     </p></dd>
@@ -355,6 +385,43 @@ follows:
     further.
     </p></dd>
 
+<dt><code>-allowunused</code></dt>
+<dd><p>Causes unused parameter settings on the command line to be tolerated.
+    Normally, any unused parameters on the command line cause a usage
+    message to be output and the command to fail, on the assumption
+    that if you've supplied a parameter setting that's not doing anything
+    it is probably a mistake and you should be given a chance to correct it.
+    But if this flag is set, you just get a warning through the logging
+    system about any unused parameters, and the command is executed as
+    if they weren't there.
+    </p></dd>
+
+<dt><code>-prompt</code></dt>
+<dd><p>Most of the STILTS commands have a number of parameters which
+    will assume sensible defaults if you do not give them explicit
+    values on the command line.  If you use the <code>-prompt</code> flag,
+    then you will be prompted for every parameter you have not 
+    explicitly specified to give you an opportunity to enter a value
+    other than the default.
+    </p></dd>
+
+<dt><code>-bench</code></dt>
+<dd><p>Outputs the elapsed time taken by the task to standard error on
+    successful completion.
+    </p></dd>
+
+<dt><code>-debug</code></dt>
+<dd><p>Sets up output suitable for debugging.  The most visible consequence
+    of this is that if an error occurs then a full stacktrace is output, 
+    rather than just a user-friendly report.
+    </p></dd>
+
+<dt><code>-batch</code></dt>
+<dd><p>Some parameters will prompt you for their values, even if they 
+    offer legal defaults.  If you use the <code>-batch</code> flag,
+    then you won't be prompted at all.
+    </p></dd>
+
 <dt><code>-memory</code></dt>
 <dd><p>Encourages the command to use java heap memory for caching
     large amounts of data rather than using temporary disk files.
@@ -370,32 +437,6 @@ follows:
     Using this flag may help if you are running out of memory.
     This flag is in most cases equivalent to specifying the system
     property <code>-Dstartable.storage=disk</code>.
-    </p></dd>
-
-<dt><code>-debug</code></dt>
-<dd><p>Sets up output suitable for debugging.  The most visible consequence
-    of this is that if an error occurs then a full stacktrace is output, 
-    rather than just a user-friendly report.
-    </p></dd>
-
-<dt><code>-prompt</code></dt>
-<dd><p>Most of the STILTS commands have a number of parameters which
-    will assume sensible defaults if you do not give them explicit
-    values on the command line.  If you use the <code>-prompt</code> flag,
-    then you will be prompted for every parameter you have not 
-    explicitly specified to give you an opportunity to enter a value
-    other than the default.
-    </p></dd>
-
-<dt><code>-batch</code></dt>
-<dd><p>Some parameters will prompt you for their values, even if they 
-    offer legal defaults.  If you use the <code>-batch</code> flag,
-    then you won't be prompted at all.
-    </p></dd>
-
-<dt><code>-bench</code></dt>
-<dd><p>Outputs the elapsed time taken by the task to standard error on
-    successful completion.
     </p></dd>
 
 <dt><code>-memgui</code></dt>
@@ -449,6 +490,11 @@ the available tasks are:
 <li><code>funcs</code></li>
 <li><code>pixfoot</code></li>
 <li><code>pixsample</code></li>
+<li><code>plot2cube</code></li>
+<li><code>plot2plane</code></li>
+<li><code>plot2sphere</code></li>
+<li><code>plot2sky</code></li>
+<li><code>plot2time</code></li>
 <li><code>plot2d</code></li>
 <li><code>plot3d</code></li>
 <li><code>plothist</code></li>
@@ -460,6 +506,7 @@ the available tasks are:
 <li><code>taplint</code></li>
 <li><code>tapquery</code></li>
 <li><code>tapresume</code></li>
+<li><code>tapskymatch</code></li>
 <li><code>tcat</code></li>
 <li><code>tcatn</code></li>
 <li><code>tcopy</code></li>
@@ -494,7 +541,8 @@ the task which is specified in the <code>&lt;task-name&gt;</code> part.
    <param-name>=<param-value>
 ]]></verbatim>
 If you want to set the parameter to the null value, which is legal for
-some but not all parameters, use the special string "<code>null</code>".
+some but not all parameters, use the special string "<code>null</code>",
+or just leave the value blank ("<code>&lt;param-name&gt;=</code>").
 In some cases you can optionally leave out the <code>&lt;param-name&gt;</code>
 part of the assignment (i.e. the parameter is positionally determined); 
 this is indicated in the task's usage description if the parameter
@@ -559,6 +607,21 @@ command:
    % stilts -verbose tcopy cat.fits cat.vot ifmt=fits
    INFO: tcopy in=cat.fits out=cat.vot ifmt=fits ofmt=(auto)
 ]]></verbatim>
+</p>
+
+<p>If you make a parameter assignment on the command line for a
+parameter which is not used by the task in question, STILTS
+will issue an error message and the task will fail.
+Note some parameters are only used dependent on the presence or
+values of other parameters, so even supplying a parameter which is
+documented in the task's usage can have this effect.
+This is done on the assumption that if you have supplied a spurious
+parameter it's probably a mistake and you should be given the
+opportunity to correct it.
+But if you want to be free to make these mistakes without the
+task failing, you can supply the <code>-allowunused</code> flag
+as described in <ref id="stilts-flags"/>, in which case they will
+just result in a warning.
 </p>
 
 <p>Extensive help is available from <code>stilts</code> 
@@ -944,6 +1007,14 @@ on the command line is equivalent to having the following in your
     tables in memory, and larger ones on disk.
     </p></dd>
 
+<dt><code>startable.unmap</code></dt>
+<dd><p>Determines whether and how unmapping of memory mapped buffers is done.
+    Possible values are "<code>sun</code>" (the default) or "<code>none</code>".
+    In most cases you are advised to leave this alone, but in the event of
+    unmapping-related JVM crashes (not expected!), setting it to
+    <code>none</code> may help.
+    </p></dd>
+
 <dt><code>startable.writers</code></dt>
 <dd><p>Can be set to a (colon-separated) list of custom table format output
     handler classes (see <docxref doc="sun252" loc="pluggableIO"/>).
@@ -1126,7 +1197,7 @@ The following functions are defined by JyStilts:
           <code>mode_samp</code>),
     </li>
 <li>A function for each STILTS <ref id="cmdUsage">task</ref> 
-    (e.g. <code>tmatch2</code>, <code>tcat</code>, <code>plot2d</code>)
+    (e.g. <code>tmatch2</code>, <code>tcat</code>, <code>plot2sky</code>)
     </li>
 <li>A number of table methods which make table objects integrate nicely into
     the python environment</li>
@@ -1271,7 +1342,7 @@ the location, but be aware that this may be less efficient on memory.
 As with command-line STILTS, the <code>fmt</code> argument
 is one of the options in <ref id="inFormats"/>, but may be
 left as the default if the format auto-detectable,
-which currently means if the file is in VOTable, FITS or CDF format.
+which currently means if the file is in VOTable, FITS, CDF or GBIN format.
 The <code>random</code> argument can be used to ensure that the returned file
 has random (i.e. not sequential-only) access;
 for some table formats the default way of reading them in means that
@@ -1819,6 +1890,11 @@ or Unix <code>compress</code> and the program will uncompress it on the fly.
            <ref id="tskymatch2"><code>tskymatch2</code></ref>,
            <ref id="pixfoot"><code>pixfoot</code></ref>,
            <ref id="pixsample"><code>pixsample</code></ref>,
+           <ref id="plot2cube"><code>plot2cube</code></ref>,
+           <ref id="plot2plane"><code>plot2plane</code></ref>,
+           <ref id="plot2sky"><code>plot2sky</code></ref>,
+           <ref id="plot2sphere"><code>plot2sphere</code></ref>,
+           <ref id="plot2time"><code>plot2time</code></ref>,
            <ref id="plot2d"><code>plot2d</code></ref>,
            <ref id="plot3d"><code>plot3d</code></ref>,
            <ref id="plothist"><code>plothist</code></ref>,
@@ -1826,7 +1902,8 @@ or Unix <code>compress</code> and the program will uncompress it on the fly.
            <ref id="coneskymatch"><code>coneskymatch</code></ref>,
            <ref id="sqlskymatch"><code>sqlskymatch</code></ref>,
            <ref id="tapquery"><code>tapquery</code></ref>,
-           <ref id="tapresume"><code>tapresume</code></ref> and
+           <ref id="tapresume"><code>tapresume</code></ref>,
+           <ref id="tapskymatch"><code>tapskymatch</code></ref> and
            <ref id="regquery"><code>regquery</code></ref>)
 have no native format for table storage, they can process
 data in a number of formats equally well.  
@@ -1887,7 +1964,7 @@ The following list gives the values usually allowed for this
     in particular it may be considerably more efficient for very large, and
     especially very wide tables where not all of the columns are required
     at any one time.
-    Only available for uncompressed files on disk.
+    Only likely to be efficient for uncompressed files on disk.
     </p></dd>
 
 <dt><code>votable</code></dt>
@@ -1914,6 +1991,16 @@ The following list gives the values usually allowed for this
     using approximately the conventions used by MS Excel.
     </p></dd>
 
+<dt><code>gbin</code></dt>
+<dd><p>Special-interest GBIN format for internal use by the DPAC
+    consortium in relation to the Gaia astrometry satellite.
+    Additional classes (data model and GaiaTools GBIN reader)
+    are required on the classpath at runtime to use this format
+    (e.g. <code>stilts -classpath MDBExplorerStandalone.jar</code>
+     or <code>java -classpath stilts.jar:MDBExplorerStandalone.jar
+              uk.ac.starlink.ttools.Stilts</code>).
+    </p></dd>
+
 <dt><code>tst</code></dt>
 <dd><p>Tab-Separated Table format,
     as used by Starlink's GAIA and ESO's SkyCat amongst other tools.
@@ -1932,7 +2019,7 @@ For more details on these formats, see the descriptions in
 <docxref doc="sun253" loc="inFormats"/>.
 </p>
 
-<p>In some cases (when using VOTable or FITS format tables) the 
+<p>In some cases (when using VOTable, FITS, CDF or GBIN format tables) the 
 tools can detect the table format automatically, and no explicit 
 specification is necessary.  If this isn't the case and you omit
 the format specification, the tool will fail with a suitable error
@@ -2877,34 +2964,81 @@ in multi-object match contexts.
 
 </sect>
 
-<sect id="plot">
+<sect id="plot2">
 <subhead><title>Plotting</title></subhead>
 
-<p>As of Version 2.0 (October 2008), STILTS offers table plotting commands.
-These acquire a data point from each line of one or more input tables,
-perhaps influenced by the pipelining operations described in <ref id="pipes"/>,
-and generate some kind of graphical plot from the result.
-At time of writing, the following plot types are available:
+<p>As of version 3.0 (October 2014), STILTS offers plotting commands
+corresponding to the new-style plots in
+version 4 of the
+<webref url="http://www.starlink.ac.uk/topcat/">TOPCAT</webref> application.
+The commands are currently:
 <ul>
-<li><ref id="plot2d"><code>plot2d</code></ref>: &plot2d-purpose;</li>
-<li><ref id="plot3d"><code>plot3d</code></ref>: &plot3d-purpose;</li>
-<li><ref id="plothist"><code>plothist</code></ref>: &plothist-purpose;</li>
+<li><ref id="plot2plane" plaintextref="yes"><code>plot2plane</code></ref>:
+    &plot2plane-purpose;
+    </li>
+<li><ref id="plot2sky" plaintextref="yes"><code>plot2sky</code></ref>:
+    &plot2sky-purpose;
+    </li>
+<li><ref id="plot2cube" plaintextref="yes"><code>plot2cube</code></ref>:
+    &plot2cube-purpose;
+    </li>
+<li><ref id="plot2sphere" plaintextref="yes"><code>plot2sphere</code></ref>:
+    &plot2sphere-purpose;
+    </li>
+<li><ref id="plot2time" plaintextref="yes"><code>plot2time</code></ref>:
+    &plot2time-purpose;
+    </li>
 </ul>
-but see also <ref id="tcube"><code>tcube</code></ref> for generating
-N-dimensional histograms as FITS files.
-It is hoped to add more plot types in future releases.
+(In previous versions the less capable commands
+<code>plot2d</code>,
+<code>plot3d</code> and
+<code>plothist</code>
+were available -
+these are now deprecated, but described in <ref id="plot"/>).
 </p>
 
-<p>The plotting commands offer considerable control over what is plotted
-and how it is represented, and thus unavoidably have rather a large
-number of parameters.  When looking at the command documentation in
-<ref id="cmdUsage"/>
-the <ref id="plot2d-usage">Usage</ref> sections may look rather daunting.
+<p>These commands all have a similar structure.
+The <em>plot surface</em>, or geometry of the plot,
+is defined by which command you use
+(for instance, if you want to plot longitude/latitude data on
+the celestial sphere, use <code>plot2sky</code>).
+Content is added to the plot by specifying zero or more
+<em>plot layers</em>,
+as described in <ref id="LayerType"/> below.
+<ref id="ShapeMode"/> describes the shading modes which affect
+how colouring is performed for some of the layer types.
+Once a plot has been specified, it can be displayed on
+the screen or exported in some way according to
+a selected output mode (<ref id="paintMode"/>)
+and perhaps export format (<ref id="graphicExporter"/>).
+Plots displayed to the screen are by default "live" - they can be
+resized and navigated around (pan, zoom, rotate, ...) using the mouse
+in the same way as in a TOPCAT window.
+</p>
+
+<p>These commands allow you to make all the plots that can be produced
+with TOPCAT, in some cases with more flexibility in configuration.
+Unlike TOPCAT, the size of table you can plot is not limited by
+the size of table you can load into the application.
+In most cases, STILTS will generate plots from arbitrarily large
+data sets with fixed (and modest) memory requirements.
+Performance is of course highly dependent on the details of the plot,
+but for instance an all-sky density plot for 2 billion points can
+be produced in the order of 30 minutes.
+</p>
+
+<subsect id="TypedPlot2Task">
+<subhead><title>Plot Parameters</title></subhead>
+
+<p>The plotting commands offer a great deal of control over what is plotted
+and how it is represented, and thus unavoidably have lots of parameters.
+When looking at the command documentation in <ref id="cmdUsage"/>
+the <ref id="plot2plane-usage">Usage</ref> sections may look rather daunting.
 However, the discussion below and the 
-<ref id="plot2d-examples">Examples</ref> sections should help.
+<ref id="plot2plane-examples">Examples</ref> sections should help.
 Generating a simple plot is straightforward and can be done with only
-three or four parameters; if you have more complicated
-requirements for data selection or specific preferences for
+four or five parameters; if you want to represent more complicated data
+or have specific preferences for
 appearance then you can consult the documentation for the additional options.
 </p>
 
@@ -2914,12 +3048,581 @@ blue magnitudes,
 you can draw a two-dimensional colour-magnitude scatter plot with
 the command:
 <verbatim>
-   stilts plot2d in=cat.fits xdata=RMAG ydata=BMAG-RMAG
+   stilts plot2plane layer_1=mark in_1=cat.fits x_1=BMAG-RMAG y_1=BMAG
+</verbatim>
+Since an output file is not specified, the plot is shown in a window
+on the screen.
+This plot window is "live" - you can resize the window,
+or pan and zoom around it using the same mouse controls as in TOPCAT.
+To send the output to a PNG file, do instead:
+<verbatim>
+   stilts plot2plane layer_1=mark in_1=cat.fits x_1=BMAG-RMAG y_1=BMAG out=fig.png
+</verbatim>
+</p>
+
+<p>We can adjust the plot by inverting the Y axis so it
+increases downwards instead of upwards:
+<verbatim>
+   stilts plot2plane
+              yflip=true
+              layer_1=mark in_1=cat.fits x_1=BMAG-RMAG y_1=BMAG
+</verbatim>
+The parameters of the plot now fall into two groups.
+Global parameters, without suffixes,
+make global adjustments to the plot.
+In this example <code>yflip=true</code> inverts the Y axis.
+<strong>Layer parameters</strong>, with suffixes,
+are introduced by a <code>layer</code> parameter
+and grouped together by a given suffix.
+Each layer group defines a plot layer with content
+to be drawn on the plot surface.
+In this case the layer is of type <code>mark</code> (draw markers)
+and the suffix is "<code>_1</code>".
+Global and Layer parameters are described separately in the following
+subsections.
+</p>
+
+<subsubsect>
+<subhead><title>Global Parameters</title></subhead>
+
+<p>The global plot parameters are documented in
+the usage sections of the various plot commands
+(e.g. <ref id="plot2plane-usage"/>).
+They deal with things like positioning the plot axes,
+fixing the data bounds, selecting font types and sizes,
+adjusting grids and tickmarks, configuring how interactive
+navigation works, managing data storage, and so on.
+They are all optional,
+since they all have sensible defaults, for instance data bounds
+will be determined from the supplied data if they are not given
+explicitly.
+</p>
+
+</subsubsect>
+
+<subsubsect>
+<subhead><title>Layer Parameters</title></subhead>
+
+<p>The layer parameters come in groups, each specifying the
+details of one plot layer.
+Each layer type has its own list of parameters.
+A plot layer is introduced on the command line with a parameter
+of the form
+<verbatim>
+   layer&lt;suffix&gt;=&lt;layer-type&gt;
+</verbatim>
+and any other parameters with the same <code>&lt;suffix&gt;</code>
+are considered to apply to the same layer.
+In the basic example we considered:
+<verbatim>
+   stilts plot2plane layer_1=mark in_1=cat.fits x_1=BMAG-RMAG y_1=BMAG
+</verbatim>
+the suffix is "<code>_1</code>" and the layer type associated with it is 
+<code>mark</code> (plotting markers to make a scatter plot).
+The different layer types are documented in <ref id="LayerType"/>,
+and each has its own set of parameters, some of which are mandatory
+and some which are optional with sensible defaults.
+In the documentation, the suffix is represented as "<code>N</code>".
+For instance the <code><ref id="layer-mark">mark</ref></code> layer type
+requires you to specify an input table (<code>inN</code>) and
+point positions (<code>xN</code> and <code>yN</code>).
+Since the suffix we have used in the example for the
+<code>layerN</code> parameter is "<code>_1</code>",
+we have written <code>in_1</code>, <code>x_1</code> and <code>y_1</code>.
+The <code>mark</code> layer has some optional style parameters as well,
+so we could adjust the plot's appearance by adding
+<code>shape_1=cross size_1=4 color_1=blue</code>.
+</p>
+
+<p>You can have as many layers as you like (even none),
+so we could overplot two datasets from different input files like this:
+<verbatim>
+   stilts plot2plane
+       layer_1=mark in_1=cat1.fits x_1=BMAG-RMAG   y_1=BMAG  color_1=magenta size_1=5
+       layer_2=mark in_2=cat2.fits x_2=mag_b-mag_r y_2=mag_b color_2=cyan    size_2=5
+</verbatim>
+We have assigned different colours to the different layers
+and boosted the marker size to 5 pixels.
+</p>
+
+<p>As a convenience, if the same value is used for all the layers,
+you can omit the suffix.  So to avoid having to specify the same
+markers size for both layers, you can write instead:
+<verbatim>
+   stilts plot2plane
+       size=5
+       layer_1=mark in_1=cat1.fits x_1=BMAG-RMAG   y_1=BMAG  color_1=magenta
+       layer_2=mark in_2=cat2.fits x_2=mag_b-mag_r y_2=mag_b color_2=cyan
+</verbatim>
+Although the <code>size</code> parameter no longer has an explicit suffix,
+it's still a layer parameter, it just applies to multiple layers.
+This shorthand works for all layer parameters.
+Here is another example which also shows how you can use the
+<code>icmdN</code> parameter to <ref id="pipes">pre-process</ref>
+input data prior to performing the plot.
+Here, we make two different selections of the input rows to plot
+two different data sets.
+<verbatim>
+   stilts plot2plane
+          in=cat.fits x=BMAG-RMAG y=BMAG
+          layer_1=mark icmd_1='select vel&lt;1000'  color_1=blue
+          layer_2=mark icmd_2='select vel&gt;=1000' color_2=red
+</verbatim>
+The input tables and data values are the same for both datasets,
+so we can just supply the parameters
+<code>in</code>, <code>x</code> and <code>y</code>,
+rather than
+<code>in_1</code>, <code>in_2</code> etc.
+</p>
+
+<p>Any string can be used as a suffix, including the empty string
+(though an empty string can cause confusion if there are multiple layers).
+The suffixing is also slightly more sophisticated than described above;
+to find parameters relating to a layer with a given suffix, the
+parameter looks first using the whole suffix, and strips single
+characters off it until it has none left.
+So if a layer is introduced with the parameter <code>layer_ab</code>,
+you can give the marker shape using any of the parameters
+<code>shape_ab</code>, <code>shape_a</code>, <code>shape_</code>
+or <code>shape</code>.  If more than one of these is present,
+the first one in that list will be used
+(the order in which they appear on the command line is not significant).
+This can be used to group sets of layers.
+</p>
+
+<p>By default, if multiple layers are specified, they are plotted
+in the order in which the introducing <code>layerN</code> parameters
+appear on the command line.  This may be relevant, since layers
+plotted later sometimes obscure ones plotted earlier.
+You can alter the order of plotting with the <code>seq</code> (global)
+parameter, which is a comma-separated list of layer suffixes giving
+the sequence in which layers should be plotted.
+So adding "<code>seq=_2,_1</code>" would cause layer _2 to be plotted
+before layer _1, instead of the other way round.
+</p>
+
+<p>By default, if more than one layer is plotted, a legend will
+appear labelling the datasets.
+The dataset labels appearing in the legend are by default
+the layer suffixes specified on the command line.
+However, the labels can be given explicitly with the <code>legendN</code>
+parameter, so for instance in the example above
+<code>leglabel_1=Slow leglabel_2=Fast</code> would adjust the
+legend accordingly.
+Legend appearance and positioning can be adjusted by various
+<code>leg*</code> global parameters.
+</p>
+
+</subsubsect>
+
+<subsubsect id="animate">
+<subhead><title>Animation</title></subhead>
+
+<p>The plotting commands can be used to produce animations.
+This is done by supplying an <em>animation control table</em>
+using the <code>animate</code> parameter
+(which has associated <code>afmt</code> and <code>acmd</code> parameters
+for specifying its file format and applying filters).
+One output image is produced for each row of the control table.
+The columns of the table have names which correspond to plot command
+parameters, and for each row, the basic plot command is executed
+with the parameters on the command line supplied or replaced by
+those from the table.
+This is most commonly used for providing a movie of the kind of
+navigation you can do interactively with the mouse,
+but other applications are possible.
+</p>
+
+<p>For instance, given the following animation control table
+with the name "bounds.txt", in ASCII format:
+<verbatim>
+  #  xmax  ymax
+      4.0   2.0
+      3.0   1.5
+      2.0   1.0
+      1.0   0.5
+</verbatim>
+then this command:
+<verbatim>
+   stilts plot2plane xmin=0 ymin=0
+                     layer_1=mark in_1=gums_smc.fits x_1=ag y_1=av
+                     animate=bounds.txt afmt=ascii
+</verbatim>
+would produce a 4-frame animation zooming in towards the origin.
+</p>
+
+<p>If output is to the screen
+(<code>omode=<ref id="paintmode-swing">swing</ref></code>)
+the animation can be seen directly.
+If it is to an output file
+(<code>omode=<ref id="paintmode-out">out</ref></code>)
+then a number of output files is written with sequence numbers,
+so adding the parameter "<code>out=x.png</code>" to the above command
+would produce 4 files,
+<code>x-1.png</code>,
+<code>x-2.png</code>,
+<code>x-3.png</code> and
+<code>x-4.png</code>.
+Padding zeros are used to keep the files in alphanumeric sequence,
+so for instance in a 500-frame animation the first one would be named
+<code>x-001.png</code>.
+STILTS does not actually turn these files into a single animated output file,
+but you can use other tools to do this, for instance using ImageMagick:
+<verbatim>
+   convert x-*.png xmovie.gif
+</verbatim>
+will produce an animated gif from the input frames.
+</p>
+
+<p>You can create the animation control table any way you like,
+but you may find the <code><ref id="tloop">tloop</ref></code>
+command convenient.  For instance the above table can be
+written like this:
+<verbatim>
+   stilts tloop xmax 4 0 -1 ocmd='addcol ymax xmax*0.5' ofmt=ascii
+</verbatim>
+You can pipe the output of tloop (or any other command)
+as the animation table on the unix command line by specifying
+<code>animate=-</code> (the "<code>-</code>" character stands for
+standard input).  Note however that in this case you 
+must explicitly give the file format (using the <code>afmt</code> parameter)
+and it must be a format which STILTS is capable of streaming
+(VOTable is suitable; ASCII is not).
+</p>
+
+<p>A common requirement is to produce an animation of rotating a 3-d plot.
+Here's an example of how to do it from a unix shell:
+<verbatim>
+     stilts tloop phi 15 375 2 ofmt=votable \
+   | stilts plot2sphere layer_1=mark in_1=hip_main.fits lon_1=radeg lat_1=dedeg r_1=plx \
+                        animate=- afmt=votable
+</verbatim>
+The <code>phi</code> parameter controls the angle from which the
+3D plot is viewed, and here it is incremented by 2 degrees
+for each frame.
+The same thing would work for <code>plot2cube</code>
+as well as <code>plot2sphere</code>.
+</p>
+
+<p>Note that producing animations in this way is usually much more
+efficient than writing a shell script which invokes STILTS multiple times.
+The plot commands also employ multi-threading when animating to
+output files, so should make efficient use of multi-core machines
+(though currently animations to the screen are not multi-threaded).
+</p>
+
+</subsubsect>
+
+</subsect>
+
+<subsect id="PlotType">
+<subhead><title>Surface Types</title></subhead>
+
+<p>The different <code>plot2*</code> commands correspond to
+different plot surface geometries.
+The different commands come with their own specific
+axis configuration parameters.
+Some of the plot layer types are specific to certain surface types.
+When supplying data from input tables to plot layers,
+the coordinate values you need to supply
+(and hence the corresponding parameter names)
+are determined not by the layer type, but by the surface type.
+For instance, point positions for layer N on
+a 2-d Cartesian surface (<code>plot2plane</code> command)
+are given using parameters <code>xN</code> and <code>yN</code>,
+but when plotting to the celestial sphere
+(<code>plot2sky</code> command) you supply
+<code>lonN</code> and <code>latN</code>).
+</p>
+
+<p>The following list summarises the available surface types and
+their corresponding positional coordinates.
+
+<dl>
+<dt>Plane (<code><ref id="plot2plane">plot2plane</ref></code>)</dt>
+<dd><p>2-dimensional Cartesian axes.
+    Positional coordinates are supplied as
+    <code>x</code>, <code>y</code> pairs.
+    Note that this command can also be used to draw histograms.
+    </p></dd>
+
+<dt>Sky (<code><ref id="plot2sky">plot2sky</ref></code>)</dt>
+<dd><p>Celestial sphere.
+    Positional coordinates are supplied as
+    <code>lon</code>, <code>lat</code> pairs,
+    giving longitude and latitude in decimal degrees.
+    A number of different projections are available,
+    and conversion between different celestial coordinate systems can
+    also be performed.
+    You could use it for other spherical coordinate systems too
+    (like the surface of a planet).
+    </p></dd>
+
+<dt>Cube (<code><ref id="plot2cube">plot2cube</ref></code>)</dt>
+<dd><p>3-dimensional Cartesian axes.
+    Positional coordinates are supplied as
+    <code>x</code>, <code>y</code>, <code>z</code> triples.
+    </p></dd>
+
+<dt>Sphere (<code><ref id="plot2sphere">plot2sphere</ref></code>)</dt>
+<dd><p>3-dimensional isotropic space with spherical polar coordinates.
+    Positional coordinates are supplied as
+    <code>lon</code>, <code>lat</code>, <code>r</code> triples,
+    giving longitude and latitude in decimal degrees, and radius in
+    an arbitrary unit.
+    The plotting surface (space) is similar to Cube,
+    except that the unit distance is always
+    the same in all three directions.
+    </p></dd>
+
+<dt>Time (<code><ref id="plot2time">plot2time</ref></code>)</dt>
+<dd><p>2-dimensional axes, but the horizontal axis represents time.
+    The axis may be labelled in various ways
+    (ISO-8601 dates, decimal year, MJD etc). 
+    Positional coordinates are supplied as
+    <code>t</code>, <code>y</code> pairs.
+    How to provide a data value representing a time is somewhat
+    under-documented, but reading data from a time-sensitive format
+    such as CDF will give column values that can be used as times.
+    This surface type is somewhat experimental, and the
+    <code>plot2time</code> command currently lacks some important features.
+    </p></dd>
+</dl>
+</p>
+
+</subsect>
+
+<subsect id="LayerType">
+<subhead><title>Layer Types</title></subhead>
+
+<p>The different plot layers and how to configure them with parameters
+is given in the following subsections.
+The layers which may be plotted on a particular surface depend on
+the plot geometry,
+so not all of these are available for every plot command.
+</p>
+
+&layertype-docs;
+
+</subsect>
+
+<subsect id="ShapeMode">
+<subhead><title>Shading Modes</title></subhead>
+
+<p>Some plot <ref id="LayerType">layer types</ref>
+have an associated <code>shading</code> parameter
+which determines how plotted markers are coloured.
+This is independent of the marker shapes
+(which may be points, vectors, ellipses, ...)
+but may be affected by how many markers are plotted on top of each other,
+additional input table values, selected colour maps etc.
+For the simplest shading types
+(e.g. <ref id="shading-flat"><code>flat</code></ref>)
+it's just a case of choosing a colour,
+but the more complex ones have several associated parameters.
+</p>
+
+<p>The various shading types and their usages are described in
+the following subsections.
+</p>
+
+&shapemode-docs;
+
+</subsect>
+
+
+<subsect id="paintMode">
+<subhead><title>Output Modes</title></subhead>
+
+<p>The plots generated by the plotting commands can be used in various
+different ways.  One thing you might want to do is to write the
+output to a file in a given graphics format 
+(<ref id="paintmode-out"><code>out</code></ref>);
+another is to preview it directly on the screen
+(<ref id="paintmode-swing"><code>swing</code></ref>).
+By default one or other of these will happen depending on whether you
+specify an output file.  However there are other possibilities;
+these are listed in the following subsections.
+</p>
+
+<p>Except for display to the screen, these modes should work happily
+on a headless machine (one with no graphics display, as may be the case
+for a web server).
+When running headless, you may find it necessary to 
+set the java system property
+"<code>java.awt.headless</code>" to <code>true</code>
+- see <ref id="sysProperties"/>.
+</p>
+
+<p>The default output mode is <ref id="paintmode-auto"><code>auto</code></ref>,
+which means that output is to a file if an output file is specified,
+or to the screen if it is not.  So in most cases you don't need to specify the
+<code>omode</code> parameter explicitly.
+</p>
+
+&paintmode-docs;
+
+</subsect>
+
+
+<subsect id="graphicExporter">
+<subhead><title>Export Formats</title></subhead>
+
+<p>Several of the plot output <ref id="paintMode">modes</ref>
+write the plot in some graphics format or other.
+When selecting an output format it is important to understand the 
+distinction between <em>bitmapped</em> and <em>vector</em> formats;
+basically bitmapped formats represent the image as a grid of finite-sized
+pixels while vector formats notionally draw smooth lines.
+Bitmapped formats are fine for a computer screen, but for high quality
+paper printouts you will want a vector format.
+You can convert from vector to bitmapped but not (usefully) in the
+other direction.  There are a couple of subtleties to this distinction
+specific to STILTS graphical output as discussed below.
+</p>
+
+<p>The following formats are the available values for the
+<code>ofmt</code> parameter of the various plot commands:
+<dl>
+<dt><code>png</code></dt>
+<dd><p>PNG format.
+    This is a flexible bitmapped format providing transparency 
+    and an unlimited number of colours with good lossless compression.
+    It is widely supported by non-ancient browsers and other image viewers,
+    and is generally recommended for bitmapped output.
+    </p></dd>
+
+<dt><code>gif</code></dt>
+<dd><p>GIF format.
+    This is a bitmapped format providing transparency and lossless
+    compression.
+    The number of colours is limited to 255 however, so if you are using
+    auxiliary axes (colour variation to represent higher dimensionality)
+    or other plot features which use a wide range of colours you may see
+    image degradation.
+    It has long been widely supported by browsers and other image viewers.
+    </p></dd>
+
+<dt><code>jpeg</code></dt>
+<dd><p>JPEG format.
+    This is a bitmapped format with lossy compression
+    intended primarily for photographs.
+    Transparency is not supported, and although there is no limit on the
+    maximum number of colours, its lossiness means that plots generated
+    using it generally look a bit smudged.
+    </p></dd>
+
+<dt><code>pdf</code></dt>
+<dd><p>Portable Document Format.
+    This is the format which can be read by Adobe's Acrobat Reader.
+    It is a widely portable vector format, and is suitable for printing
+    at high resolution, either standalone or imported into some other 
+    presentation format.
+    However, there are a couple of caveats when it comes to using it with
+    STILTS plots.
+    <ol>
+    <li>If used to plot a very large number of points, the output PDF file
+        can get quite large, though it's much better than for
+        <code>eps</code> output (see below).
+        </li>
+    <li>For certain colour shading options
+        (<ref id="shading-auto">auto</ref>,
+         <ref id="shading-density">density</ref>,
+         and in some circumstances transparency),
+        the body of the plot will
+        be drawn as a bitmap rather than vector graphics.
+        This is sometimes a blessing in disguise since with very large numbers
+        of points a vector PDF file could get unmanageably large in any case.
+        In this case the interior of the plot will be pixellated.
+        The axes and annotations outside of the
+        plot will still be drawn in vector format however.
+        </li>
+    </ol>
+    </p></dd>
+
+<dt><code>eps</code></dt>
+<dd><p>Encapsulated Postscript.
+    This is a vector format which is suitable for printing at high resolution
+    either standalone or imported into some other presentation format
+    (you may need to convert it via PDF depending on the intended destination).
+    However, there are a couple of caveats when it comes to using it with
+    STILTS plots.
+    <ol>
+    <li>Unfortunately the postscript driver used by STILTS is not very 
+        efficient and can result in large, sometimes very large, postscript
+        output files.  This is likely to be a problem for plots with a large
+        number of non-transparent points.
+        For this reason <code>eps-gzip</code> or <code>pdf</code> may be
+        a better choice.
+        </li>
+    <li>Postscript has no support for partial transparency, so if plots 
+        are drawn with partially transparent points (common for very large
+        data sets) the only way they can be rendered is by drawing the body
+        of the plot as a bitmap rather than as vector graphics.
+        This is sometimes a blessing in disguise since with very large numbers
+        of points a vector postscript file would likely be unmanageably 
+        large in any case.
+        So if there is any transparency in the plot, the interior of the
+        plot will be pixellated.  The axes and annotations outside of the
+        plot will still be drawn in vector format however.
+        </li>
+    </ol>
+    </p></dd>
+
+<dt><code>eps-gzip</code></dt>
+<dd><p>Just like the <code>eps</code> format above except that the output
+    is automatically compressed using the GZIP format as it is written.
+    Postscript compresses well (typically a factor of 5-10).
+    </p></dd>
+
+</dl>
+</p>
+
+</subsect>
+
+</sect>
+
+<sect id="plot">
+<subhead><title>Old-Style Plotting</title></subhead>
+
+<p><em>This section describes deprecated commands.
+For recommended plotting commands, see <ref id="plot2"/>.
+</em></p>
+
+<p>From version 2.0 (October 2008), STILTS incorporated three table
+plotting commands:
+<ul>
+<li><ref id="plot2d"><code>plot2d</code></ref>: &plot3d-purpose;</li>
+<li><ref id="plot3d"><code>plot3d</code></ref>: &plot3d-purpose;</li>
+<li><ref id="plothist"><code>plothist</code></ref>: &plothist-purpose;</li>
+</ul>
+These provided command-line access to some, though not all,
+of the plotting capabilities offered by TOPCAT.
+</p>
+
+<p>Since version 3.0 (October 2014), these commands are deprecated
+in favour of the more powerful ones described in <ref id="plot2"/>.
+The rest of this section describes some aspects of the deprecated
+commands for the benefit of legacy code.
+The output modes and formats are the same in old- and new-style plots,
+and are discussed in <ref id="paintMode"/> and <ref id="graphicExporter"/>.
+The handling of parameters and suffixes for these commands
+is not quite the same as for new-style plots,
+and is documented in the next subsection.
+</p>
+
+<p>As a simple example, 
+if a file "cat.fits" contains the columns RMAG and BMAG for red and 
+blue magnitudes,
+you can draw a two-dimensional colour-magnitude scatter plot with
+the command:
+<verbatim>
+   stilts plot2d in=cat.fits xdata=BMAG-RMAG ydata=BMAG
 </verbatim>
 Since an output file is not specified, the plot is shown on the screen for
 convenience.  To send the output to a PNG file, do instead:
 <verbatim>
-   stilts plot2d in=cat.fits xdata=RMAG ydata=BMAG out=plot.png ofmt=png
+   stilts plot2d in=cat.fits xdata=BMAG-RMAG ydata=BMAG out=plot.png ofmt=png
 </verbatim>
 in some cases (including the above), the <code>ofmt</code> parameter is not
 required since STILTS may be able to guess the format from the output
@@ -2937,6 +3640,10 @@ Some other plotting-specific topics are also discussed below.
 
 <subsect id="plotSuffixes">
 <subhead><title>Parameter Suffixes</title></subhead>
+
+<p><em>This section describes deprecated commands.
+For recommended plotting commands, see <ref id="plot2"/>.
+</em></p>
 
 <p>Some of the parameters for the plotting tasks behave a little bit
 differently to other parameters in STILTS, in order to accommodate
@@ -3067,180 +3774,6 @@ in the plot, do the following:
 <p>More examples can be found in the <label>Examples</label>
 subsections of the individual plotting command descriptions in
 <ref id="cmdUsage"/>.
-</p>
-
-</subsect>
-
-
-<subsect id="paintMode">
-<subhead><title>Output Modes</title></subhead>
-
-<p>The plots generated by the plotting commands can be used in various
-different ways.  One thing you might want to do is to write the
-output to a file in a given graphics format 
-(<ref id="paintmode-out"><code>out</code></ref>);
-another is to preview it directly on the screen
-(<ref id="paintmode-swing"><code>swing</code></ref>).
-By default one or other of these will happen depending on whether you
-specify an output file.  However there are other possibilities;
-these are listed in the following subsections.
-</p>
-
-<p>Except for display to the screen, these modes should work happily
-on a headless machine (one with no graphics display, as may be the case
-for a web server).
-When running headless, you may find it necessary to 
-set the java system property
-"<code>java.awt.headless</code>" to <code>true</code>
-- see <ref id="sysProperties"/>.
-</p>
-
-<p>The default output mode is <ref id="paintmode-auto"><code>auto</code></ref>,
-which means that output is to a file if an output file is specified,
-or to the screen if it is not.  So often you don't need to specify the
-<code>omode</code> parameter explicitly.
-</p>
-
-&paintmode-docs;
-
-</subsect>
-
-<subsect id="graphicExporter">
-<subhead><title>Output Formats</title></subhead>
-
-<p>Several of the plot output <ref id="paintMode">modes</ref>
-write the plot in some graphics format or other.
-When selecting an output format it is important to understand the 
-distinction between <em>bitmapped</em> and <em>vector</em> formats;
-basically bitmapped formats represent the image as a grid of finite-sized
-pixels while vector formats notionally draw smooth lines.
-Bitmapped formats are fine for a computer screen, but for high quality
-paper printouts you will want a vector format.
-You can convert from vector to bitmapped but not (usefully) in the
-other direction.  There are a couple of subtleties to this distinction
-specific to STILTS graphical output as discussed below.
-</p>
-
-<p>The following formats are the available values for the
-<code>ofmt</code> parameter of the various plot commands:
-<dl>
-<dt><code>png</code></dt>
-<dd><p>PNG format.
-    This is a flexible bitmapped format providing transparency 
-    and an unlimited number of colours with good compression.
-    It is fairly widely supported by browsers and other image viewers,
-    but perhaps not as widely as GIF.
-    </p></dd>
-
-<dt><code>gif</code></dt>
-<dd><p>GIF format.
-    This is a very widely-supported bitmapped format providing transparency.
-    The number of colours is limited to 255 however, so if you are using
-    auxiliary axes (colour variation to represent higher dimensionality)
-    or other plot features which use a wide range of colours you may see
-    image degradation.
-    </p></dd>
-
-<dt><code>jpeg</code></dt>
-<dd><p>JPEG format.
-    This is a bitmapped format intended primarily for photographs.
-    Transparency is not supported, and although there is no limit on the
-    maximum number of colours, its lossiness means that plots generated
-    using it generally look a bit smudged.
-    </p></dd>
-
-<dt><code>pdf</code></dt>
-<dd><p>Portable Document Format.
-    This is the format which can be read by Adobe's Acrobat Reader.
-    It is a widely portable vector format, and is suitable for printing
-    at high resolution, either standalone or imported into some other 
-    presentation format.
-    However, there are a couple of caveats when it comes to using it with
-    STILTS plots.
-    <ol>
-    <li>If used to plot a very large number of points, the output PDF file
-        can get quite large, though it's much better than for
-        <code>eps</code> output (see below).
-        </li>
-    <li>Because of the way that STILTS does its transparency rendering,
-        the only way that plots with partially transparent points can 
-        be rendered is to draw the body
-        of the plot as a bitmap rather than as vector graphics.
-        This is probably a blessing in disguise since with very large numbers
-        of points a vector PDF file could get unmanageably large in any case.
-        So if there is any transparency in the plot, the interior of the
-        plot will be pixellated.  The axes and annotations outside of the
-        plot will still be drawn in vector format however.
-        </li>
-    </ol>
-    </p></dd>
-
-<dt><code>eps</code></dt>
-<dd><p>Encapsulated Postscript.
-    This is a vector format which is suitable for printing at high resolution
-    either standalone or imported into some other presentation format
-    (you may need to convert it via PDF depending on the intended destination).
-    However, there are a couple of caveats when it comes to using it with
-    STILTS plots.
-    <ol>
-    <li>Unfortunately the postscript driver used by STILTS is not very 
-        efficient and can result in large, sometimes very large, postscript
-        output files.  This is likely to be a problem for plots with a large
-        number of non-transparent points.
-        For this reason <code>eps-gzip</code> or <code>pdf</code> may be
-        a better choice.
-        </li>
-    <li>Postscript has no support for partial transparency, so if plots 
-        are drawn with partially transparent points (common for very large
-        data sets) the only way they can be rendered is by drawing the body
-        of the plot as a bitmap rather than as vector graphics.
-        This is probably a blessing in disguise since with very large numbers
-        of points a vector postscript file would likely be unmanageably 
-        large in any case.
-        So if there is any transparency in the plot, the interior of the
-        plot will be pixellated.  The axes and annotations outside of the
-        plot will still be drawn in vector format however.
-        </li>
-    </ol>
-    </p></dd>
-
-<dt><code>eps-gzip</code></dt>
-<dd><p>Just like the <code>eps</code> format above except that the output
-    is automatically compressed using the GZIP format as it is written.
-    Postscript compresses well (typically a factor of 5-10).
-    </p></dd>
-
-</dl>
-</p>
-
-</subsect>
-
-<subsect>
-<subhead><title>Comparison with TOPCAT plotting</title></subhead>
-
-<p>The intention is in future releases for STILTS to provide all 
-the plot types and facilities which are available from
-<webref url="http://www.starlink.ac.uk/topcat/">TOPCAT</webref>.
-STILTS may additionally offer more detailed options for
-controlling plot appearance, for instance of
-font and colour selection and tick mark placement.
-At time of writing however, only the 
-<ref id="plot2d">2d scatter plot</ref>, 
-<ref id="plot3d">3d Cartesian scatter plot</ref> and
-<ref id="plothist">histogram</ref> plot types are available,
-though these do include the most useful plot types and the most of the 
-options from TOPCAT for these plot types are available from STILTS too.
-</p>
-
-<p>As well as the advantage (in some contexts) of being able to generate
-plots in a scriptable fashion rather than from a graphical interactive
-interface, STILTS allows plots to be made from datasets of unlimited size.
-While TOPCAT has an effective limit of a few million rows,
-STILTS can stream data from tables to do its plotting,
-so a plot can be made representing an unlimited number of rows
-without large memory requirements.  In some cases this might lead to
-plotting times which are a bit slower than TOPCAT - if this becomes an
-issue something may be done about it.
 </p>
 
 </subsect>
@@ -3382,9 +3915,21 @@ You can do this in three ways:
 
 </dl>
 </p>
-<p>There is a special column whose name is "Index" and whose ID is
-"&column.id.char;0". 
-The value of this is the same as the row number (the first row is 1).
+
+<p>There is also a special column:
+<dl>
+<dt><code>$index</code></dt>
+<dd><p>The value of this is the current row number (the first row is 1).
+    You can alternatively use the form
+    <strong><code>&column.id.char;0</code></strong>.
+    (The form <strong><code>index</code></strong> is also permitted,
+    but deprecated).
+    Note that this value is a <code>long</code> (8-byte integer);
+    when using it in certain expressions you may find it necessary to convert
+    it to an <code>int</code> (4-byte integer) using the
+    <code>toInteger()</code> function.
+    </p></dd>
+</dl>
 </p>
 
 <p>The value of the variables so referenced will be a primitive
@@ -3438,6 +3983,23 @@ in STILTS algebraic expressions as follows:
 </dl>
 Note that if a parameter has a name in an unsuitable form (e.g. containing
 spaces) and has no UCD then it cannot be referenced in an expression.
+</p>
+
+<p>There are also a couple of special values:
+<dl>
+<dt>$ncol</dt>
+<dd><p>The number of columns in the table.
+    </p></dd>
+<dt>$nrow</dt>
+<dd><p>The number of rows in the table.  Note in some cases this is
+    not known (e.g. if the table is being streamed), in which case
+    the value of this variable is null.
+    Note also that this value is a <code>long</code> (8-byte integer);
+    when using it in certain expressions you may find it necessary to convert
+    it to an <code>int</code> (4-byte integer) using the
+    <code>toInteger()</code> function.
+    </p></dd>
+</dl>
 </p>
 
 </subsect>
@@ -3571,7 +4133,7 @@ The common ones are:
 <dd><p>
   <dl>
   <dt><code>+</code>  (string concatenation)</dt>
-  <dt><code>[]</code> (array dereferencing)</dt>
+  <dt><code>[]</code> (array dereferencing - first element is zero)</dt>
   <dt><code>?:</code> (conditional switch)</dt>
   <dt><code>instanceof</code> (class membership)</dt>
   </dl>
@@ -3875,6 +4437,121 @@ but it might involve doing something like the following:
 
 </sect>
 
+<sect id="taskApi">
+<subhead><title>Programmatic Invocation</title></subhead>
+
+<p>The STILTS package provides some capabilities,
+for instance plotting, that might be useful
+as part of other Java applications.
+The code that forms STILTS is fully documented at the API level;
+there are comprehensive javadocs throughout for the
+<code>uk.ac.starlink.ttools</code> package, its subpackages,
+and most of the other classes in the <code>uk.ac.starlink</code>
+tree on which it relies.
+Anybody is welcome to use these classes at their own risk,
+but the code does not form a stable API intended for public use:
+the javadocs are not distributed as part of the package
+(though you may be able to find them
+<webref url="http://andromeda.star.bris.ac.uk/starjavadocs/">here</webref>),
+tutorial documentation is not provided, and there is no commitment
+to API stability between releases.
+</p>
+
+<p>With this in mind, there are facilities for invoking the
+STILTS commands programmatically from third-party java code.
+Of course it is possible to do this by just calling the
+static <code>main(String[])</code> method of the application
+Main-Class
+(<javadoc docset="&stiltsjavadocs;" class="uk.ac.starlink.ttools.Stilts"/>)
+but we document here how it can be done in a way which
+allows more control, using the
+<javadoc docset="&stiltsjavadocs;" class="uk.ac.starlink.task."/>
+parameter handling framework.
+</p>
+
+<p>Each of the STILTS tasks listed in <ref id="cmdUsage"/>
+is represented by a class implementing the 
+<javadoc docset="&stiltsjavadocs;" class="uk.ac.starlink.task.Task"/> interface;
+these all have no-arg constructors.
+To run it, you need to create an instance of the class,
+pass it an
+<javadoc docset="&stiltsjavadocs;" class="uk.ac.starlink.task.Environment"/>
+object which can acquire values for parameters by name, and then execute it.
+The
+<javadoc docset="&stiltsjavadocs;"
+         class="uk.ac.starlink.ttools.task.MapEnvironment"/>
+class, based on a Map containing name/value pairs,
+is provided for this purpose.
+As well as managing parameter values, MapEnvironment captures
+table and text output in a way that lets you retrieve it after
+the task has executed.
+Here is a simple example for invoking the <ref id="calc">calc</ref> task
+to perform a simple calcation:
+<verbatim>
+    MapEnvironment env = new MapEnvironment();
+    env.setValue( "expression", "sqrt(3*3+4*4)" );
+    Task calcTask = new uk.ac.starlink.ttools.task.Calc();
+    calcTask.createExecutable( env ).execute();
+    String result = env.getOutputText();
+</verbatim>
+The execution corresponds exactly to the command-line:
+<verbatim>
+    stilts calc expression="sqrt(3*3+4*4)"
+</verbatim>
+The <ref id="calc-usage">Usage</ref> section for the <code>calc</code>
+task notes that the corresponding Task subclass is
+<javadoc docset="&stiltsjavadocs;" class="uk.ac.starlink.ttools.task.Calc"/>.
+</p>
+
+<p>Also in the usage section, each parameter reports the data type that
+it may take, and objects of this type may be used as the parameter
+value passed in the <code>MapEnvironment</code> as an alternative
+to passing string values.
+For the case of the input table parameters,
+this is
+<javadoc docset="&stiltsjavadocs;" class="uk.ac.starlink.table.StarTable"/>,
+so in a task like
+<ref id="tpipe">tpipe</ref>
+(<javadoc docset="&stiltsjavadocs;"
+          class="uk.ac.starlink.ttools.task.TablePipe"/>),
+if you want to read a file "data.fits",
+you can either write
+<verbatim>
+    env.setValue( "in", "data.fits" );
+</verbatim>
+or
+<verbatim>
+    StarTable table = new StarTableFactory().readStarTable( "data.fits" );
+    env.setValue( "in", table );
+</verbatim>
+That doesn't buy you much, but the table could equally be obtained
+from any other source, including being a user-defined iterable
+over existing data structures.
+See <docxref doc="sun252"/> for more information on
+<code>StarTable</code> handling.
+</p>
+
+<p>For some short examples of programs which invoke STILTS tasks
+in this way, see the source code of some of the examples in the
+<code>uk.ac.starlink.ttools.example</code> directory:
+<webref url="&starjavasrc;ttools/src/main/uk/ac/starlink/ttools/example/Calculator.java">Calculator</webref> and
+<webref url="&starjavasrc;ttools/src/main/uk/ac/starlink/ttools/example/Head10.java">Head10</webref>.
+</p>
+
+<p>Some commands provide additional methods for use with parameter-based
+invocation.  In particular the plotting commands can be used to
+create JComponent objects that can be incorporated into an
+existing GUI.
+A working example of this
+can be found in the source code for the example
+<webref url="&starjavasrc;ttools/src/main/uk/ac/starlink/ttools/example/EnvPlanePlotter.java">EnvPlanePlotter</webref>
+class
+(see also the <code>SinePlot</code> and <code>ApiPlanePlotter</code>
+example classes in the same place).
+</p>
+
+</sect>
+
 <appendices>
 
 <sect id="classified">
@@ -3966,13 +4643,31 @@ Detailed descriptions and examples for each command can be found in
 <dt>Plotting:</dt>
 <dd><p>
     <ul>
-    <li><ref id="plot2d" plaintextref="yes"><code>plot2d</code></ref>:
+    <li><ref id="plot2plane" plaintextref="yes"><code>plot2plane</code></ref>:
+        &plot2plane-purpose;
+        </li>
+    <li><ref id="plot2sky" plaintextref="yes"><code>plot2sky</code></ref>:
+        &plot2sky-purpose;
+        </li>
+    <li><ref id="plot2cube" plaintextref="yes"><code>plot2cube</code></ref>:
+        &plot2cube-purpose;
+        </li>
+    <li><ref id="plot2sphere" plaintextref="yes"><code>plot2sphere</code></ref>:
+        &plot2sphere-purpose;
+        </li>
+    <li><ref id="plot2time" plaintextref="yes"><code>plot2time</code></ref>:
+        &plot2time-purpose;
+        </li>
+    <li><ref id="plot2d" plaintextref="yes"><code>plot2d</code></ref>
+        <em>(deprecated)</em>:
         &plot2d-purpose;
         </li>
-    <li><ref id="plot3d" plaintextref="yes"><code>plot3d</code></ref>:
+    <li><ref id="plot3d" plaintextref="yes"><code>plot3d</code></ref>
+        <em>(deprecated)</em>:
         &plot3d-purpose;
         </li>
-    <li><ref id="plothist" plaintextref="yes"><code>plothist</code></ref>:
+    <li><ref id="plothist" plaintextref="yes"><code>plothist</code></ref>
+        <em>(deprecated)</em>:
         &plothist-purpose;
         </li>
     </ul>
@@ -4012,6 +4707,9 @@ Detailed descriptions and examples for each command can be found in
     <li><ref id="coneskymatch"
              plaintextref="yes"><code>coneskymatch</code></ref>:
         &coneskymatch-purpose;
+        </li>
+    <li><ref id="tapskymatch" plaintextref="yes"><code>tapskymatch</code></ref>:
+        &tapskymatch-purpose;
         </li>
     <li><ref id="tapquery" plaintextref="yes"><code>tapquery</code></ref>:
         &tapquery-purpose;
@@ -4135,7 +4833,12 @@ This includes all of the VizieR tables and the SIMBAD database.
 The service is very fast, and in most cases it is the best way to
 match a local table against a large external table hosted by a service.
 It is almost certainly much better than using
-<ref id="coneskymatch"><code>coneskymatch</code></ref>.
+<ref id="coneskymatch"><code>coneskymatch</code></ref>,
+though it is less flexible than TAP
+(see the <ref id="tapquery"><code>tapquery</code></ref> task
+for flexible access to TAP services, and
+<ref id="tapskymatch"><code>tapskymatch</code></ref>
+for positional matches).
 </p>
 
 <p>The local table is uploaded to the X-Match service in chunks,
@@ -4144,6 +4847,12 @@ stitched together to form the final result.
 The tool only uploads sky position and an identifier for each row of
 the input table, but all columns of the input table are reinstated
 in the result for reference.
+</p>
+
+<p>The remote table in most cases contains only a subset of the
+the columns in the relevant VizieR table, including the most useful ones.
+The service currently provides no straightforward way to acquire columns which
+are not returned by default.
 </p>
 
 <p><em>Acknowledgement</em>: CDS note that if the use of the
@@ -4167,7 +4876,7 @@ the following acknowledgement:
 
 <dt><verbatim>
 stilts cdsskymatch cdstable=II/246/out find=all
-                   in=dr5qso.fits ra=RA dec=DEC sr=1 out=qso_2mass.fits
+                   in=dr5qso.fits ra=RA dec=DEC radius=1 out=qso_2mass.fits
 </verbatim></dt>
 <dd><p>Matches a local catalogue <code>dr5qso.fits</code> against the
     VizieR table <code>II/246/out</code> (the 2MASS Point Source Catalogue).
@@ -4177,7 +4886,7 @@ stilts cdsskymatch cdstable=II/246/out find=all
 
 <dt><verbatim>
 stilts cdsskymatch cdstable=simbad find=best
-                   in=sources.txt ifmt=ascii ra=RAJ2000 dec=DEJ2000 sr=8.5
+                   in=sources.txt ifmt=ascii ra=RAJ2000 dec=DEJ2000 radius=8.5
                    blocksize=1000 icmd=progress omode=topcat
 </verbatim></dt>
 <dd><p>This finds the closest object in the SIMBAD database within 8.5 arcsec
@@ -4198,9 +4907,11 @@ stilts cdsskymatch cdstable=simbad find=best
 <subhead><title><code>coneskymatch</code>:
                 &coneskymatch-purpose;</title></subhead>
 
-<p><em>Note: in many cases, the
-<ref id="cdsskymatch"><code>cdsskymatch</code></ref>
-is a better alternative to this command.
+<p><em>Note: this command is very inefficient for large tables,
+and in most cases
+<ref id="cdsskymatch"><code>cdsskymatch</code></ref> or
+<ref id="tapskymatch"><code>tapskymatch</code></ref>
+provide better alternatives.
 </em></p>
 
 <p><code>coneskymatch</code> is a utility which performs a 
@@ -4279,15 +4990,14 @@ form in STILTS v1.2 and v1.3.</em>
 
 <dt><verbatim>
 stilts coneskymatch serviceurl=http://archive.stsci.edu/hst/search.php \
-                    in=messier.xml ra=RA dec=DEC sr=0.05 \
-                    out=matches.xml
+                    in=messier.xml sr=0.05 out=matches.xml
 </verbatim></dt>
 <dd><p>This queries the HST cone search service from Space Telescope for
     records within .05 degrees of each Messier object contained in a 
-    local VOTable <code>messier.xml</code>.  The result is written to a
-    new VOTable, <code>matches.xml</code>.  The J2000 positions of each
-    record in the input file are held in columns named RA and
-    DEC respectively.
+    local VOTable <code>messier.xml</code>.
+    The sky positions in the input catalogue are guessed from the available
+    table metadata.
+    The result is written to a new VOTable, <code>matches.xml</code>.
     Since the <code>servicetype</code> parameter is not given, the 
     default (cone search) service type is assumed.
     </p></dd>
@@ -4304,6 +5014,8 @@ stilts coneskymatch
     instead of querying an HST cone search server for catalogue objects
     near the input table positions, it queries a 2MASS Simple Image Access
     (SIA) server for images.  
+    It also explicitly names the columns holding the J2000 positions of
+    reach record in the input catalogue as <code>RA</code> and <code>DEC</code>.
     The search radius parameter (<code>sr</code>) is not set here;
     for SIA queries the default search radius is zero, which has the
     special meaning of including any image which covers the requested position.
@@ -4483,22 +5195,23 @@ for MOC-related functions.
 <dl>
 
 <dt><verbatim>
-stilts pixfoot in=survey.vot ra=RA2000 dec=DEC2000
-               order=8 mocfmt=fits out=sfoot.fits
+stilts pixfoot in=survey.vot order=8 mocfmt=fits out=sfoot.fits
 </verbatim></dt>
 <dd><p>Generates an order-8 FITS MOC file from the point positions of
-    rows in the given VOTable.
+    rows in the given VOTable.  The columns representing sky position
+    are determined automatically (if possible)
+    by examining the metadata in the input table.
     </p></dd>
 
 <dt><verbatim>
 stilts pixfoot in='jdbc:mysql://localhost/astro1#SELECT * FROM first1'
-               icmd='addskycoords galactic icrs GLON GLAT RA DEC'
-               ra=RA dec=DEC radius=20./3600.
+               icmd='addskycoords galactic icrs GLON GLAT ALPHA DELTA'
+               ra=ALPHA dec=DELTA radius=20./3600.
                order=13 mocfmt=fits out=first.moc
 </verbatim></dt>
 <dd><p>Generates an order-13 FITS MOC file from positions in a table
     held in a database.  The positions in the original table are in
-    galactic coordinates, so have to be converted to ecliptic (ICRS) first.  
+    galactic coordinates, so have to be converted to equatorial (ICRS) first.  
     The map is formed in this case by surrounding each point by a
     disc of 20 arcsec.
     Note that JDBC database access will have to be set up as per
@@ -4612,8 +5325,416 @@ stilts pixsample in=messier.xml pixdata=lambda_sfd_ebv.fits
 
 </subsect>
 
+<subsect id="plot2plane" tocleaf="yes">
+<subhead><title><code>plot2plane</code>: &plot2plane-purpose;</title></subhead>
+
+<p><code>plot2plane</code> draws plots on a Cartesian 2-dimensional surface.
+</p>
+
+<p>Positional coordinates are specified as <code>x</code>, <code>y</code> pairs,
+e.g.:
+<verbatim>
+   plot2plane layer1=mark in1=cat.fits x1=RMAG y1=RMAG-BMAG
+</verbatim> 
+</p>
+
+&plot2plane-layers;
+
+&plot2plane-summary;
+
+<subsubsect id="plot2plane-examples">
+<subhead><title>Examples</title></subhead>
+
+<p>Here are some examples of <code>plot2plane</code>:
+<dl>
+
+<dt><verbatim>
+stilts plot2plane yflip=true layer_1=mark in_1=cat.fits x_1=BMAG-RMAG y_1=BMAG 
+</verbatim></dt>
+<dd><p>This is a colour-magnitude diagram where the input table
+    has columns named RMAG and BMAG.
+    The Y axis is inverted so that the magnitude values increase
+    downwards not up.
+    The plot is displayed in a window on the screen, and may be
+    panned and zoomed with the mouse.
+    </p></dd>
+
+<dt><verbatim>
+stilts plot2plane layer=histogram in=hip_main.fits x=plx xlog=true
+                  xlabel=Parallax ylabel=
+</verbatim></dt>
+<dd><p>Plots a histogram of parallaxes for Hipparcos data,
+    with a logarithmic X axis.  The axes are labelled explicitly,
+    with an empty string in the case of the Y axis.
+    </p></dd>
+
+<dt><verbatim>
+stilts plot2plane xpix=600 ypix=500
+                  in=gavo_g2.fits x=X y=Y
+                  shading=aux aux='atan2(vely,velx)' auxmap=hue auxvisible=false
+                  layer_m=mark shape_m=cross size_m=4
+                  layer_v=xyvector xdelta_v=velx ydelta_v=vely scale_v=2
+                  out=velocities.pdf
+</verbatim></dt>
+<dd><p>Two layers are plotted, point markers representing position
+    (4 pixels radius, shaped like crosses)
+    and vectors representing velocity.
+    Both markers and vectors are coloured according to the direction
+    (arctan(vely/velx)) of the arrows,
+    so it's easy to see points moving in similar directions;
+    the "hue" colour map is good for this, since it's periodic,
+    so values of +Pi and -Pi have the same colour.
+    Since it's not very revealing in this case, display of the aux
+    axis colour ramp beside the plot has been turned off.
+    Since the X and Y coordinates and the colouring is common to both
+    layers, the relevant parameters can given without suffixes to avoid
+    having to repeat them.
+    Output is to a PDF file.
+    </p></dd>
+
+<dt><verbatim>
+stilts plot2plane xmin=0 xmax=6.283 ymin=-1 ymax=1 xlabel=Time
+                  layer=function axis=horizontal xname=time fexpr='sin(time)'
+                  dash=3,2 thick=4 color=ee6aa7
+</verbatim></dt>
+<dd><p>Plots a sine curve to the screen.  Initially the view is of one
+    period, but you can pan and zoom interactively to see any range.
+    The line is plotted in hot pink, four pixels wide, with a custom dash
+    pattern.
+    Since the <ref id="layer-function">function</ref> layer type has no
+    data coordinates, no input table is required.
+    The layer suffix here is the empty string; since there's only one
+    layer, it doesn't cause any problems.
+    </p></dd>
+
+<dt><verbatim>
+stilts plot2plane ylog=true xflip=true xmin=-5.2 xmax=3.8 ymin=250 ymax=3.5e5
+           in1=6dfgs_E7.fits x1=bmag-rmag y1=vel
+           layer1a=mark color1a=cyan
+           layer1b=contour color1b=yellow smooth1b=9 scaling1b=log
+           layer1c=mark icmd1c='every 35;select star'
+                        shape1c=filled_triangle_down size1c=5 color1c=red
+                        shading1c=transparent opaque1c=3
+           layer2=function fexpr2='exp(x*2+12)' color2=black antialias2=true
+                           dash2=dash thick2=3
+           leglabel1a=Population leglabel1c=Sample legpos=.95,.95 legseq=1a,1c
+           fontsize=16 texttype=latex ylabel="v\,/\,km.s^{-1}" xlabel=colour
+</verbatim></dt>
+<dd><p>There are four layers: 1a, 1b and 1c use the same positional data
+    from the same input file, so the positional coordinates common to them
+    are given the suffix "1".
+    Layer "2" is unrelated, and has no input data, since it's just an
+    analytic function.
+    The legend is positioned to taste, and its content
+    is manipulated so that only datasets 1a and 1c are described,
+    and they are given custom names (the default would be their suffix names).
+    </p></dd>
+
+</dl>
+</p>
+
+</subsubsect>
+
+</subsect>
+
+<subsect id="plot2sky" tocleaf="yes">
+<subhead><title><code>plot2sky</code>: &plot2sky-purpose;</title></subhead>
+
+<p><code>plot2sky</code> draws plots on the celestial sphere.
+This can be represented in a number of ways, controlled by the
+<code>projection</code> parameter; by default the view is of a rotatable
+sphere seen from the outside
+(which approximates to a tangent projection for small regions of the sky),
+but Aitoff and Plate Car&#x00e9;e projections are also available.
+A number of options are also provided for drawing and labelling the
+grid showing celestial coordinates.
+</p>
+
+<p>Positional coordinates are specified as <code>lon</code>, <code>lat</code>
+pairs giving longitude and latitude in decimal degrees.
+By default these are represented in the output in the same, unlabelled,
+coordinate system.
+However the command can can also transform between different coordinate
+systems if you specify the data and view systems e.g.:
+<verbatim>
+   plot2sky viewsys=galactic
+            layer1=mark in1=cat.fits lon1=RA2000 lat1=DEC2000 datasys1=equatorial
+</verbatim>
+</p>
+
+&plot2sky-layers;
+
+&plot2sky-summary;
+
+<subsubsect id="plot2sky-examples">
+<subhead><title>Examples</title></subhead>
+
+<p>Here are some examples of <code>plot2sky</code>:
+<dl>
+
+<dt><verbatim>
+stilts plot2sky in=messier.xml lon=RA lat=DEC
+                layer.pos=mark size.pos=4
+                layer.txt=label label.txt=Name layer.color=grey
+</verbatim></dt>
+<dd><p>Plots the positions of all the Messier objects on the sky,
+    with text labels giving their object names.
+    This displays a sphere on the screen that you can rotate/zoom using
+    the mouse.
+    </p></dd>
+
+
+<dt><verbatim>
+stilts plot2sky projection=aitoff
+                xpix=600 ypix=300
+                gridcolour=green labelcolour=black
+                fontsize=10 gridaa=true texttype=antialias
+                sex=true crowd=4
+</verbatim></dt>
+<dd><p>This just plots a celestial coordinate grid with no data.
+    Various options are tweaked to adjust the appearance of the grid.
+    </p></dd>
+
+<dt><verbatim>
+stilts plot2sky xpix=1000 ypix=500 fontsize=18 crowd=2
+                projection=aitoff viewsys=galactic
+                layer1=mark size1=0
+                shading1=density densemap1=gnuplot2 denselog1=true
+                densesub1=0.5,.95 denseclip1=0.02,1
+                in1=gums_mw_all.fits
+                lon1=alpha lat1=delta datasys1=equatorial 
+                icmd1=progress out=mw.pdf
+</verbatim></dt>
+<dd><p>Makes an all-sky plot using an Aitoff projection into
+    galactic coordinates of a large dataset.
+    <ref id="shading-density">Density</ref> shading
+    means that the colour at each point is dependent on
+    how many points are plotted; the density colour map has been fine-tuned
+    here to get a specific visual effect.
+    The sky coordinates in the input file (alpha and delta) are equatorial,
+    but these are transformed to galactic coordinates for plotting.
+    The <ref id="progress">progress</ref> filter applied to the input table
+    displays a progress indicator on the console to see how far it's got.
+    The result is written to a PDF file.
+    </p>
+    <p>This command was used to plot the GUMS-10 MW dataset, a simulation
+    of the milky way stars seen by the Gaia satellite;
+    The 2.1 billion row plot took about 45 minutes.
+    </p></dd>
+
+</dl>
+</p>
+
+</subsubsect>
+
+</subsect>
+
+<subsect id="plot2cube" tocleaf="yes">
+<subhead><title><code>plot2cube</code>: &plot2cube-purpose;</title></subhead>
+
+<p><code>plot2cube</code> draws plots in a Cartesian 3-dimensional space.
+The plotting volume is a cube,
+which is viewed from the outside and usually bounded by
+an annotated wire frame.
+</p>
+
+<p>Positional coordinates are specified as
+<code>x</code>, <code>y</code>, <code>z</code> triples,
+e.g.:
+<verbatim>
+   plot2cube layer1=mark in1=sim.fits x1=XPOS y1=YPOS z1=ZPOS
+</verbatim>
+</p>
+
+&plot2cube-layers;
+
+&plot2cube-summary;
+
+<subsubsect id="plot2cube-examples">
+<subhead><title>Examples</title></subhead>
+
+<p>Some examples of <code>plot2cube</code> are shown below.
+See <ref id="animate"/> for some examples of producing
+<strong>animations</strong>, for instance of a rotating cube.
+<dl>
+
+<dt><verbatim>
+stilts plot2cube
+</verbatim></dt>
+<dd><p>Just displays a unit cube wireframe in a window.
+    You can rotate it with the mouse.
+    </p></dd>
+
+<dt><verbatim>
+stilts plot2cube layer.1=mark in.1=sim.fits x.1=x y.1=y z.1=z
+                 shading.1=density densemap.1=pastel
+</verbatim></dt>
+<dd><p>Plots markers with x,y,z positions on the screen.
+    You can rotate, zoom and pan the cube on the window this produces.
+    Density shading is used, which means you can see the lines of sight
+    along which most objects fall, though single points are still visible.
+    Density shading is usually a good choice if there is just one dataset,
+    though it can get confusing with more than one.
+    </p></dd>
+
+<dt><verbatim>
+stilts plot2cube in=gavo_g2.fits
+                 x=X y=Y z=Z
+                 shading=aux aux=HALOID opaque=2.5 auxmap=red-blue
+                 layer_m=mark shape_m=open_circle size_m=2
+                 layer_v=xyzvector xdelta_v=velX ydelta_v=velY zdelta_v=velZ
+</verbatim></dt>
+<dd><p>Plots points in three dimensions with little arrows representing
+    velocity as well as position markers; layer <code>_m</code> draws the
+    markers and layer <code>_v</code> draws the arrows.
+    Points and vectors are coloured according to the HALOID data value.
+    The positional coordinates (x, y, z) and the shading options are
+    common to both layers, so they can be specified without a prefix.
+    </p></dd>
+
+</dl>
+</p>
+
+</subsubsect>
+
+</subsect>
+
+<subsect id="plot2sphere" tocleaf="yes">
+<subhead><title><code>plot2sphere</code>:
+                &plot2sphere-purpose;</title></subhead>
+
+<p><code>plot2sphere</code> draws plots in an isotropic 3-dimensional space
+using spherical polar coordinates.
+The plotting volume is a cube,
+which is viewed from the outside and usually bounded by a
+wire frame annotated by Cartesian coordinates.
+This viewing cube is not necessarily centered on the coordinate origin.
+</p>
+
+<p>This plotting geometry is like that used by
+<ref id="plot2cube"><code>plot2cube</code></ref>,
+but the coordinate unit size is always the same in the three dimensions,
+and the coordinates are specified differently.
+</p>
+
+<p>Positional coordinates are specified as
+<code>lon</code>, <code>lat</code>, <code>r</code> triples,
+e.g.:
+<verbatim>
+   plot2sphere layer1=mark in1=survey.fits lon1=RA lat1=DEC r1=REDSHIFT
+</verbatim>
+</p>
+
+&plot2sphere-layers;
+
+&plot2sphere-summary;
+
+<subsubsect id="plot2sphere-examples">
+<subhead><title>Examples</title></subhead>
+
+<p>Some examples of <code>plot2cube</code> are shown below.
+See <ref id="animate"/> for some examples of producing
+<strong>animations</strong>, for instance of a rotating cube.
+<dl>
+
+<dt><verbatim>
+stilts plot2sphere in=hip_main.fits lon=radeg lat=dedeg r=plx
+                   layer1=mark shading1=density densemap1=cyan-magenta
+</verbatim></dt>
+<dd><p>Plots points with RA, Dec and parallax coordinates in 3D.
+    Density shading is used, which means you can see the lines of sight
+    along which most objects fall, though single points are still visible.
+    Density shading is usually a good choice if there is just one dataset,
+    though it can get confusing with more than one.
+    </p></dd>
+
+<dt><verbatim>
+stilts plot2sphere in=hip_main.fits lon=radeg lat=dedeg r=plx
+                   layer1=mark shading1=density densemap1=cyan-magenta
+                   cx=0 cy=0 cz=0 scale=38 texttype=antialias gridaa=true
+</verbatim></dt>
+<dd><p>The same as the previous example but with some more configuration
+    of the axes.  The data origin is placed at the centre of the visible cube
+    (this is the position around which the cube will rotate when
+    you drag the mouse), and the size of the cube sides in data coordinates
+    is set explicitly.
+    </p></dd>
+
+</dl>
+</p>
+
+
+</subsubsect>
+
+</subsect>
+
+<subsect id="plot2time" tocleaf="yes">
+<subhead><title><code>plot2time</code>: &plot2time-purpose;</title></subhead>
+
+<p><code>plot2time</code> draws plots where the horizontal axis represents time.
+The time axis can be labelled in various different ways including
+MJD, decimal year and ISO-8601 form.
+</p>
+
+<p>Positional coordinates are specified as <code>t</code>, <code>y</code> pairs,
+e.g.:
+<verbatim>
+   plot2time in1=series.cdf layer1=line t1=EPOCH y1=ENERGY
+</verbatim>
+</p>
+
+<p><em><strong>Note:</strong> this plot type is experimental.
+As currently implemented it lacks some important features.
+It may be improved or withdrawn in a future version.
+</em></p>
+
+&plot2time-layers;
+
+&plot2time-summary;
+
+<subsubsect id="plot2time-examples">
+<subhead><title>Examples</title></subhead>
+
+<p>Here are some examples of <code>plot2time</code>:
+<dl>
+
+<dt><verbatim>
+stilts plot2time xpix=1000 ypix=300
+                 in=ACE_data.vot t=epoch
+                 layer.r=line y.r=Br color.r=grey
+                 layer.t=line y.t=Bt color.t=cyan 
+                 layer.n=line y.n=Bn color.n=pink
+</verbatim></dt>
+<dd><p>Three time series are plotted on the same axes as lines in different
+    colours.
+    </p></dd>
+
+<dt><verbatim>
+stilts plot2time tmin=2007-06-07T02:40 tmax=2007-06-07T06:20 tformat=mjd
+                 in=STEREO_STA_L1_SEPT_20070607_V05.cdf t=epoch_ns
+                 ylabel=Channel
+                 layer_3=spectrogram spectrum_3=Spec_0_NS
+                 spectromap_3=accent spectrolog_3=true
+</verbatim></dt>
+<dd><p>Plots a spectrogram from a CDF file.
+    The range along the horizontal axis is specified explicitly using
+    ISO-8601 date strings, but it is labelled in Modified Julian Date.
+    </p></dd>
+
+</dl>
+</p>
+
+</subsubsect>
+
+</subsect>
+
 <subsect id="plot2d" tocleaf="yes">
 <subhead><title><code>plot2d</code>: &plot2d-purpose;</title></subhead>
+
+<p><em>This section describes a deprecated command.
+It still works, but you are advised to use the more capable
+<code><ref id="plot2plane">plot2plane</ref></code> instead.
+</em></p>
 
 <p><code>plot2d</code> performs two-dimensional scatter plots,
 sending the output to a graphical display or writing it to a file
@@ -4643,6 +5764,12 @@ See <ref id="plot"/> for more discussion on use of the plotting commands.
 <subsect id="plot3d" tocleaf="yes">
 <subhead><title><code>plot3d</code>: &plot3d-purpose;</title></subhead>
 
+<p><em>This section describes a deprecated command.
+It still works, but you are advised to use the more capable
+<code><ref id="plot2cube">plot2cube</ref></code> or
+<code><ref id="plot2sphere">plot2sphere</ref></code> instead.
+</em></p>
+
 <p><code>plot3d</code> performs three-dimensional scatter plots,
 sending the output to a graphical display or writing it to a file
 in some vector or bitmapped graphics format.
@@ -4670,6 +5797,11 @@ See <ref id="plot"/> for more discussion on use of the plotting commands.
 
 <subsect id="plothist" tocleaf="yes">
 <subhead><title><code>plothist</code>: &plothist-purpose;</title></subhead>
+
+<p><em>This section describes a deprecated command.
+It still works, but you are advised to use the more capable
+<code><ref id="plot2plane">plot2plane</ref></code> instead.
+</em></p>
 
 <p><code>plothist</code> performs histogram plots,
 sending the output to a graphical display or writing it to a file
@@ -5419,6 +6551,125 @@ stilts tapresume joburl='http://dc.zah.uni-heidelberg.de/__system__/tap/run/tap/
     <code>d4ENGR</code> which was previously started on the GAVO TAP server.
     When it has completed the output table will be written as a
     comma-separated value file.
+    </p></dd>
+
+</dl>
+</p>
+
+</subsubsect>
+
+</subsect>
+
+<subsect id="tapskymatch" tocleaf="yes">
+<subhead><title><code>tapskymatch:
+                      &tapskymatch-purpose;</code></title></subhead>
+
+<p><code>tapskymatch</code> allows you to perform a positional crossmatch
+of a local table with one held in a remote TAP service, as long as
+that TAP supports upload queries.
+This task does three main jobs.
+First, it prepares the ADQL queries and TAP negotiations for you
+so that you don't need to remember the syntax for performing
+positional crossmatches against a TAP service.
+Second, it organises data transfer so that only those columns
+required (basically the positional ones) are transmitted to and
+from the service, to save on bandwidth.
+And third it divides the job up into chunks,
+so that the TAP service only has to perform a manageable-sized
+query at a time.
+If the job is large this chunking can be useful to monitor
+progress of the job,
+and it also allows you to perform a match which would otherwise
+hit the upload or output limits imposed by the service.
+</p>
+
+<p>The positional match may be done in any spherical coordinate system,
+it's up to the user to ensure that the same coordinates are provided
+for the local and remote tables.
+</p>
+
+<p>Note that <ref id="cdsskymatch"><code>cdsskymatch</code></ref>
+provides similar functionality by accessing a different external service,
+which is usually much faster;
+if the table you wish to match is part of the VizieR database,
+you may wish to use that command instead.
+</p>
+
+&tapskymatch-summary;
+
+<subsubsect>
+<subhead><title>Examples</title></subhead>
+
+<p>Here are some examples of <code>tapskymatch</code>:
+<dl>
+
+<dt><verbatim>
+stilts tapskymatch tapurl=http://dc.g-vo.org/tap
+                   taptable=twomass.data taplon=raj2000 taplat=dej2000
+                   in=dr5qso.fits inlon=RA inlat=DEC sr=0.00027 find=all
+                   out=qso_2mass.fits
+</verbatim></dt>
+<dd><p>Matches a local catalogue <code>dr5qso.fits</code> against the
+    table named <code>twomass.data</code> in the GAVO TAP service.
+    The search radius is 1/3600 degrees (1 arcsecond) and all 2MASS
+    sources within the radius of each input source are returned.
+    </p>
+    <p>If you run the command with "<code>stilts -verbose ...</code>"
+    the text of the ADQL query submitted to the TAP service will
+    (amongst other things) be logged on the console, and you will also
+    see the number of rows uploaded and matched in each chunk.
+    </p></dd>
+
+<dt><verbatim>
+stilts tapskymatch tapurl=http://dc.g-vo.org/tap
+                   taptable=rave.dr3 taplon=raj2000 taplat=dej2000
+                   tapcols=name,raj2000,dej2000,pmra,pmde
+                   in=hip_main.fits inlon=RAdeg inlat=DEdeg
+                   icmd='keepcols "HIP RAdeg DEdeg pmra pmde"'
+                   sr=0.00027
+                   icmd='select nearMoc(\"III/265/ravedr3\",RAdeg,DEdeg,.00027)'
+                   icmd=cache icmd=progress
+                   blocksize=5000
+                   fixcols=all suffixin=_hip suffixremote=_rave
+                   find=best
+                   omode=topcat
+</verbatim></dt>
+<dd><p>This matches a local copy of the Hipparcos survey against
+    a remote copy of the RAVE survey with a 1-arcsecond radius.
+    The output table contains only the identifier, position and proper
+    motion columns from
+    both the input table (by using the <code>keepcols</code> filter)
+    and the remote table (by specifying <code>tapcols</code>);
+    the other columns are discarded.
+    The <code>fixcols</code> and <code>suffix</code>* parameters
+    ensure that a suffix is added to all the output column names,
+    <code>_hip</code> for the input (Hipparcos) columns and
+    <code>_rave</code> for the remote (RAVE) ones.
+    </p>
+    <p>Before uploading, the input table is preprocessed by selecting only
+    those rows that fall within the actual footprint of the RAVE survey,
+    by filtering with a MOC giving RAVE coverage
+    (the RAVE dr3 MOC is also available at
+    <webref url="http://alasky.u-strasbg.fr/footprints/tables/vizier/III_265_ravedr3/MOC"
+            >this URL</webref>).
+    This step reduces the amount of data that needs to be uploaded,
+    since only those rows in the given coverage region stand a chance of
+    having a match in the remote table.
+    Note use of the <code>nearMoc</code> function with the value of the
+    match radius as the fourth parameter; this includes those objects
+    which may be outside the actual MOC region but close enough that
+    a match could still result.
+    </p>
+    <p>The <code>blocksize</code> parameter determines the number of rows
+    uploaded at a time.  If you receive warnings that the output has
+    been truncated, you should decrease this number.
+    </p>
+    <p>Progress is displayed as the match continues.
+    The <code>cache</code> filter must be applied upstream of (before)
+    the <code>progress</code> filter itself for this to work,
+    since otherwise the match processing reads all the input rows 
+    before the actual work is done, and the progress monitor completes
+    before the match actually starts.
     </p></dd>
 
 </dl>
@@ -6558,7 +7809,7 @@ stilts tpipe omode=meta cmd=&indirection.char;commands.lis http://archive.org/da
 <dt><verbatim>
 stilts tpipe in=survey.fits 
              cmd='select "skyDistanceDegrees(hmsToDegrees(RA),dmsToDegrees(DEC), \
-                                             hmsToDegrees(2,28,11),dmsToDegrees(-6,49,45) \
+                                             hmsToDegrees(2,28,11),dmsToDegrees(-6,49,45)) \
                           &lt; 5./60."' \
              omode=count
 </verbatim></dt>
@@ -7195,11 +8446,12 @@ the <webref url="http://www.astrogrid.org/">AstroGrid</webref> project
     (from PPARC/STFC),
 the <webref url="http://cds.u-strasbg.fr/twikiAIDA/bin/view/EuroVOAIDA/WebHome"
             >AIDA</webref> project (from EU FP7),
-grant ST/H008470/1 from the UK's Science and Technology Facilities Council
-(STFC),
-and the <webref url="http://www.g-vo.org/">GAVO</webref> project
+grants ST/H008470/1, ST/I00176X/1, ST/J001414/1 and ST/L002388/1
+from the UK's Science and Technology Facilities Council (STFC),
+the <webref url="http://www.g-vo.org/">GAVO</webref> project
 (BMBF Bewilligungsnummer 05A08VHA),
-and grants ST/H008470/1, ST/I00176X/1 and ST/J001414/1 from STFC.
+the European Space Agency,
+and the EU FP7-2013-Space project GENIUS.
 All of this support is gratefully acknowledged.
 </p>
 
@@ -7222,8 +8474,10 @@ functionality:
     (CDS) for ADQL parsing in TAP query preparation</li>
 <li><webref url="http://heasarc.gsfc.nasa.gov/docs/heasarc/fits/java/"
             >nom.tam.fits</webref> (NASA) for parts of FITS I/O</li>
-<li><webref url="http://trac.us-vo.org/project/nvo/wiki/IVOARegistry"
-            >IVOARegistry</webref> (NVO) for parts of IVOA registry access</li>
+<li><webref url="http://skyview.gsfc.nasa.gov/jar/jar.html"
+            >Skyview in a Jar</webref> (NASA) for sky axis drawing</li>
+<li><webref url="http://forge.scilab.org/index.php/p/jlatexmath/"
+            >JLaTeXMath</webref> (Scilab) for LaTeX typesetting in plots</li>
 <li><webref
      url="http://www.acme.com/java/software/Acme.JPM.Encoders.GifEncoder.html"
             >GifEncoder</webref>
@@ -8596,39 +9850,61 @@ eds. C. Gabriel et al., ASP Conf. Ser. 351, p. 666 (2006)
     </dl>
     </p></dd>
 
-    <dt>Version 2.5-2 (7 March 2014)</dt>
+<dt>Version 2.5-2 (7 March 2014)</dt>
+<dd><p>
+    <ul>
+    <li>Add some more colour maps.</li>
+    <li>Fix some broken and misdocumented non-table-output JyStilts
+        commands (<code>tcube</code>, <code>pixfoot</code>).</li>
+    <li>Fix bug which prevented access to long integer array elements
+        from expression language.</li>
+    <li>The Exact matcher now considers scalar numeric values equal if
+        they have the same numeric value; they are no longer required
+        to have the same type.</li>
+    <li>Fixed a registry client bug which means that the
+        <code>regquery</code> command can now successfully talk to
+        the NVO/VAO/STSci registry.
+        That has been broken since mid-2010.</li>
+    <li>Add new command <code>tloop</code> for generating single-column
+        tables from a numeric loop variable.</li>
+    <li><code>taplint</code> now checks for the right ObsCore ID,
+        though still recognises the wrong one (got from TAPRegExt),
+        and warns if found.</li>
+    <li>Fix TST input handler so TST files with fewer than 3 columns
+        can be read.</li>
+    <li>Add <code>Nd_cuboid</code> matcher option to match commands.</li>
+    </ul>
+    </p></dd>
+
+<dt>Version 2.5-3 (4 July 2014)</dt>
+<dd><p>
+    <dl>
+    <dt>New and improved functionality:</dt>
     <dd><p>
         <ul>
-        <li>Add some more colour maps.</li>
-        <li>Fix some broken and misdocumented non-table-output JyStilts
-            commands (<code>tcube</code>, <code>pixfoot</code>).</li>
-        <li>Fix bug which prevented access to long integer array elements
-            from expression language.</li>
-        <li>The Exact matcher now considers scalar numeric values equal if
-            they have the same numeric value; they are no longer required
-            to have the same type.</li>
-        <li>Fixed a registry client bug which means that the
-            <code>regquery</code> command can now successfully talk to
-            the NVO/VAO/STSci registry.
-            That has been broken since mid-2010.</li>
-        <li>Add new command <code>tloop</code> for generating single-column
-            tables from a numeric loop variable.</li>
-        <li><code>taplint</code> now checks for the right ObsCore ID,
-            though still recognises the wrong one (got from TAPRegExt),
-            and warns if found.</li>
-        <li>Fix TST input handler so TST files with fewer than 3 columns
-            can be read.</li>
-        <li>Add <code>Nd_cuboid</code> matcher option to match commands.</li>
+        <li>Add new command
+            <ref id="cdsskymatch"><code>cdsskymatch</code></ref>.
+            In most cases (for querying tables that can be found in VizieR)
+            this can and should be used instead of
+            <code>coneskymatch</code> - it's <em>much</em> faster.</li>
+        <li>Commands <code>coneskymatch</code>, <code>sqlskymatch</code>
+            and <code>pixfoot</code> will now guess RA/Dec columns
+            if relevant parameters are left blank.</li>
+        <li>Added new graphics output format <code>png-transp</code>
+            to generate PNG files with transparent backgrounds.</li>
+        <li>Upgraded Gregory Mantelet's ADQL library to version 1.2.
+            Better ADQL parsing.</li>
         </ul>
         </p></dd>
-
-    <dt>Next version</dt>
+    <dt>Improvements and adjustments to
+        <ref id="taplint"><code>taplint</code></ref>:</dt>
     <dd><p>
         <ul>
-        <li>Add "duff query" test to <code>taplint</code>.</li>
-        <li>Fixed some bugs related to TAP table uploads.
-            In particular these could cause incorrect table upload error
-            reports in <code>taplint</code>.</li>
+        <li>Rework <code>taplint</code>
+            API to facilitate static acquisition of
+            report codes during programmatic use.
+            A few error codes have changed.</li>
+        <li>Add new "duff query" test to <code>taplint</code>.</li>
         <li>Avoid <code>taplint</code> MDQ stage data type mismatch error
             report for BOOLEAN/boolean declared/returned data.</li>
         <li><code>taplint</code> now takes steps to ensure that TAP_SCHEMA
@@ -8638,23 +9914,241 @@ eds. C. Gabriel et al., ASP Conf. Ser. 351, p. 666 (2006)
         <li>Change the implementation of <code>taplint</code> stages which
             perform validation against XSD schemas.
             Schemas from external namespaces may now be imported and used.
-            The CPV stage, which was previously broken and disabled by default,
-            is now fixed and enabled by default.
+            The CPV stage, which was previously broken and disabled
+            by default, is now fixed and enabled by default.
             Known/expected schemas are stored locally, and a warning is
             reported if external ones are used.  Schema validation seems
             remarkably complicated, so it's possible there are still errors
-            in this implementation - if you suspect so, please report it.</li>
-        <li>Upgraded Gregory Mantelet's ADQL library to version 1.2.
-            Better ADQL parsing.</li>
-        <li>Added new graphics output format <code>png-transp</code>
-            to generate PNG files with transparent backgrounds.</li>
-        <li>Add new command
-            <ref id="cdsskymatch"><code>cdsskymatch</code></ref>.</li>
-        <li>Commands <code>coneskymatch</code>, <code>sqlskymatch</code>
-            and <code>pixfoot</code> will now guess RA/Dec columns
-            if relevant parameters are left blank.</li>
+            in this implementation - if you suspect so,
+            please report it.</li>
+        <li>Add missing geometric reserved words to ADQL reserved word
+            list.  This fixes some problems with column names like
+            "DISTANCE" in taplint tests.</li>
+        <li>Fixed some bugs related to TAP table uploads.
+            In particular these could cause incorrect table upload error
+            reports in <code>taplint</code>.</li>
         </ul>
         </p></dd>
+
+    </dl>
+    </p></dd>
+
+<dt>Version 3.0 (3 October 2014)</dt>
+<dd><p>
+    <dl>
+    <dt>New plotting commands:</dt>
+    <dd><p>A set of new plotting commands are provided which give
+        comprehensive access to all the new-style visualisation capabilities
+        available in TOPCAT v4.  These commands are
+        documented in <ref id="plot2"/>.
+        These commands, and the underlying visualisation facilities,
+        are considerably more capable than the, now deprecated,
+        old-style plot commands
+        <code>plot2d</code>, <code>plot3d</code> and <code>plothist</code>.
+        </p></dd>
+    <dt>Programmatic invocation:</dt>
+    <dd><p>Programmatic invocation of STILTS tasks from third-party java code
+        is now officially sanctioned and documented in the new
+        <ref id="taskApi"/>.
+        To support this changes have been made to the parameter system 
+        (<code>Parameter</code> class now supports generics)
+        and there are some visible
+        changes to the user documentation as well
+        (parameters now report their data type,
+        and tasks report their classname).
+        Normal (e.g. command-line) usage should not undergo any changes,
+        but a fair bit of UI code has changed, so unexpected problems
+        are possible.
+        </p></dd>
+    <dt>Other items:</dt>
+    <dd><p>
+        <ul>
+        <li>Add new output mode
+            <code><ref id="mode-gui">gui</ref></code>,
+            which displays the table data in a scrollable
+            window on the screen.</li>
+        <li>Add new <code>-allowunused</code> flag to the stilts command.
+            If this is set, then unused parameter settings on the command line
+            just result in a warning, not failure of the command.</li>
+        <li>Attempting to write FITS tables with &gt;999 columns now fails
+            with a more helpful error message.</li>
+        <li>Improved Unicode handling in VOTables.
+            Fixed a serious bug in <code>votcopy</code>
+            that generated unreadable output to BINARY or BINARY2 serialization
+            if any non-empty column had datatype="unicodeChar".
+            Also improved behaviour when copying between tables with
+            unicodeChar columns; these are usually preserved now, rather
+            than being squashed to datatype char.
+            Some lurking Unicode-related issues remain.</li>
+        <li>The TAP client now tolerates whitespace around
+            UWS status codes.</li>
+        <li>taplint: downgrade unknown post-table QUERY_STATUS value message
+            from Error to Warning.</li>
+        </ul>
+        </p></dd>
+    </dl>
+    </p></dd>
+
+<dt>Version 3.0-1 (13 November 2014)</dt>
+<dd><p>
+    <dl>
+    <dt>New functionality:</dt>
+    <dd><p>
+        <ul>
+        <li>Add (experimental) read-only support for Gaia/DPAC GBIN format.</li>
+        <li>Add new task
+            <ref id="tapskymatch"><code>tapskymatch</code></ref>.</li>
+        <li>Functions in class
+            <ref id="uk.ac.starlink.ttools.func.Coverage">Coverage</ref>
+            adjusted:
+            new function <code>nearMoc</code>, and MOC can be identified by
+            VizieR table IDs as well as by filename/URL.</li>
+        <li>For <ref id="repeat"><code>repeat</code></ref> filter,
+            add <code>-row|-table</code>
+            flags to control sequence of output rows.</li>
+        <li>For <ref id="setparam"><code>setparam</code></ref>
+            and <ref id="repeat"><code>repeat</code></ref> filters,
+            allow use of an algebraic expression for values,
+            not just a literal value.</li>
+        <li>Add special values <code>$ncol</code> and <code>$nrow</code> to
+            the 
+            <ref id="jel-paramref">expression language</ref>
+            to refer to the column and row counts in a table.
+            The special variable <code>index</code> is also deprecated in favour
+            of <code>$index</code> or <code>$0</code>.</li>
+        </ul>
+        </p></dd>
+    <dt>Bugfixes and minor improvements:</dt>
+    <dd><p>
+        <ul>
+        <li>Add some more colour maps for aux/density shading.</li>
+        <li>Fix <code>stilts</code> invocation script to pick up classes from
+            <code>stilts.jar</code> in script directory in preference to
+            other places (e.g. topcat-full.jar).</li>
+        <li>Fix <code>taplint</code> to permit application/xml
+            not just text/xml content-type where appropriate (UWS stage).</li>
+        <li>Fix <code>taplint</code> so it doesn't warn (W-TMV-UNSC) about
+            unknown VOSITables schema.</li>
+        <li>Fix <code>taplint</code> so that <code>unicodeChar</code>
+            matches CHAR/VARCHAR in the same way as <code>char</code>
+            for column type declaration purposes.</li>
+        <li>Fix <code>taplint</code> so that capabilities document can have
+            TAPRegExt dataModel ivo-id elements with xs:anyURI rather than
+            vr:IdentifierURI (only a warning is issued in the latter case),
+            in anticipation of TAPRegExt-1.0 Erratum #1.</li>
+        <li>Adjust <code>taplint</code> to handle adql:TIMESTAMP columns more
+            carefully on upload and retrieval.</li>
+        <li>Update JSAMP to v1.3.5.</li>
+        </ul>
+        </p></dd>
+    </dl>
+    </p></dd>
+
+<dt>Version 3.0-2 (6 February 2015)</dt>
+<dd><p>
+    <dl>
+    <dt>Plotting enhancements:</dt>
+    <dd><p>
+        <ul>
+        <li>Linear fitting of points is now available using the 
+            <ref id="layer-linearfit">linearfit</ref> layer type for
+            <code>plot2plane</code>.  Points may be weighted.</li>
+        <li>You can add titles to plots using the new <code>title</code>
+            parameter.</li>
+        <li>New plot layer type
+            <ref id="layer-sizexy"><code>sizexy</code></ref>
+            allows plotting (optionally autoscaled)
+            markers with horizontal and vertical extents
+            independently determined by input data.</li>
+        <li>More flexibility when assigning colour maps, in 
+            <ref id="shading-aux">aux</ref> and
+            <ref id="shading-density">density</ref> shading modes, and
+            <ref id="layer-spectrogram">spectrogram</ref> layer.
+            New parameters <code>*func</code> allow assignment of
+            different data-&gt;ramp mapping functions
+            (sqrt and square as well as linear and logarithmic),
+            and new parameters <code>*quant</code> allow quantisation
+            of the colour map to discrete levels.</li>
+        <li>Replace <code>maxsizeN</code> parameter with <code>autoscaleN</code>
+            for <ref id="layer-size"><code>size</code></ref> plot layer type.
+            You can now optionally turn off autoscaling and specify marker size
+            in pixels instead.</li>
+        <li>Add <code>auxcrowd</code> parameter to plot2 tasks to influence
+            tick crowding on aux axis colour ramp.  Also adjust default to use
+            fewer ticks.</li>
+        <li>Add some "dart" options (fixed-base open or filled triangles)
+            for plotting vectors (see <code>arrowN</code> parameter in
+            layers like
+            <ref id="layer-xyvector"><code>xyvector</code></ref>).</li>
+        <li>Add some "triangle" options (variable-base open or filled triangles)
+            for plotting ellipses (see <code>ellipseN</code> parameter in layers
+            like <ref id="layer-xyellipse"><code>xyellipse</code></ref>).</li>
+        <li>Histogram normalisation option adjusted
+            so that total area under bars,
+            rather than total height of bars, is fixed.</li>
+        <li>The <code>PlotDisplay</code> class that forms the result of
+            plot2 commands can now have <code>PointSelectionListener</code>s
+            registered on it.  This lets you determine what point a user
+            has clicked on if you're using the plotting classes from
+            third party java code.</li>
+        </ul>
+        </p></dd>
+    <dt>FITS I/O:</dt>
+    <dd><p>
+        <ul>
+        <li>Reworked part of the FITS table input implementation, 
+            in particular adjusting the way memory mapping is done to reduce
+            resource requirements on some platforms.
+            If you notice any difference, it should be reduced virtual and
+            perhaps resident memory usage, and some (~10%?) performance 
+            improvements, when reading large FITS/colfits files.
+            If you were previously having problems
+            with large memory allocations leading to
+            disk thrashing and system lockup when scanning files
+            larger than RAM (this didn't happen on all OSes),
+            these will hopefully have gone away.
+            However, please report anything that appears to be working worse
+            than before, or continued memory usage issues.</li>
+        <li>Colfits files can now be accessed from streams,
+            not just uncompressed disk files
+            (though that's not necessarily a good idea).</li>
+        </ul>
+        </p></dd>
+    <dt>Bugfixes and workarounds:</dt>
+    <dd><p>
+        <ul>
+        <li>Fixed a query bug (missing <code>REQUEST=queryData</code> parameter)
+            in the multi-SSA mode (<code>servicetype=ssa</code>) of
+            <code>coneskymatch</code>.
+            This long-standing bug would have stopped this command working
+            at all with well-behaved SSA services.</li>
+        <li>Fixed error in fits-var output
+            (PCOUNT header card did not include block alignment gap).</li>
+        <li>Graphics coordinates are now calculated in floating point 
+            rather than as integers.  This fixes problems that could 
+            cause scaled vectors, ellipses etc to be drawn with shapes
+            or orientations badly wrong due to rounding errors.
+            It also improves plotting of analytic functions, especially
+            to vector contexts (PDF/EPS).</li>
+        <li>Fix some problems to do with zooming to very large/small
+            plot axis ranges.</li>
+        <li>Hide error bars (etc) that would extend to negative values
+            on logarithmic axes; previously they were being drawn in anomalous
+            places.</li>
+        <li>Fix NullPointerException bug when null value was supplied to
+            multi-word parameter (e.g. <code>tcube</code>).</li>
+        <li>Fix Aux axis positioning for 3D plots so that the numeric labels 
+            don't get snipped off at top and bottom.</li>
+        <li>Add a hack that allows LDAC FITS tables to be treated sensibly
+            in auto-format-detection mode.</li>
+        <li>Make VOTable handling more robust against unknown (illegal)
+            datatypes.</li>
+        <li>Add missing parameters <code>auxmax</code>, <code>auxmin</code>
+            to plotting task documentation.</li>
+        </ul>
+        </p></dd>
+    </dl>
+    </p></dd>
 
 </dl>
 </p>

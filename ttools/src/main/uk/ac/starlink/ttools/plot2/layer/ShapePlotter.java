@@ -47,6 +47,21 @@ public class ShapePlotter extends AbstractPlotter<ShapeStyle> {
         mode_ = mode;
     }
 
+    public String getPlotterDescription() {
+        return PlotUtil.concatLines( new String[] {
+            "<p><dl>",
+            "<dt>Shape</dt>",
+            "<dd>",
+            form_.getFormDescription(),
+            "</dd>",
+            "<dt>Shading</dt>",
+            "<dd>",
+            mode_.getModeDescription(),
+            "</dd>",
+            "</dl></p>",
+        } );
+    }
+
     public ConfigKey[] getStyleKeys() {
         return PlotUtil.arrayConcat( form_.getConfigKeys(),
                                      mode_.getConfigKeys() );
@@ -145,11 +160,11 @@ public class ShapePlotter extends AbstractPlotter<ShapeStyle> {
             smode_ = mode;
         }
 
-        public Form getForm() {
+        public ShapeForm getForm() {
             return sform_;
         }
 
-        public Mode getMode() {
+        public ShapeMode getMode() {
             return smode_;
         }
     }

@@ -105,6 +105,7 @@ import uk.ac.starlink.topcat.interop.PlasticCommunicator;
 import uk.ac.starlink.topcat.interop.SampCommunicator;
 import uk.ac.starlink.topcat.interop.TopcatCommunicator;
 import uk.ac.starlink.topcat.interop.Transmitter;
+import uk.ac.starlink.topcat.join.CdsUploadMatchWindow;
 import uk.ac.starlink.topcat.join.ConeMultiWindow;
 import uk.ac.starlink.topcat.join.DalMultiWindow;
 import uk.ac.starlink.topcat.join.SiaMultiWindow;
@@ -143,6 +144,13 @@ import uk.ac.starlink.vo.TapTableLoadDialog;
 /**
  * Main window providing user control of the TOPCAT application.
  * This is a singleton class.
+ *
+ * <p><strong>Note:</strong> there is a lot wrong with this class.
+ * It's been here for as long as topcat has (i.e. since before I knew
+ * better), and it does far too much, often in the wrong way.
+ * It would be nice to do something about it one day, but in the
+ * meantime, don't assume that there's a good reason for all the
+ * implementation details that you see here.
  *
  * @author   Mark Taylor (Starlink)
  * @since    9 Mar 2004
@@ -197,6 +205,7 @@ public class ControlWindow extends AuxWindow
     private ConeMultiWindow multiconeWindow_;
     private SiaMultiWindow multisiaWindow_;
     private SsaMultiWindow multissaWindow_;
+    private CdsUploadMatchWindow cdsmatchWindow_;
     private ExtApp extApp_;
     private TopcatModel currentModel_;
 
@@ -224,6 +233,7 @@ public class ControlWindow extends AuxWindow
     private final Action multiconeAct_;
     private final Action multisiaAct_;
     private final Action multissaAct_;
+    private final Action cdsmatchAct_;
     private final Action logAct_;
     private final Action[] matchActs_;
     private final ShowAction[] showActs_;
@@ -362,11 +372,15 @@ public class ControlWindow extends AuxWindow
         multisiaAct_ =
             new ControlAction( "Multiple SIA", ResourceIcon.MULTISIA,
                                "Multiple Simple Image Access query"
-                             + "(one for each row of input table)" );
+                             + " (one for each row of input table)" );
         multissaAct_ =
             new ControlAction( "Multiple SSA", ResourceIcon.MULTISSA,
                                "Multiple Simple Spectral Access query"
-                             + "(one for each row of input table)" );
+                             + " (one for each row of input table)" );
+        cdsmatchAct_ =
+            new ControlAction( "CDS Upload X-Match", ResourceIcon.CDSXMATCH,
+                               "Sky crossmatch against remote tables from the "
+                             + "CDS VizieR or SIMBAD services" );
         logAct_ = new ControlAction( "View Log", ResourceIcon.LOG,
                                      "Display the log of events" );
         readAct_.setEnabled( canRead_ );
@@ -471,6 +485,16 @@ public class ControlWindow extends AuxWindow
                                    "five existing tables", 5 ),
         };
 
+        /* Hack.  We want to get an action to launch the TAP load
+         * dialogue here.  One way is to call getLoadWindow() and get it
+         * from there.  However, that instantiates the Load Window too
+         * early, which is not only inefficient (not otherwise required
+         * at startup) but also causes some trouble with JDBC
+         * (the SQL load dialog fails for reasons I haven't identified).
+         * So do it another way. */
+        Action tapAct =
+           createLoadDialogAction( TopcatTapTableLoadDialog.class );
+
         Transmitter tableTransmitter = communicator_ == null
                                      ? null
                                      : communicator_.getTableTransmitter();
@@ -568,8 +592,10 @@ public class ControlWindow extends AuxWindow
 
         /* Add join/match control buttons to the toolbar. */
         toolBar.add( matchActs_[ 1 ] );
-        toolBar.add( multiconeAct_ );
-        toolBar.add( concatAct_ );
+        if ( tapAct != null ) {
+            toolBar.add( tapAct );
+        }
+        toolBar.add( cdsmatchAct_ );
         toolBar.addSeparator();
 
         /* Add miscellaneous actions to the toolbar. */
@@ -577,10 +603,9 @@ public class ControlWindow extends AuxWindow
             toolBar.add( interopAct );
         }
         toolBar.add( MethodWindow.getWindowAction( this, false ) );
-        List actList = Loader.getClassInstances( TOPCAT_TOOLS_PROP,
-                                                 TopcatToolAction.class );
-        for ( Iterator it = actList.iterator(); it.hasNext(); ) {
-            TopcatToolAction tact = (TopcatToolAction) it.next();
+        for ( TopcatToolAction tact :
+              Loader.getClassInstances( TOPCAT_TOOLS_PROP,
+                                        TopcatToolAction.class ) ) {
             tact.setParent( this );
             toolBar.add( tact );
         }
@@ -645,6 +670,7 @@ public class ControlWindow extends AuxWindow
         JMenu joinMenu = new JMenu( "Joins" );
         joinMenu.setMnemonic( KeyEvent.VK_J );
         joinMenu.add( concatAct_ );
+        joinMenu.add( cdsmatchAct_ );
         joinMenu.add( multiconeAct_ );
         joinMenu.add( multisiaAct_ );
         joinMenu.add( multissaAct_ );
@@ -696,6 +722,7 @@ public class ControlWindow extends AuxWindow
                     voMenu.add( act );
                 }
                 voMenu.addSeparator();
+                voMenu.add( cdsmatchAct_ );
                 voMenu.add( multiconeAct_ );
                 voMenu.add( multisiaAct_ );
                 voMenu.add( multissaAct_ );
@@ -1064,6 +1091,18 @@ public class ControlWindow extends AuxWindow
     }
 
     /**
+     * Returns a dialog used for an upload match.
+     *
+     * @return   upload crossmatch window
+     */
+    public CdsUploadMatchWindow getCdsUploadMatchWindow() {
+        if ( cdsmatchWindow_ == null ) {
+            cdsmatchWindow_ = new CdsUploadMatchWindow( this );
+        }
+        return cdsmatchWindow_;
+    }
+
+    /**
      * Returns the table factory used by this window.
      *
      * @return  table factory
@@ -1327,6 +1366,7 @@ public class ControlWindow extends AuxWindow
         multiconeAct_.setEnabled( hasTables );
         multisiaAct_.setEnabled( hasTables );
         multissaAct_.setEnabled( hasTables );
+        cdsmatchAct_.setEnabled( hasTables );
         for ( int i = 0; i < matchActs_.length; i++ ) {
             matchActs_[ i ].setEnabled( hasTables );
         }
@@ -1558,6 +1598,9 @@ public class ControlWindow extends AuxWindow
             }
             else if ( this == multissaAct_ ) {
                 getSsaMultiWindow().makeVisible();
+            }
+            else if ( this == cdsmatchAct_ ) {
+                getCdsUploadMatchWindow().makeVisible();
             }
             else if ( this == logAct_ ) {
                 LogHandler.getInstance().showWindow( ControlWindow.this );
@@ -1900,6 +1943,43 @@ public class ControlWindow extends AuxWindow
             label = label.substring( 0, 48 ) + "...";
         }
         return label;
+    }
+
+    /**
+     * Returns an action which will launch a load dialogue of a particular
+     * class.  These individual load dialogues are really owned by the
+     * LoadWindow, which doesn't (and shouldn't) exist during
+     * ControlWindow construction, so we have to jump through some hoops.
+     */
+    private Action
+            createLoadDialogAction( final Class<? extends TableLoadDialog>
+                                    tldClazz ) {
+
+        /* Get a dialogue instance for the metadata: name, icon, description.
+         * Throw it away after that.  Not ideal. */
+        TableLoadDialog tld0;
+        try {
+            tld0 = tldClazz.newInstance();
+        }
+        catch ( Throwable e ) {
+            logger_.log( Level.WARNING, "Can't set up TAP action", e );
+            return null;
+        }
+
+        /* Construct and return an action which will lazily acquire the
+         * LoadWindow's copy of the relevant dialogue as required. */
+        return new BasicAction( tld0.getName(), tld0.getIcon(),
+                                tld0.getDescription() ) {
+            Action act_;
+            public void actionPerformed( ActionEvent evt ) {
+                if ( act_ == null ) {
+                    act_ = getLoadWindow().getDialogAction( tldClazz );
+                }
+                if ( act_ != null ) {
+                    act_.actionPerformed( evt );
+                }
+            }
+        };
     }
 
     /**

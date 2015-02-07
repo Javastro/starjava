@@ -18,6 +18,7 @@ import uk.ac.starlink.task.Environment;
 import uk.ac.starlink.task.ExecutionException;
 import uk.ac.starlink.task.Parameter;
 import uk.ac.starlink.task.ParameterValueException;
+import uk.ac.starlink.task.StringParameter;
 import uk.ac.starlink.task.TaskException;
 import uk.ac.starlink.task.UsageException;
 import uk.ac.starlink.ttools.plot.DataBounds;
@@ -33,9 +34,9 @@ import uk.ac.starlink.ttools.plot.SubsetSelectionPlotData;
 import uk.ac.starlink.ttools.plot.TablePlot;
 import uk.ac.starlink.ttools.plot.WrapperPlotData;
 import uk.ac.starlink.ttools.task.ConsumerTask;
-import uk.ac.starlink.ttools.task.DefaultMultiParameter;
 import uk.ac.starlink.ttools.task.FilterParameter;
 import uk.ac.starlink.ttools.task.InputTableParameter;
+import uk.ac.starlink.ttools.task.StringMultiParameter;
 import uk.ac.starlink.ttools.task.TableProducer;
 
 /**
@@ -73,7 +74,7 @@ public class PlotStateFactory {
     private final boolean useLabel_;
     private final int errNdim_;
     private final BooleanParameter gridParam_;
-    private final DefaultMultiParameter seqParam_;
+    private final StringMultiParameter seqParam_;
     private final BooleanParameter aaParam_;
 
     /**
@@ -98,9 +99,9 @@ public class PlotStateFactory {
             "If false, they are absent.",
             "</p>",
         } );
-        gridParam_.setDefault( true );
+        gridParam_.setBooleanDefault( true );
 
-        seqParam_ = new DefaultMultiParameter( "sequence", ',' );
+        seqParam_ = new StringMultiParameter( "sequence", ',' );
         seqParam_.setPrompt( "Defines plot order of subsets" );
         seqParam_.setUsage( "<suffix>,<suffix>,..." );
         seqParam_.setDescription( new String[] {
@@ -142,7 +143,7 @@ public class PlotStateFactory {
             "Setting it true may slow the plot down slightly.",
             "</p>",
         } );
-        aaParam_.setDefault( true );
+        aaParam_.setBooleanDefault( true );
     }
 
     /**
@@ -205,9 +206,9 @@ public class PlotStateFactory {
                                                  tSuffix ) );
         }
         if ( useAux_ ) {
-            Parameter shaderParam =
+            ShaderParameter shaderParam =
                 createShaderParameters( new String[] { AUX_VARIABLE } )[ 0 ];
-            assert shaderParam.getDefault() != null;
+            assert shaderParam.getStringDefault() != null;
             paramList.add( shaderParam );
         }
 
@@ -308,7 +309,7 @@ public class PlotStateFactory {
             StarTable table = getInputTable( env, tlabel );
             String[] coordExprs = new String[ allNdim ];
             for ( int idim = 0; idim < allNdim; idim++ ) {
-                Parameter coordParam =
+                StringParameter coordParam =
                     axParamSets[ idim ].createCoordParameter( tlabel );
                 if ( idim >= mainNdim ) {
                     coordParam.setNullPermitted( true );
@@ -366,7 +367,7 @@ public class PlotStateFactory {
             }
         }
         String seqDefault = seqbuf.toString();
-        seqParam_.setDefault( seqDefault );
+        seqParam_.setStringDefault( seqDefault );
         String seqString = seqParam_.stringValue( env );
         if ( seqString != null && ! seqString.equals( seqDefault ) ) {
             String[] setLabels = seqParam_.stringValue( env )
@@ -411,7 +412,7 @@ public class PlotStateFactory {
                              ? mainDimNames_[ idim ]
                              : "Aux " + ( idim - mainNdim + 1 );
             }
-            axParamSet.labelParam_.setDefault( labelDefault );
+            axParamSet.labelParam_.setStringDefault( labelDefault );
             labels[ idim ] = axParamSet.labelParam_.stringValue( env );
         }
         state.setLogFlags( logFlags );
@@ -773,8 +774,8 @@ public class PlotStateFactory {
         /* If there are no subsets for this table, consider it the same as
          * a single subset with inclusion of all points. */
         if ( nset == 0 ) {
-            Parameter nameParam = createSubsetNameParameter( tlabel );
-            nameParam.setDefault( tlabel );
+            StringParameter nameParam = createSubsetNameParameter( tlabel );
+            nameParam.setStringDefault( tlabel );
             String name = nameParam.stringValue( env );
             return new SubsetDef[] {
                 new SubsetDef( tlabel, "true", name,
@@ -790,8 +791,9 @@ public class PlotStateFactory {
                 String stLabel = tlabel + subLabels[ is ];
                 String expr = createSubsetExpressionParameter( stLabel )
                              .stringValue( env );
-                Parameter nameParam = createSubsetNameParameter( stLabel );
-                nameParam.setDefault( expr );
+                StringParameter nameParam =
+                    createSubsetNameParameter( stLabel );
+                nameParam.setStringDefault( expr );
                 String name = nameParam.stringValue( env );
                 sdefs[ is ] =
                     new SubsetDef( stLabel, expr, name,
@@ -832,9 +834,10 @@ public class PlotStateFactory {
      * @param   tlabel  table identifier
      * @return   error pair parameter
      */
-    private Parameter createErrorParameter( String axName, String tlabel ) {
-        Parameter param =
-            new Parameter( axName.toLowerCase() + "error" + tlabel );
+    private StringParameter createErrorParameter( String axName,
+                                                  String tlabel ) {
+        StringParameter param =
+            new StringParameter( axName.toLowerCase() + "error" + tlabel );
         param.setUsage( "<expr>|[<lo-expr>],[<hi-expr>]" );
         param.setPrompt( "Error bound(s) in " + axName + " for table "
                        + tlabel );
@@ -865,8 +868,8 @@ public class PlotStateFactory {
      * @param  tlabel   table parameter label
      * @return  new text label expression parameter
      */
-    private Parameter createLabelParameter( String tlabel ) {
-        Parameter labelParam = new Parameter( "txtlabel" + tlabel );
+    private StringParameter createLabelParameter( String tlabel ) {
+        StringParameter labelParam = new StringParameter( "txtlabel" + tlabel );
         labelParam.setPrompt( "Label annotating each plotted point" );
         labelParam.setDescription( new String[] {
             "<p>Gives an expression which will label each plotted point.",
@@ -885,8 +888,8 @@ public class PlotStateFactory {
      * @param  stlabel  table/subset parameter label
      * @return  new subset expression parameter
      */
-    private Parameter createSubsetExpressionParameter( String stlabel ) {
-        Parameter param = new Parameter( SUBSET_PREFIX + stlabel );
+    private StringParameter createSubsetExpressionParameter( String stlabel ) {
+        StringParameter param = new StringParameter( SUBSET_PREFIX + stlabel );
         param.setPrompt( "Selection criterion for subset " + stlabel );
         param.setDescription( new String[] {
             "<p>Gives the selection criterion for the subset labelled",
@@ -907,8 +910,9 @@ public class PlotStateFactory {
      * @param  stlabel  table/subset parameter label
      * @return  new subset name parameter
      */
-    private Parameter createSubsetNameParameter( String stlabel ) {
-        Parameter nameParam = new Parameter( STYLE_PREFIX + "name" + stlabel );
+    private StringParameter createSubsetNameParameter( String stlabel ) {
+        StringParameter nameParam =
+            new StringParameter( STYLE_PREFIX + "name" + stlabel );
         nameParam.setNullPermitted( true );
         nameParam.setPrompt( "Label for subset " + stlabel );
         nameParam.setDescription( new String[] {
@@ -936,7 +940,7 @@ public class PlotStateFactory {
         for ( int i = 0; i < nparam; i++ ) {
             params[ i ] =
                 new ShaderParameter( AUX_PREFIX + auxlabels[ i ] + "shader" );
-            params[ i ].setDefault( dflts[ i ] );
+            params[ i ].setStringDefault( dflts[ i ] );
         }
         return params;
     }
@@ -1012,7 +1016,7 @@ public class PlotStateFactory {
                 "axis is linear; if true it is logarithmic.",
                 "</p>",
             } );
-            logParam_.setDefault( "false" );
+            logParam_.setBooleanDefault( false );
 
             flipParam_ = new BooleanParameter( axName_ + "flip" );
             flipParam_.setPrompt( "Reversed direction on " + axName_
@@ -1023,9 +1027,9 @@ public class PlotStateFactory {
                 "(e.g. right to left rather than left to right).",
                 "</p>",
             } );
-            flipParam_.setDefault( "false" );
+            flipParam_.setBooleanDefault( false );
 
-            labelParam_ = new Parameter( axName_ + "label" );
+            labelParam_ = new StringParameter( axName_ + "label" );
             labelParam_.setPrompt( "Label for axis " + axName_ );
             labelParam_.setDescription( new String[] {
                 "<p>Specifies a label to be used for annotating axis "
@@ -1062,8 +1066,9 @@ public class PlotStateFactory {
          * @param  tlabel  table identifier
          * @return   parameter giving JEL expression for coordinate data
          */
-        public Parameter createCoordParameter( String tlabel ) {
-            Parameter param = new Parameter( axName_ + "data" + tlabel );
+        public StringParameter createCoordParameter( String tlabel ) {
+            StringParameter param =
+                new StringParameter( axName_ + "data" + tlabel );
             param.setUsage( "<expr>" );
             param.setPrompt( "Value to plot on " + axName_ + " axis"
                            + " for table " + tlabel );

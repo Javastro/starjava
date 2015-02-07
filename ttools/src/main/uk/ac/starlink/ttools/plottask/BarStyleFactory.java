@@ -50,10 +50,10 @@ public class BarStyleFactory extends StyleFactory {
             (BarStyle) styleSet_.getStyle( getStyleIndex( stSuffix ) );
 
         /* Bar shape. */
-        ChoiceParameter shapeParam = createShapeParameter( stSuffix );
+        ChoiceParameter<BarShape> shapeParam = createShapeParameter( stSuffix );
         shapeParam.setDefaultOption( new BarShape( style0.getForm(),
                                                    style0.getPlacement() ) );
-        BarShape shape = (BarShape) shapeParam.objectValue( env );
+        BarShape shape = shapeParam.objectValue( env );
 
         /* Colour. */
         ColorParameter colorParam = createColorParameter( stSuffix );
@@ -66,7 +66,7 @@ public class BarStyleFactory extends StyleFactory {
 
         /* Configure line width. */
         IntegerParameter lineParam = createLineWidthParameter( stSuffix );
-        lineParam.setDefault( Integer.toString( style0.getLineWidth() ) );
+        lineParam.setIntDefault( style0.getLineWidth() );
         style.setLineWidth( lineParam.intValue( env ) );
 
         /* Configure dash. */
@@ -108,9 +108,10 @@ public class BarStyleFactory extends StyleFactory {
      * @param  stSuffix  label identifying dataset
      * @return  new bar form parameter
      */
-    private ChoiceParameter createShapeParameter( String stSuffix ) {
-        StyleParameter param =
-            new StyleParameter( paramName( "barstyle", stSuffix ) );
+    private ChoiceParameter<BarShape> createShapeParameter( String stSuffix ) {
+        StyleParameter<BarShape> param =
+            new StyleParameter<BarShape>( paramName( "barstyle", stSuffix ),
+                                          BarShape.class );
         param.addOption( new BarShape( BarStyle.FORM_FILLED,
                                        BarStyle.PLACE_ADJACENT ), "fill" );
         param.addOption( new BarShape( BarStyle.FORM_OPEN,
@@ -123,7 +124,7 @@ public class BarStyleFactory extends StyleFactory {
                                        BarStyle.PLACE_OVER ), "fillover" );
         param.addOption( new BarShape( BarStyle.FORM_OPEN,
                                        BarStyle.PLACE_OVER ), "openover" );
-        param.setDefault( "fill" );
+        param.setStringDefault( "fill" );
         param.setPrompt( "Histogram bar style for dataset " + stSuffix );
         param.setDescription( new String[] {
             "<p>Defines how histogram bars will be drawn for dataset",
@@ -152,7 +153,7 @@ public class BarStyleFactory extends StyleFactory {
             "Only certain bar styles are affected by the line width.",
             "</p>",
         } );
-        param.setDefault( Integer.toString( 2 ) );
+        param.setIntDefault( 2 );
         param.setMinimum( 1 );
         return param;
     }

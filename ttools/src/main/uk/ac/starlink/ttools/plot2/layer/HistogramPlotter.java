@@ -3,9 +3,9 @@ package uk.ac.starlink.ttools.plot2.layer;
 import java.awt.Color;
 import java.awt.Graphics;
 import java.awt.Graphics2D;
-import java.awt.Point;
 import java.awt.Rectangle;
 import java.awt.geom.AffineTransform;
+import java.awt.geom.Point2D;
 import java.util.Arrays;
 import java.util.Iterator;
 import java.util.Map;
@@ -21,6 +21,9 @@ import uk.ac.starlink.ttools.plot2.Drawing;
 import uk.ac.starlink.ttools.plot2.LayerOpt;
 import uk.ac.starlink.ttools.plot2.PlotLayer;
 import uk.ac.starlink.ttools.plot2.Plotter;
+import uk.ac.starlink.ttools.plot2.ReportKey;
+import uk.ac.starlink.ttools.plot2.ReportMap;
+import uk.ac.starlink.ttools.plot2.ReportMeta;
 import uk.ac.starlink.ttools.plot2.Surface;
 import uk.ac.starlink.ttools.plot2.config.BooleanConfigKey;
 import uk.ac.starlink.ttools.plot2.config.ConfigKey;
@@ -33,6 +36,7 @@ import uk.ac.starlink.ttools.plot2.data.CoordGroup;
 import uk.ac.starlink.ttools.plot2.data.DataSpec;
 import uk.ac.starlink.ttools.plot2.data.DataStore;
 import uk.ac.starlink.ttools.plot2.data.FloatingCoord;
+import uk.ac.starlink.ttools.plot2.data.InputMeta;
 import uk.ac.starlink.ttools.plot2.data.TupleSequence;
 import uk.ac.starlink.ttools.plot2.geom.PlaneSurface;
 import uk.ac.starlink.ttools.plot2.geom.SliceDataGeom;
@@ -56,15 +60,60 @@ public class HistogramPlotter
     private final int icX_;
     private final int icWeight_;
 
+    /** ReportKey for histogram bins. */
+    public static final ReportKey<BinBag> BINS_KEY =
+        new ReportKey<BinBag>( new ReportMeta( "bins", "Bins" ), BinBag.class,
+                               false );
+
+    /** Config key for bar line thickness. */
     public static final ConfigKey<Integer> THICK_KEY =
         StyleKeys.createThicknessKey( 2 );
+
+    /** Config key for bar phase. */
     public static final ConfigKey<Double> PHASE_KEY =
-        DoubleConfigKey.createSliderKey( new ConfigMeta( "phase", "Bin Phase" ),
-                                                         0, 0, 1, false );
+        DoubleConfigKey.createSliderKey(
+            new ConfigMeta( "phase", "Bin Phase" )
+           .setShortDescription( "Horizontal zero point" )
+           .setXmlDescription( new String[] {
+                "<p>Controls where the horizontal zero point for binning",
+                "is set.",
+                "For instance if your bin size is 1,",
+                "this value controls whether bin boundaries are at",
+                "0, 1, 2, .. or 0.5, 1.5, 2.5, ... etc.",
+                "</p>",
+                "<p>A value of 0 (or any integer) will result in",
+                "a bin boundary at X=0 (linear X axis)",
+                "or X=1 (logarithmic X axis).",
+                "A fractional value will give a bin boundary at",
+                "that value multiplied by the bin width.",
+                "</p>",
+            } )
+        , 0, 0, 1, false );
+
+    /** Config key for cumulative histogram flag. */
     public static final ConfigKey<Boolean> CUMULATIVE_KEY =
-        new BooleanConfigKey( new ConfigMeta( "cumulative", "Cumulative" ) );
+        new BooleanConfigKey(
+            new ConfigMeta( "cumulative", "Cumulative" )
+           .setShortDescription( "Cumulative histogram?" )
+           .setXmlDescription( new String[] {
+                "<p>If true, the histogram bars plotted are calculated",
+                "cumulatively;",
+                "each bin includes the counts from all previous bins.",
+                "</p>",
+            } )
+        );
+
+    /** Config key for normalised histogram flag. */
     public static final ConfigKey<Boolean> NORM_KEY =
-        new BooleanConfigKey( new ConfigMeta( "norm", "Normalised" ) );
+        new BooleanConfigKey(
+            new ConfigMeta( "norm", "Normalised" )
+           .setShortDescription( "Normalised histogram?" )
+           .setXmlDescription( new String[] {
+                "<p>If true, the counts in each plotted histogram are",
+                "normalised so that the sum of all bars is 1.",
+                "</p>",
+            } )
+        );
 
     /**
      * Constructor.
@@ -76,8 +125,19 @@ public class HistogramPlotter
         xCoord_ = xCoord;
         if ( hasWeight ) {
             weightCoord_ =
-                FloatingCoord.createCoord( "Weight", "Weighting of data points"
-                                         + ", if not unity", false );
+                FloatingCoord.createCoord(
+                    new InputMeta( "weight", "Weight" )
+                   .setShortDescription( "Non-unit weighting of data points" )
+                   .setXmlDescription( new String[] {
+                        "<p>Weighting of data points.",
+                        "If supplied, each point contributes a value",
+                        "to the histogram equal to the data value",
+                        "multiplied by this coordinate.",
+                        "If not supplied, the effect is the same as",
+                        "supplying a fixed value of one.",
+                        "</p>",
+                    } )
+                , false );
             histoCoordGrp_ =
                 CoordGroup
                .createPartialCoordGroup( new Coord[] { xCoord, weightCoord_ },
@@ -108,6 +168,10 @@ public class HistogramPlotter
 
     public Icon getPlotterIcon() {
         return ResourceIcon.PLOT_HISTO;
+    }
+
+    public String getPlotterDescription() {
+        return "<p>Plots a histogram.</p>";
     }
 
     public CoordGroup getCoordGroup() {
@@ -144,6 +208,10 @@ public class HistogramPlotter
         double binPhase = config.get( PHASE_KEY );
         return new HistoStyle( color, barForm, placement, cumulative, norm,
                                thick, dash, sizer, binPhase );
+    }
+
+    public boolean hasReports() {
+        return false;
     }
 
     /**
@@ -218,6 +286,14 @@ public class HistogramPlotter
                                 }
                             } );
                         }
+                        public ReportMap getReport( Object plan ) {
+                            ReportMap report = new ReportMap();
+                            if ( plan instanceof HistoPlan ) {
+                                report.set( BINS_KEY,
+                                            ((HistoPlan) plan).binBag_ );
+                            }
+                            return report;
+                        }
                     };
                 }
 
@@ -271,6 +347,17 @@ public class HistogramPlotter
     }
 
     /**
+     * Returns the DataSpec coord index used for the weighting data
+     * for this plotter.  If weighting is not supported, a negative
+     * value is returned.
+     *
+     * @return   weight coord index, or -1
+     */
+    public int getWeightCoordIndex() {
+        return icWeight_;
+    }
+
+    /**
      * Reads histogram data from a given data set.
      *
      * @param   xlog  false for linear scaling, true for logarithmic
@@ -285,7 +372,7 @@ public class HistogramPlotter
                              DataStore dataStore ) {
         BinBag binBag = new BinBag( xlog, binWidth, binPhase, point );
         TupleSequence tseq = dataStore.getTupleSequence( dataSpec );
-        if ( weightCoord_ == null ) {
+        if ( weightCoord_ == null || dataSpec.isCoordBlank( icWeight_ ) ) {
             while ( tseq.next() ) {
                 double x = xCoord_.readDoubleCoord( tseq, icX_ );
                 binBag.addToBin( x, 1 );
@@ -295,7 +382,7 @@ public class HistogramPlotter
             while ( tseq.next() ) {
                 double x = xCoord_.readDoubleCoord( tseq, icX_ );
                 double w = weightCoord_.readDoubleCoord( tseq, icWeight_ );
-                double weight = Double.isNaN( w ) ? 1 : w;
+                double weight = Double.isNaN( w ) ? 0 : w;
                 binBag.addToBin( x, weight );
             }
         }
@@ -333,8 +420,10 @@ public class HistogramPlotter
         boolean[] flipFlags = surface.getFlipFlags();
         final boolean xflip = flipFlags[ 0 ];
         final boolean yflip = flipFlags[ 1 ];
-        Point p0 = new Point();
-        Point p1 = new Point();
+        boolean ylog = surface.getLogFlags()[ 1 ];
+       
+        Point2D.Double p0 = new Point2D.Double();
+        Point2D.Double p1 = new Point2D.Double();
         double[] dpos0 = new double[ 2 ];
         double[] dpos1 = new double[ 2 ];
         int lastGx1 = xflip ? Integer.MAX_VALUE : Integer.MIN_VALUE;
@@ -356,7 +445,7 @@ public class HistogramPlotter
 
                  /* Transform the corners of each bar to graphics coords. */
                  dpos0[ 0 ] = dxlo;
-                 dpos0[ 1 ] = 0;
+                 dpos0[ 1 ] = ylog ? Double.MIN_VALUE : 0;
                  dpos1[ 0 ] = dxhi;
                  dpos1[ 1 ] = dy;
                  if ( surface.dataToGraphics( dpos0, false, p0 ) &&
@@ -365,10 +454,10 @@ public class HistogramPlotter
                     /* Clip them so they are not too far off the plot region;
                      * attempting to draw ridiculously large rectangles can
                      * give AWT a headache. */
-                    int gx0 = clip( p0.x, xClipMin, xClipMax );
-                    int gx1 = clip( p1.x, xClipMin, xClipMax );
-                    int gy0 = clip( p0.y, yClipMin, yClipMax );
-                    int gy1 = clip( p1.y, yClipMin, yClipMax );
+                    int gx0 = clip( (int) p0.x, xClipMin, xClipMax );
+                    int gx1 = clip( (int) p1.x, xClipMin, xClipMax );
+                    int gy0 = clip( (int) p0.y, yClipMin, yClipMax );
+                    int gy1 = clip( (int) p1.y, yClipMin, yClipMax );
 
                     /* Draw the trailing edge of the previous bar if
                      * necessary. */

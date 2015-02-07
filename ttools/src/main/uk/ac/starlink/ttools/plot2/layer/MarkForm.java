@@ -5,6 +5,7 @@ import java.awt.Component;
 import java.awt.Graphics;
 import java.awt.Point;
 import java.awt.Rectangle;
+import java.awt.geom.Point2D;
 import java.util.HashMap;
 import java.util.Map;
 import javax.swing.Icon;
@@ -17,6 +18,7 @@ import uk.ac.starlink.ttools.plot2.AuxScale;
 import uk.ac.starlink.ttools.plot2.DataGeom;
 import uk.ac.starlink.ttools.plot2.Glyph;
 import uk.ac.starlink.ttools.plot2.Pixer;
+import uk.ac.starlink.ttools.plot2.PlotUtil;
 import uk.ac.starlink.ttools.plot2.PointCloud;
 import uk.ac.starlink.ttools.plot2.SubCloud;
 import uk.ac.starlink.ttools.plot2.Surface;
@@ -78,6 +80,14 @@ public abstract class MarkForm implements ShapeForm {
         return icon_;
     }
 
+    public String getFormDescription() {
+        return PlotUtil.concatLines( new String[] {
+            "<p>Plots a marker of fixed size and shape",
+            "at each position.",
+            "</p>",
+        } );
+    }
+
     public Coord[] getExtraCoords() {
         return new Coord[ 0 ];
     }
@@ -121,9 +131,18 @@ public abstract class MarkForm implements ShapeForm {
             };
         }
         else {
-            return new MarkForm( npos, "Marks",
+            return new MarkForm( npos, "Mark" + npos,
                                  npos == 2 ? ResourceIcon.FORM_MARKS2
                                            : ResourceIcon.FORM_MARKS3 ) {
+                public String getFormDescription() {
+                    return PlotUtil.concatLines( new String[] {
+                        "<p>Plots " + npos + "similar markers",
+                        "of fixed size and shape",
+                        "representing " + npos + " separate positions",
+                        "from the same input table row.",
+                        "</p>",
+                    } );
+                }
                 public ConfigKey[] getConfigKeys() {
                     return new ConfigKey[] {
                         StyleKeys.MARK_SHAPE,
@@ -180,20 +199,36 @@ public abstract class MarkForm implements ShapeForm {
      *
      * @param  shape  marker shape
      * @param  size  marker size
+     * @param  isMultipix  if true, optimise for an instance that may have
+     *                     createPixer called multiple times
      * @return  marker glyph
      */
-    public static Glyph createMarkGlyph( MarkShape shape, int size ) {
+    public static Glyph createMarkGlyph( MarkShape shape, int size,
+                                         boolean isMultipix ) {
         final MarkStyle style = createMarkStyle( shape, size );
-        final PixellatorPixerFactory pfact =
-            new PixellatorPixerFactory( style.getPixelOffsets() );
-        return new Glyph() {
-            public void paintGlyph( Graphics g ) {
-                style.drawShape( g );
-            }
-            public Pixer createPixer( Rectangle clip ) {
-                return pfact.createPixer( clip );
-            }
-        };
+        if ( isMultipix ) {
+            final PixellatorPixerFactory pfact =
+                new PixellatorPixerFactory( style.getPixelOffsets() );
+            return new Glyph() {
+                public void paintGlyph( Graphics g ) {
+                    style.drawShape( g );
+                }
+                public Pixer createPixer( Rectangle clip ) {
+                    return pfact.createPixer( clip );
+                }
+            };
+        }
+        else {
+            return new Glyph() {
+                public void paintGlyph( Graphics g ) {
+                    style.drawShape( g );
+                }
+                public Pixer createPixer( Rectangle clip ) {
+                    return new PixellatorPixerFactory( style.getPixelOffsets() )
+                          .createPixer( clip );
+                }
+            };
+        }
     }
 
     /**
@@ -272,7 +307,7 @@ public abstract class MarkForm implements ShapeForm {
          */
         protected MarkOutliner( MarkShape shape, int size, Icon icon ) {
             style_ = createMarkStyle( shape, size );
-            glyph_ = createMarkGlyph( shape, size );
+            glyph_ = createMarkGlyph( shape, size, true );
             icon_ = icon;
         }
 
@@ -374,7 +409,7 @@ public abstract class MarkForm implements ShapeForm {
                                              Map<AuxScale,Range> auxRanges,
                                              final PaperType2D paperType ) {
             final double[] dpos = new double[ surface.getDataDimCount() ];
-            final Point gp = new Point();
+            final Point2D.Double gp = new Point2D.Double();
             return new ShapePainter() {
                 public void paintPoint( TupleSequence tseq, Color color,
                                         Paper paper ) {
@@ -392,7 +427,7 @@ public abstract class MarkForm implements ShapeForm {
                                              Map<AuxScale,Range> auxRanges,
                                              final PaperType3D paperType ) {
             final double[] dpos = new double[ surface.getDataDimCount() ];
-            final Point gp = new Point();
+            final Point2D.Double gp = new Point2D.Double();
             final double[] dz = new double[ 1 ];
             return new ShapePainter() {
                 public void paintPoint( TupleSequence tseq, Color color,
@@ -452,7 +487,7 @@ public abstract class MarkForm implements ShapeForm {
                                              Map<AuxScale,Range> auxRanges,
                                              final PaperType2D paperType ) {
             final double[] dpos = new double[ surface.getDataDimCount() ];
-            final Point gp = new Point();
+            final Point2D.Double gp = new Point2D.Double();
             final int npc = geom.getPosCoords().length;
             return new ShapePainter() {
                 public void paintPoint( TupleSequence tseq, Color color,
@@ -473,7 +508,7 @@ public abstract class MarkForm implements ShapeForm {
                                              Map<AuxScale,Range> auxRanges,
                                              final PaperType3D paperType ) {
             final double[] dpos = new double[ surface.getDataDimCount() ];
-            final Point gp = new Point();
+            final Point2D.Double gp = new Point2D.Double();
             final double[] dz = new double[ 1 ];
             final int npc = geom.getPosCoords().length;
             return new ShapePainter() {

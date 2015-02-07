@@ -12,10 +12,11 @@ import uk.ac.starlink.table.join.MultiJoinType;
 import uk.ac.starlink.table.join.ProgressIndicator;
 import uk.ac.starlink.table.join.RowMatcher;
 import uk.ac.starlink.task.ChoiceParameter;
-import uk.ac.starlink.task.Parameter;
 import uk.ac.starlink.task.Environment;
 import uk.ac.starlink.task.ExecutionException;
 import uk.ac.starlink.task.IntegerParameter;
+import uk.ac.starlink.task.Parameter;
+import uk.ac.starlink.task.StringParameter;
 import uk.ac.starlink.task.TaskException;
 import uk.ac.starlink.ttools.jel.JELTable;
 import uk.ac.starlink.ttools.task.InputTableSpec;
@@ -34,7 +35,7 @@ public class MatchMapper implements TableMapper {
 
     private final MatchEngineParameter matcherParam_;
     private final JoinFixActionParameter fixcolsParam_;
-    private final ChoiceParameter mmodeParam_;
+    private final ChoiceParameter<String> mmodeParam_;
     private final IntegerParameter irefParam_;
     private final ProgressIndicatorParameter progressParam_;
 
@@ -53,13 +54,14 @@ public class MatchMapper implements TableMapper {
         irefParam_.setPrompt( "Index of reference table in " + PAIRS_MODE
                             + " mode" );
         irefParam_.setUsage( "<table-index>" );
-        irefParam_.setDefault( "1" );
+        irefParam_.setIntDefault( 1 );
 
         mmodeParam_ =
-            new ChoiceParameter( "multimode",
-                                 new String[] { PAIRS_MODE, GROUP_MODE, } );
+            new ChoiceParameter<String>( "multimode",
+                                         new String[] { PAIRS_MODE,
+                                                        GROUP_MODE, } );
         mmodeParam_.setPrompt( "Semantics of multi-table match" );
-        mmodeParam_.setDefault( PAIRS_MODE );
+        mmodeParam_.setStringDefault( PAIRS_MODE );
 
         irefParam_.setDescription( new String[] {
             "<p>If <code>" + mmodeParam_.getName() + "</code>"
@@ -136,7 +138,7 @@ public class MatchMapper implements TableMapper {
     public TableMapping createMapping( Environment env, int nin )
             throws TaskException {
 
-        String mmode = mmodeParam_.stringValue( env );
+        final String mmode = mmodeParam_.stringValue( env );
         final int iref;
         if ( PAIRS_MODE.equalsIgnoreCase( mmode ) ) {
             irefParam_.setMinimum( 1 );
@@ -156,12 +158,11 @@ public class MatchMapper implements TableMapper {
                 matcherParam_.createMatchTupleParameter( numLabel );
             MatchEngineParameter.configureTupleParameter( tupleParam, matcher );
             exprTuples[ i ] = tupleParam.wordsValue( env );
-            Parameter suffixParam =
+            StringParameter suffixParam =
                 fixcolsParam_.createSuffixParameter( numLabel );
             fixActs[ i ] = fixcolsParam_.getJoinFixAction( env, suffixParam );
             joinTypes[ i ] =
-                (MultiJoinType) new MultiJoinTypeParameter( numLabel )
-                               .objectValue( env );
+                new MultiJoinTypeParameter( numLabel ).objectValue( env );
         }
         ProgressIndicator progger =
             progressParam_.progressIndicatorValue( env );
@@ -379,7 +380,8 @@ public class MatchMapper implements TableMapper {
      * Parameter which determines whether all or only matched rows should be
      * output for a given input table.
      */
-    private static class MultiJoinTypeParameter extends ChoiceParameter {
+    private static class MultiJoinTypeParameter
+            extends ChoiceParameter<MultiJoinType> {
 
         /**
          * Constructor.
@@ -387,18 +389,20 @@ public class MatchMapper implements TableMapper {
          * @param   numLabel  numeric label, "1", "2", "N" etc
          */
         public MultiJoinTypeParameter( String numLabel ) {
-            super( "join" + numLabel );
-            addOption( MultiJoinType.DEFAULT );
-            addOption( MultiJoinType.MATCH );
-            addOption( MultiJoinType.NOMATCH );
-            addOption( MultiJoinType.ALWAYS );
+            super( "join" + numLabel,
+                   new MultiJoinType[] {
+                       MultiJoinType.DEFAULT,
+                       MultiJoinType.MATCH,
+                       MultiJoinType.NOMATCH,
+                       MultiJoinType.ALWAYS,
+                   } );
             boolean hasNum = numLabel != null && numLabel.length() > 0;
             String prompt = "Output row selection criteria";
             if ( hasNum ) {
                 prompt += " from table " + numLabel;
             }
             setPrompt( prompt );
-            setDefault( MultiJoinType.DEFAULT.toString() );
+            setDefaultOption( MultiJoinType.DEFAULT );
             setDescription( new String[] {
                 "<p>Determines which rows",
                 ( hasNum ? ( "from input table " + numLabel )

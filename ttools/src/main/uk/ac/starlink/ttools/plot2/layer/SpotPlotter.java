@@ -3,8 +3,8 @@ package uk.ac.starlink.ttools.plot2.layer;
 import java.awt.Color;
 import java.awt.Component;
 import java.awt.Graphics;
-import java.awt.Point;
 import java.awt.Rectangle;
+import java.awt.geom.Point2D;
 import javax.swing.Icon;
 import java.util.Map;
 import uk.ac.starlink.ttools.plot.Range;
@@ -16,6 +16,7 @@ import uk.ac.starlink.ttools.plot2.Glyph;
 import uk.ac.starlink.ttools.plot2.LayerOpt;
 import uk.ac.starlink.ttools.plot2.Pixer;
 import uk.ac.starlink.ttools.plot2.PlotLayer;
+import uk.ac.starlink.ttools.plot2.PlotUtil;
 import uk.ac.starlink.ttools.plot2.Surface;
 import uk.ac.starlink.ttools.plot2.config.ConfigKey;
 import uk.ac.starlink.ttools.plot2.config.ConfigMap;
@@ -52,6 +53,16 @@ public class SpotPlotter extends AbstractPlotter<SpotPlotter.SpotStyle> {
      */
     public SpotPlotter() {
         super( "Spot", createSpotIcon( Color.RED ), 1, new Coord[ 0 ] );
+    }
+
+    public String getPlotterDescription() {
+        return PlotUtil.concatLines( new String[] {
+            "<p>Plots a fixed sized marker at each data point.",
+            "This is a minimal plotter implementation,",
+            "intended as an implementation example.",
+            "More capable plotters exist which do the same thing.",
+            "</p>",
+        } );
     }
 
     public ConfigKey[] getStyleKeys() {
@@ -119,7 +130,7 @@ public class SpotPlotter extends AbstractPlotter<SpotPlotter.SpotStyle> {
         Color spotColor = style.color_;
         int icPos = getCoordGroup().getPosCoordIndex( 0, geom );
         double[] dpos = new double[ surface.getDataDimCount() ];
-        Point gp = new Point();
+        Point2D.Double gp = new Point2D.Double();
         TupleSequence tseq = dataStore.getTupleSequence( dataSpec );
         while ( tseq.next() ) {
             if ( geom.readDataPos( tseq, icPos, dpos ) &&
@@ -148,7 +159,7 @@ public class SpotPlotter extends AbstractPlotter<SpotPlotter.SpotStyle> {
         Color spotColor = style.getColor();
         int icPos = getCoordGroup().getPosCoordIndex( 0, geom );
         double[] dpos = new double[ surface.getDataDimCount() ];
-        Point gp = new Point();
+        Point2D.Double gp = new Point2D.Double();
         double[] dz = new double[ 1 ];
         TupleSequence tseq = dataStore.getTupleSequence( dataSpec );
         while ( tseq.next() ) {

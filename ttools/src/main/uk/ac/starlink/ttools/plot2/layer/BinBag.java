@@ -122,9 +122,15 @@ public class BinBag {
         }
 
         /* If normalised values are requested rescale them using the
-         * final total. */
+         * final total.  In the cumulative case fix it so that the
+         * final value is normalised to 1, and in the non-cumulative
+         * case so that the area covered by the bars is 1. */
         if ( normalised ) {
-            double scale = 1. / total;
+            double scale1 = total;
+            if ( ! cumulative ) {
+                scale1 *= log_ ? Math.log( binWidth_ ) : binWidth_;
+            }
+            double scale = 1.0 / scale1;
             for ( int ib = 0; ib < nbin; ib++ ) {
                 binValues[ ib ] *= scale;
             }
@@ -183,6 +189,38 @@ public class BinBag {
                 }
             };
         }
+    }
+
+    /**
+     * Iterates over all the bins defined by this bin bag in a given
+     * data interval.  The contents of each bin, if any, are irrelevant
+     * to this operation.
+     *
+     * @param   lo   lower bound of interest
+     * @param   hi   upper bound of interest
+     * @return   iterator in sequence over 2-element (low,high) bin range
+     *           arrays that together cover the supplied (lo,hi) range
+     */
+    public Iterator<double[]> barIterator( double lo, double hi ) {
+        final int ibin0 = mapper_.getBinIndex( lo );
+        final int ibin1 = mapper_.getBinIndex( hi );
+        return new Iterator<double[]>() {
+            int ib = ibin0;
+            public boolean hasNext() {
+                return ib <= ibin1;
+            }
+            public double[] next() {
+                if ( ib <= ibin1 ) {
+                    return mapper_.getBinLimits( ib++ );
+                }
+                else {
+                    throw new NoSuchElementException();
+                }
+            }
+            public void remove() {
+                throw new UnsupportedOperationException();
+            }
+        };
     }
 
     /**

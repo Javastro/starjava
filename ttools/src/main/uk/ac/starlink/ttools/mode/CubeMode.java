@@ -10,6 +10,7 @@ import uk.ac.starlink.task.Environment;
 import uk.ac.starlink.task.OutputStreamParameter;
 import uk.ac.starlink.task.Parameter;
 import uk.ac.starlink.task.ParameterValueException;
+import uk.ac.starlink.task.StringParameter;
 import uk.ac.starlink.task.TaskException;
 import uk.ac.starlink.task.UsageException;
 import uk.ac.starlink.ttools.DocUtils;
@@ -31,8 +32,8 @@ public class CubeMode implements ProcessingMode {
     private final WordsParameter binsizeParam_;
     private final WordsParameter nbinParam_;
     private final OutputStreamParameter outParam_;
-    private final ChoiceParameter typeParam_;
-    private final Parameter scaleParam_;
+    private final ChoiceParameter<Class> typeParam_;
+    private final StringParameter scaleParam_;
     private WordsParameter colsParam_;
 
     /** Output data types for FITS output. */
@@ -47,7 +48,7 @@ public class CubeMode implements ProcessingMode {
     public CubeMode() {
         boundsParam_ = new WordsParameter( "bounds" );
         boundsParam_.setNullPermitted( true );
-        boundsParam_.setDefault( null );
+        boundsParam_.setStringDefault( null );
         boundsParam_.setWordParser( new BoundsParser() );
         boundsParam_.setWordUsage( "[<lo>]:[<hi>]" );
         boundsParam_.setPrompt( "Data bounds for each dimension" );
@@ -111,9 +112,9 @@ public class CubeMode implements ProcessingMode {
             "</p>",
         } );
 
-        typeParam_ = new ChoiceParameter( "otype", OUT_TYPES );
+        typeParam_ = new ChoiceParameter<Class>( "otype", OUT_TYPES );
         typeParam_.setNullPermitted( true );
-        typeParam_.setDefault( null );
+        typeParam_.setStringDefault( null );
         typeParam_.setPrompt( "Type of output array elements" );
         typeParam_.setDescription( new String[] {
             "<p>The type of numeric value which will fill the output array.",
@@ -126,10 +127,10 @@ public class CubeMode implements ProcessingMode {
             "</p>",
         } );
 
-        scaleParam_ = new Parameter( "scale" );
+        scaleParam_ = new StringParameter( "scale" );
         scaleParam_.setUsage( "<col-id>" );
         scaleParam_.setNullPermitted( true );
-        scaleParam_.setDefault( null );
+        scaleParam_.setStringDefault( null );
         scaleParam_.setPrompt( "Value by which to scale counts" );
         scaleParam_.setDescription( new String[] {
             "<p>Optionally gives a value by which the count in each bin is",
@@ -232,10 +233,10 @@ public class CubeMode implements ProcessingMode {
         }
 
         /* Get the destination. */
-        Destination dest = outParam_.destinationValue( env );
+        Destination dest = outParam_.objectValue( env );
 
         /* Get the output datatype size. */
-        Class outType = (Class) typeParam_.objectValue( env );
+        Class outType = typeParam_.objectValue( env );
 
         /* Construct and return the consumer itself. */
         return new CubeWriter( loBounds, hiBounds, nbins, binsizes, colIds,

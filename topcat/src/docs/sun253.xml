@@ -13,6 +13,15 @@
                                          "activation-classes-javadocs.xml">
   <!ENTITY topcat.usage SYSTEM "topcat.usage">
 
+  <!-- Import entity definitions from other packages including customisation -->
+  <!ENTITY gbin.stil.intro SYSTEM "gbin-stil-intro.xdoc">
+  <!ENTITY gbin.stil.appexample SYSTEM "gbin-stil-appexample.xdoc">
+  <!ENTITY gbin.stil.notes SYSTEM "gbin-stil-notes.xdoc">
+  <!ENTITY gbin-package-name 'TOPCAT'>
+  <!ENTITY gbin-package-cmdline 'topcat'>
+  <!ENTITY gbin-package-classpath 'topcat-full.jar'>
+  <!ENTITY gbin-package-mainclass 'uk.ac.starlink.topcat.Driver'>
+
   <!-- Define some character constants. -->
   <!ENTITY column.id.char '$'>
   <!ENTITY subset.id.char '_'>
@@ -57,6 +66,7 @@
   <!ENTITY FIG.SkyColumnQueryWindow '&figs;SkyColumnQueryWindow.gif'>
   <!ENTITY FIG.SyntheticSubsetQueryWindow 
            '&figs;SyntheticSubsetQueryWindow.gif'>
+  <!ENTITY FIG.ClassifyWindow '&figs;ClassifyWindow.gif'>
   <!ENTITY FIG.MethodWindow '&figs;MethodWindow.gif'>
   <!ENTITY FIG.HtmlWindow '&figs;HtmlWindow.gif'>
   <!ENTITY FIG.LogWindow '&figs;LogWindow.gif'>
@@ -150,15 +160,19 @@
   <!ENTITY FIG.mode_aux '&figs;mode_aux.gif'>
   <!ENTITY FIG.form_mark '&figs;form_mark.gif'>
   <!ENTITY FIG.form_size '&figs;form_size.gif'>
+  <!ENTITY FIG.form_sizexy '&figs;form_sizexy.gif'>
   <!ENTITY FIG.form_vector '&figs;form_vector.gif'>
   <!ENTITY FIG.form_error '&figs;form_error.gif'>
   <!ENTITY FIG.form_ellipse '&figs;form_ellipse.gif'>
   <!ENTITY FIG.form_line '&figs;form_line.gif'>
+  <!ENTITY FIG.form_linearfit '&figs;form_linearfit.gif'>
   <!ENTITY FIG.form_label '&figs;form_label.gif'>
   <!ENTITY FIG.form_contour '&figs;form_contour.gif'>
   <!ENTITY FIG.form_marks2 '&figs;form_marks2.gif'>
   <!ENTITY FIG.form_link2 '&figs;form_link2.gif'>
   <!ENTITY FIG.font_tab '&figs;font_tab.gif'>
+  <!ENTITY FIG.size_tab '&figs;size_tab.gif'>
+  <!ENTITY FIG.title_tab '&figs;title_tab.gif'>
   <!ENTITY FIG.ConfigControl_histobars '&figs;ConfigControl_histobars.gif'>
   <!ENTITY FIG.PlaneAxisControl_coords '&figs;PlaneAxisControl_coords.gif'>
   <!ENTITY FIG.PlaneAxisControl_navigation
@@ -196,6 +210,7 @@
   <!ENTITY FIG.TimePlotWindow '&figs;TimePlotWindow.gif'>
   <!ENTITY FIG.plotmatch_dialog '&figs;plotmatch_dialog.gif'>
   <!ENTITY FIG.SkyPlotWindow_plotmatch '&figs;SkyPlotWindow_plotmatch.gif'>
+  <!ENTITY FIG.CdsUploadMatchWindow '&figs;CdsUploadMatchWindow.gif'>
 
   <!-- Define external URLs. -->
   <!ENTITY URL.VOTABLE "http://www.ivoa.net/Documents/latest/VOT.html">
@@ -219,11 +234,14 @@
             <ref id="SpectrogramLayerControl">Spectrogram Layer Control</ref>'>
   <!ENTITY FORM.mark '&IMG.FORM_MARK; <ref id="form-mark">Mark</ref>'>
   <!ENTITY FORM.size '&IMG.FORM_SIZE; <ref id="form-size">Size</ref>'>
+  <!ENTITY FORM.sizexy '&IMG.FORM_SIZEXY; <ref id="form-sizexy">SizeXY</ref>'>
   <!ENTITY FORM.vector '&IMG.FORM_VECTOR; <ref id="form-vector">Vector</ref>'>
   <!ENTITY FORM.error '&IMG.FORM_ERROR; <ref id="form-error">Error Bars</ref>'>
   <!ENTITY FORM.ellipse '&IMG.FORM_ELLIPSE;
                         <ref id="form-ellipse">Ellipse</ref>'>
   <!ENTITY FORM.line '&IMG.PLOT_LINE; <ref id="form-line">Line</ref>'>
+  <!ENTITY FORM.linearfit '&IMG.FORM_LINEARFIT;
+                          <ref id="form-linearfit">Linear Fit</ref>'>
   <!ENTITY FORM.label '&IMG.PLOT_LABEL; <ref id="form-label">Text Label</ref>'>
   <!ENTITY FORM.contour '&IMG.PLOT_CONTOUR;
                         <ref id="form-contour">Contour</ref>'>
@@ -254,7 +272,7 @@
 
 <docnumber>253</docnumber>
 
-<docdate>7 March 2014</docdate>
+<docdate>6 February 2015</docdate>
 
 <contactlist>
 <contact>TOPCAT web page:
@@ -287,8 +305,7 @@ even with modest memory and CPU resources.
 including a browser for the cell data themselves, 
 viewers for information about table and column metadata,
 tools for joining tables using flexible matching algorithms,
-and visualisation facilities including histograms, 2- and 3-dimensional
-scatter plots, and density maps.
+and extensive 2- and 3-d visualisation facilities.
 Using a powerful and extensible Java-based expression language
 new columns can be defined and row subsets selected for separate analysis.
 Selecting a row can be configured to trigger an action, for instance
@@ -443,7 +460,8 @@ something like
 <code>java -jar topcat-full.jar</code> (see <ref id="invoke"/> for
 more detail).  To view a table that you have on disk, you can either
 give its name on the command line or load it using the <label>Load</label>
-button from the GUI.  FITS, VOTable and CDF files are recognised automatically;
+button from the GUI.  FITS, VOTable, CDF and GBIN files
+are recognised automatically;
 if your data is in another format such as ASCII (see <ref id="inFormats"/>)
 you need to tell the program (e.g. <code>-f ascii</code> on the command line).
 If you just want to try the program out, <code>topcat -demo</code> will
@@ -474,10 +492,11 @@ open up new windows.  These fall into a few groups:
     &IMG.PLOT2_SPHERE;</dt>
 <dd><p>Open plotting/visualisation windows of various kinds.</p></dd>
 
-<dt>&IMG.MATCH2; &IMG.MULTICONE; &IMG.CONCAT;</dt>
-<dd><p>Join tables in various ways, including spatial crossmatching</p></dd>
+<dt>&IMG.MATCH2; &IMG.TAP_DIALOG; &IMG.CDSXMATCH;</dt>
+<dd><p>Join tables in various ways including spatial crossmatching,
+    and access remote databases.</p></dd>
 
-<dt>&IMG.HELP; &IMG.FUNCTION;</dt>
+<dt>&IMG.SAMP; &IMG.FUNCTION; &IMG.HELP;</dt>
 <dd><p>Help and information</p></dd>
 </dl>
 
@@ -485,8 +504,8 @@ The <label>Help</label> (&IMG.HELP;) button appears in most windows -
 if you click it a help browser will be displayed showing an appropriate 
 part of this manual.
 As well as the tool bar there are a number of 
-menus along the top - most of the options just repeat those appearing on the
-toolbar, but a few less common ones may be available as well.
+menus along the top - some of the options just repeat those appearing on the
+toolbar, but several less common ones are available as well.
 The <label>Help</label> menu gives you a few 
 more options along the same lines, including displaying the help 
 information in your usual web browser rather than in TOPCAT's (somewhat
@@ -495,7 +514,7 @@ All the windows follow roughly this pattern.  For some of the toolbar
 buttons you can probably guess what they do from their icons, 
 for others probably not - to find out
 you can hover with the mouse to see the tooltip, 
-look in the menus, or read the manual, or just push it and see.
+look in the menus, read the manual, or just push it and see.
 </p>
 
 <p>Some of the windows allow you to make changes of various sorts to the
@@ -594,6 +613,7 @@ have made:
     of the tables being operated on.
     The same applies to the join-like functionality provided by 
     table uploads in the <ref id="TapTableLoadDialog">TAP window</ref>,
+    <ref id="CdsUploadMatchWindow">CDS Upload X-Match window</ref>
     and the <ref id="DalMultiPanel">multiple positional search</ref>
     (Cone, SIA, SSA) windows.
     </p></dd>
@@ -918,7 +938,7 @@ supported input formats have matching output formats and vice versa.
 <p>Loading tables into TOPCAT is done either from the command line
 when you start the program up or
 using the <ref id="LoadWindow">Load Table</ref> dialogue.
-For FITS, VOTable and CDF formats
+For FITS, VOTable, CDF and GBIN formats
 the file format can be detected automatically
 (note this is done by looking at the file content, it has nothing
 to do with filename extensions).
@@ -1035,8 +1055,9 @@ with (<code>colfits-plus</code>) and without (<code>colfits-basic</code>)
 metadata stored as a VOTable byte array in the primary HDU.
 </p>
 
-<p>Colfits format is only available for data which stored as an
-uncompressed file in the file system (not, for instance, from a URL).
+<p>For performance reasons, it is advisable to access colfits files
+uncompressed on disk. Reading them from a remote URL, or in gzipped form,
+may be rather slow (in earlier versions it was not supported at all).
 </p>
 
 </subsubsubsect>
@@ -1293,6 +1314,15 @@ on which it was based was not obtained directly from Microsoft.
 <p>This format is not detected automatically - you must specify that
 you wish to load a table in <code>csv</code> format.
 </p>
+
+</subsubsubsect>
+
+<subsubsubsect id="inGbin">
+<subhead><title>GBIN</title></subhead>
+
+&gbin.stil.intro;
+&gbin.stil.appexample;
+&gbin.stil.notes;
 
 </subsubsubsect>
 
@@ -2245,7 +2275,7 @@ or contact the author.
 <subsect>
 <subhead><title>Matching against a Remote Table</title></subhead>
 
-<p>TOPCAT provides some facilities for positional crossmatches
+<p>TOPCAT provides a number of facilities for positional crossmatches
 against tables which are exposed via Virtual Observatory web services
 (Cone Search, Simple Image Access and Simple Spectral Access)
 and general SQL-like matching (TAP).
@@ -2253,6 +2283,22 @@ These work rather differently from the other functions described
 in this section, which operate on local tables, though conceptually
 the result is similar.
 See <ref id="vo"/> for more details.
+</p>
+
+<p>It also provides access to the X-Match service provided by the CDS,
+as described in <ref id="CdsUploadMatchWindow"/>, which allows fast matching
+against any VizieR table or SIMBAD.
+</p>
+
+<p>In many cases the CDS Upload X-Match window is the easiest, fastest and
+best way to match against remote tables.  TAP is more flexible, but
+has a somewhat steeper learning curve, and may not be as fast or
+scalable for large local tables.  The multi-SIA and multi-SSA
+windows may be useful for performing per-row searches of modest size
+against remote image or spectral archives.
+The multi-cone window is (since version 4.2)
+present mostly for historical reasons, and is not usually a good choice,
+since it is much less efficient than TAP or CDS X-Match.
 </p>
 
 </subsect>
@@ -2315,8 +2361,8 @@ to advertise that it has certain datasets available for access.
 
 <p>Several registries exist; they tend to be maintained by different
 regional VO organisations.  At the time of writing, there are 
-registries maintained for public access by (remnants of) the UK's AstroGrid, 
-the USA's NVO/VAO, and ESA, amongst others.
+registries maintained for public access by GAVO, ESA, STScI
+and (remnants of) the UK's AstroGrid, amongst others.
 Particular projects may also maintain their own registries with
 limited holdings for internal use.
 The main public access registries talk to each other to synchronize 
@@ -2326,7 +2372,7 @@ to each other, and it shouldn't matter too much which one you use.
 In practice, there are some differences of format and content
 between them, so one may work better than another for you or may
 contain a record that you need.
-In most cases though, using the default registry (currently the AstroGrid one)
+In most cases though, using the default registry (currently the GAVO one)
 will probably do what you want it to.
 </p>
 
@@ -2407,7 +2453,8 @@ TOPCAT provides access to these service types in two main ways:
 </dl>
 </p>
 
-<p>TAP is not restricted to positional queries and has its own interface.
+<p>TAP is a much more powerful protocol
+not restricted to positional queries, and has its own interface.
 See the <ref id="TapTableLoadDialog">TAP</ref> load dialogue section
 in <ref id="vo-windows"/>.
 </p>
@@ -2554,13 +2601,24 @@ You can do this in three ways:
 
 </dl>
 </p>
-<p>There is a special column whose name is "Index" and whose 
-&column.id.char;ID is "&column.id.char;0".
-The value of this is the same as the row number in the unsorted table
-(the grey numbers on the left of the grid in the 
-<ref id="TableViewerWindow">Data Window</ref>),
-so for the first column in the unsorted table it's 1, for the second 
-it's 2, and so on.
+
+<p>There is also a special column:
+<dl>
+<dt><code>$index</code></dt>
+<dd><p>The value of this is the current row number in the unsorted
+    table (the first row is 1).
+    This is the value seen in the grey numbers at the left of the grid in the 
+    <ref id="TableViewerWindow">Data Window</ref>).
+    You can alternatively use the form
+    <strong><code>&column.id.char;0</code></strong>.
+    (The form <strong><code>index</code></strong> is also permitted,
+    but deprecated).
+    Note that this value is a <code>long</code> (8-byte integer);
+    when using it in certain expressions you may find it necessary to convert
+    it to an <code>int</code> (4-byte integer) using the
+    <code>toInteger()</code> function.
+    </p></dd>
+</dl>
 </p>
 
 <p>The value of the variables so referenced will be a primitive
@@ -2652,6 +2710,26 @@ as follows:
 Note that if a parameter has a name in an unsuitable form (e.g. containing
 spaces) and has no UCD then it cannot be referenced in an expression.
 </p>
+
+<p>There are also a couple of special values:
+<dl>
+<dt>$ncol</dt>
+<dd><p>The number of columns in the table.
+    This figure refers to the underlying table, not the apparent table,
+    so it is not affected by hiding columns.
+    </p></dd>
+<dt>$nrow</dt>
+<dd><p>The number of rows in the table.
+    This figure refers to the underlying table, not the apparent table,
+    so it is not affected by the value of the current subset.
+    Note that this value is a <code>long</code> (8-byte integer);
+    when using it in certain expressions you may find it necessary to convert
+    it to an <code>int</code> (4-byte integer) using the
+    <code>toInteger()</code> function.
+    </p></dd>
+</dl>
+</p>
+
 
 </subsect>
 
@@ -2784,7 +2862,7 @@ The common ones are:
 <dd><p>
   <dl>
   <dt><code>+</code>  (string concatenation)</dt>
-  <dt><code>[]</code> (array dereferencing)</dt>
+  <dt><code>[]</code> (array dereferencing - first element is zero)</dt>
   <dt><code>?:</code> (conditional switch)</dt>
   <dt><code>instanceof</code> (class membership)</dt>
   </dl>
@@ -4283,6 +4361,14 @@ The following ones have special significance within TOPCAT:
     tables in memory, and larger ones on disk.
     </p></dd>
 
+<dt><code>startable.unmap</code></dt>
+<dd><p>Determines whether and how unmapping of memory mapped buffers is done.
+    Possible values are "<code>sun</code>" (the default) or "<code>none</code>".
+    In most cases you are advised to leave this alone, but in the event of
+    unmapping-related JVM crashes (not expected!), setting it to 
+    <code>none</code> may help.
+    </p></dd>
+
 <dt><code>startable.writers</code></dt>
 <dd><p>Can be set to a (colon-separated) list of custom table format output
     handler classes (see <ref id="customHandlers"/>).
@@ -5399,7 +5485,7 @@ functions.  They are grouped as follows:
     </dl>
     </p></dd>
 
-<dt>Matching and joining (see <ref id="join"/>)</dt>
+<dt>Matching etc (see <ref id="join"/>)</dt>
 <dd><p>
     <dl>
 
@@ -5408,19 +5494,28 @@ functions.  They are grouped as follows:
         rows which match between them.
         </p></dd>
 
-    <dt>&IMG.MULTICONE;
-        <ref id="ConeMultiWindow">Multiple Cone Search</ref></dt>
-    <dd><p>Displays a window which permits a positional crossmatch between
-        a local table and a remote table exposed via a VO Cone Search service.
+    <dt>&IMG.TAP_DIALOG;
+        <ref id="TapTableLoadDialog">TAP Query</ref></dt>
+    <dd><p>Displays a dialogue window for querying remote databases using
+        the Table Access Protocol (TAP).
+        This is a very powerful way to access remote data by writing
+        SQL-like queries, and can be used to do joins with remote tables
+        as well as simply downloading data.
         </p></dd>
 
-    <dt>&IMG.CONCAT; <ref id="ConcatWindow">Concatenation Window</ref></dt>
-    <dd><p>Displays a dialog for joining tables top-to-bottom.
+    <dt>&IMG.CDSXMATCH;
+        <ref id="CdsUploadMatchWindow">CDS Upload X-Match</ref></dt>
+    <dd><p>Displays a dialog window which uses the X-Match
+        provided by the Centre de Donn&#x00e9;es astronomiques de Strasbourg
+        to allow fast matching local tables with any tables in the remote
+        VizieR or SIMBAD databases.
         </p></dd>
 
     </dl>
-    Note that matches involving a single table, or more than two tables,
-    can be done using the options in the <label>Joins</label> menu.
+    Note that other options for joining tables,
+    including matches involving a single table or more than two tables,
+    and joining tables top-to-bottom, are available
+    from the <label>Joins</label> menu.
     </p></dd>
 
 <dt>Miscellaneous</dt>
@@ -5583,6 +5678,20 @@ Items available from this menu and not the toolbar are:
 <p>The <label>Joins</label> menu contains actions for various types of
 table join.  The items provided additional to those on the toolbar are:
 <dl>
+
+<dt>&IMG.CONCAT; Concatenation Window</dt>
+<dd><p>Displays the
+    <ref id="ConcatWindow">Contatenate Tables window</ref>,
+    which allows you to join two tables top-to-bottom.
+    </p></dd>
+
+<dt>&IMG.MULTICONE; Multiple Cone Search</dt>
+<dd><p>Displays the
+    <ref id="ConeMultiWindow">Multiple Cone Search Window</ref>
+    which allows you to crossmatch a local table
+    with a remote catalogue exposed via the Cone Search protocol.
+    Note this is somewhat deprecated in favour of TAP or CDS X-Match Upload.
+    </p></dd>
 
 <dt>&IMG.MULTISIA; Multiple SIA</dt>
 <dd><p>Displays the <ref id="SiaMultiWindow">Multiple SIA Window</ref>
@@ -6260,20 +6369,27 @@ can be edited by double-clicking on them in the normal way.
     consisting of the last <m>N</m> rows of the table.
     </p></dd>
 
-<dt>&IMG.DELETE; Remove Subset</dt>
-<dd><p>Deletes one of the subsets in the list.
-    Once deleted, a subset cannot be recovered.
-    Note that attempts to use its name or _ID in algebraic expressions
-    which you add or modify in the future will fail, though its use in 
-    existing expressions will continue to work.
-    </p></dd>
-
 <dt>&IMG.INVERT; Invert Subset</dt>
 <dd><p>Creates a new subset which is the complement of the selected one.
     The new one will include all the rows which are excluded by the
     selected one (and vice versa).
     To use this action, first select a subset by clicking on its row
     in the JTable.
+    </p></dd>
+
+<dt>&IMG.CLASSIFY; Classify By Column</dt>
+<dd><p>Pops up the
+    <ref id="ClassifyWindow">Column Classification Window</ref>,
+    which can add a set of mutually exclusive subsets based on the contents
+    of a given column or expression.
+    </p></dd>
+
+<dt>&IMG.DELETE; Remove Subset</dt>
+<dd><p>Deletes one of the subsets in the list.
+    Once deleted, a subset cannot be recovered.
+    Note that attempts to use its name or _ID in algebraic expressions
+    which you add or modify in the future will fail, though its use in 
+    existing expressions will continue to work.
     </p></dd>
 
 <dt>&IMG.TO_COLUMN; To Column</dt>
@@ -6683,9 +6799,6 @@ currently (v4.1) available in the new-style plots are:
 <li>true RGB density maps (though density shading modes will often do as good
     or a better job)</li>
 <li>fogging in 3D plots</li>
-<li>linear correlation</li>
-<li>plot titles</li>
-<li>histogram export as a table</li>
 </ul>
 The intention is to introduce some of all of these in a future release,
 possibly informed by user demand.
@@ -6745,7 +6858,8 @@ adding and removing controls from the stack.
 <dt>Fixed controls:</dt>
 <dd><p>These control the overall plot appearance.
     In the above figure, the fixed controls
-    <label>Axes</label> (&IMG.AXIS_EDIT;) and
+    <label>Frame</label> (&IMG.FRAME_CONFIG;),
+    <label>Axes</label> (&IMG.AXIS_CONFIG;) and
     <label>Legend</label> (&IMG.LEGEND;) are visible.
     </p>
     <p>The different fixed controls are described in
@@ -7330,10 +7444,55 @@ Those common to all plot types are described in the following subsections,
 though some plot types may also have their own.
 </p>
 
+<subsubsubsect id="FrameControl">
+<subhead><title>Frame</title></subhead>
+
+<p>The <label>Frame</label> control (&IMG.FRAME_CONFIG;)
+controls the graphical area on which the plot graphic is drawn.
+It contains two tabs, <label>Size</label> and <label>Title</label>.
+</p>
+
+<figure>
+<caption><px>Frame control Size tab</px></caption>
+<figureimage src="&FIG.size_tab;"/>
+</figure>
+
+<p>The <label>Size</label> tab allows you to set the geometry of the
+generated plot in pixels.  By default, the plot is simply resized to
+fit the current size and shape of the window.  However, if you fill
+in the <label>Outer width</label> and/or <label>Outer height</label>
+fields, the size will instead be fixed to the given dimension in pixels.
+Note if you pick a large value, you may need to manually resize the
+window to see all of the plot.
+Similarly, the <label>border</label> fields fix the number of pixels
+surrounding the data region of the plot; if these are left blank,
+as by default, these borders are sized to accommodate the things
+that have to fit in them
+(such as axis annotations and the Aux axis colour ramp).
+</p>
+
+<p>The main use for this tab is to fix the size and alignment
+of the generated images if you want to export a series of
+similar plots.
+</p>
+
+<figure>
+<caption><px>Frame control Title tab</px></caption>
+<figureimage src="&FIG.title_tab;"/>
+</figure>
+
+<p>The <label>Title</label> tab allows you to give a title for the plot.
+If text is filled in the <label>Plot Title</label> field,
+and if the <label>Title Visible</label> checkbox is checked,
+then the given text will appear at the top of the plot.
+</p>
+
+</subsubsubsect>
+
 <subsubsubsect id="AxesControl">
 <subhead><title>Axes</title></subhead>
 
-<p>The <label>Axes</label> control (&IMG.AXIS_EDIT;)
+<p>The <label>Axes</label> control (&IMG.AXIS_CONFIG;)
 has a number of tabs specific to the particular plot type.
 These tabs allow you to configure things like the axis ranges,
 linear/log axis scaling, axis labelling, grid drawing,
@@ -7423,23 +7582,35 @@ are coloured by data value to represent an additional dimension in the data.
 <p>The <label>Map</label> tab controls the aux axis colour map.
 It has the following options:
 <dl>
-<dt>Shader</dt>
+<dt>Aux Shader</dt>
 <dd><p>Select the colour map from a list of options.
     </p></dd>
-<dt>Shade Clip</dt>
+<dt>Shader Clip</dt>
 <dd><p>Select a sub-range of the full colour map above.
     By default the whole colour map is used, but if you want the range
     of colours in the plot to be formed from only a part of the colour
     band shown in the <label>Shader</label> control,
     you can move the handles in from the end of this slider.
     </p></dd>
-<dt>Shade Log</dt>
-<dd><p>Whether the aux scale should map linearly or logarithmically
-    into the colour map.
-    </p></dd>
-<dt>Shade Flip</dt>
+<dt>Shader Flip</dt>
 <dd><p>Whether the aux scale should map forwards or backwards
     into the colour map.
+    </p></dd>
+<dt>Shader Quantise</dt>
+<dd><p>Allows the colour map to be quantised.
+    By default, the colour map is effectively continuous.
+    If you slide the slider to the right, the map will be split into
+    a decreasing number of discrete colours.  This can be used to generate
+    a contour-like efect, and may make it easier to trace the boundaries
+    of regions of interest by eye.
+    </p></dd>
+<dt>Scaling</dt>
+<dd><p>Determines the function used to map the range of aux data values
+    onto the colour map.
+    Options are <label>linear</label>,
+                <label>logarithmic</label>,
+                <label>square</label> and
+                <label>square root</label>.
     </p></dd>
 <dt>Null Colour</dt>
 <dd><p>What colour should be used to represent points with a null value
@@ -7474,7 +7645,10 @@ It has the following options:
     The associated <label>Auto</label> option, if selected, uses the
     name of one of the coordinates supplying aux data;
     deselect Auto if you want to enter a label by hand.
-</p></dd>
+    </p></dd>
+<dt>Aux Tick Crowding</dt>
+<dd><p>The slider influences how many tick marks are drawn on the colour ramp.
+    </p></dd>
 </dl>
 </p>
 
@@ -7885,16 +8059,41 @@ It has the following fields:
 <p>The <label>Style</label> allows you to configure the way the spectrogram
 is plotted.  It has the following fields:
 <dl>
-<dt>Shader</dt>
+<dt>Spectral Shader</dt>
 <dd><p>Select the colour map from a list of options.
     </p></dd>
-<dt>Shade Log</dt>
-<dd><p>Whether the aux scale should map linearly or logarithmically
+<dt>Shader Clip</dt>
+<dd><p>Select a sub-range of the full colour map above.
+    By default the whole colour map is used, but if you want the range
+    of colours in the plot to be formed from only a part of the colour
+    band shown in the <label>Shader</label> control,
+    you can move the handles in from the end of this slider.
+    </p></dd>
+<dt>Shader Flip</dt>
+<dd><p>Whether the spectral values should map forwards or backwards
     into the colour map.
     </p></dd>
-<dt>Shade Flip</dt>
-<dd><p>Whether the aux scale should map forwards or backwards
-    into the colour map.
+<dt>Shader Quantise</dt>
+<dd><p>Allows the colour map to be quantised.
+    By default, the colour map is effectively continuous.
+    If you slide the slider to the right, the map will be split into
+    a decreasing number of discrete colours.  This can be used to generate
+    a contour-like efect, and may make it easier to trace the boundaries
+    of regions of interest by eye.
+    </p></dd>
+<dt>Scaling</dt>
+<dd><p>Determines the function used to map the range of spectral data values
+    onto the colour map.
+    Options are <label>linear</label>,
+                <label>logarithmic</label>,
+                <label>square</label> and
+                <label>square root</label>.
+    </p></dd>
+<dt>Spectral Subrange</dt>
+<dd><p>Adjusts the range of the spectral coordinate over which the
+    colour map is applied.  By default the colour map is scaled using
+    limits found from the spectral data values themselves,
+    but you can restrict the range using this slider.
     </p></dd>
 <dt>Null Colour</dt>
 <dd><p>What colour should be used to represent spectral samples with a null
@@ -8074,13 +8273,21 @@ whose size varies according to a supplied data coordinate.
 The marker size thus represents an additional dimension of the plot.
 </p>
 
-<p>The marker size is scaled according to the values of the data.
-The data range in the visible part of the plot is determined,
-the maximum value is assigned to the maximum marker size,
-and the size of each marker is determined as (data value)/(max data value).
-Currently data values of zero always correspond to marker size of zero,
+<p>The actual size of the markers depends on the setting of the
+<label>Auto Scale</label> option.
+If autoscaling is off, then the basic size of each
+marker is the input data value in units of pixels.
+If autoscaling is on, then the data values are gathered for
+all the currently visible points, and a scaling factor is applied
+so that the largest ones will be a sensible size (a few tens of pixels).
+This basic size can be further adjusted with the <label>Scale</label> slider.
+</p>
+
+<p>Currently data values of zero always correspond to marker size of zero,
 negative data values are not represented, and the mapping is linear.
-Other options may be introduced in future.
+An absolute maximum size on markers <!--PlotUtil.MAX_MARKSIZE-->
+is also imposed.
+Other options may be introduced in future. 
 </p>
 
 <p>Note the scaling to size is in terms of screen dimensions (pixels).
@@ -8097,13 +8304,102 @@ the <ref id="form-error">Error</ref> form may be more appropriate.
 <dd><p>The size coordinate data values.
     Fill this in with a column name or expression from the table
     just like for the positional coordinates.
+    The units are either pixels or arbitrary, according to
+    the <label>Auto Scale</label> setting.
     </p></dd>
 <dt>Shape</dt>
 <dd><p>Marker shape from a list of options.
     </p></dd>
-<dt>Max Marker Size</dt>
-<dd><p>Scales the maximum marker size in pixels.
-    Slide this along to scale the sizes of all the markers up or down.
+<dt>Scale</dt>
+<dd><p>Scales the size of variable-sized markers.
+    Adjusting the slider will make all markers larger or smaller.
+    </p></dd>
+<dt>Auto Scale</dt>
+<dd><p>Determines whether the basic size of variable sized markers is
+    automatically scaled to have a sensible size. If checked, then the sizes
+    of all the plotted markers are examined, and some dynamically calculated
+    factor is applied to them all to make them a sensible size (by default,
+    the largest ones will be a few tens of pixels).
+    If unchecked, the sizes will be the actual input values in units of pixels.
+    </p>
+    <p>If auto-scaling is off, then markers will keep exactly the same
+    screen size during pan and zoom operations;
+    if it's on, then the visible sizes will change according
+    to what other points are currently plotted. 
+    </p></dd>
+</dl>
+</p>
+
+</subsubsubsect>
+
+<subsubsubsect id="form-sizexy">
+<subhead><title>SizeXY Form</title></subhead>
+
+<figure>
+<caption><px>SizeXY form configuration panel</px></caption>
+<figureimage src="&FIG.form_sizexy;"/>
+</figure>
+
+<p>The <label>SizeXY</label> form (&IMG.FORM_SIZEXY;)
+plots a shaped marker whose width and height vary independently
+acoording to two supplied data coordinates.
+The marker shape can thus encode two additional dimensions of the plot.
+</p>
+
+<p>The actual size of the markers depends on the setting of the
+<label>Auto Scale</label> option.
+If autoscaling is off, the basic dimensions of each marker are given by
+the input data values in units of pixels. If autoscaling is on, the data
+values are gathered for all the currently visible points, and scaling
+factors are applied so that the largest ones will be a sensible size
+(a few tens of pixels). This autoscaling happens independently for the
+X and Y directions. The basic sizes can be further adjusted with the
+<label>Scale</label> slider.
+</p>
+
+<p>Currently data values of zero always correspond to marker extent of zero,
+negative data values are not represented, and the mapping is linear.
+An absolute maximum size on markers <!--PlotUtil.MAX_MARKSIZE-->
+is also imposed.
+Other options may be introduced in future.
+</p>
+
+<p>Note the scaling to size is in terms of screen dimensions (pixels).
+For sizes that correspond to actual data values,
+the <ref id="form-error">Error</ref> form may be more appropriate.
+</p>
+
+<p>The configuration options are:
+<dl>
+<dt>Shading Mode</dt>
+<dd><p>See <ref id="ShapeMode"/>.
+    </p></dd>
+<dt>X/Y Size</dt>
+<dd><p>For width and height respectively, the size coordinate data values.
+    Fill in with a column name or expression from the table
+    just like for the positional coordinates.
+    The units are either pixels or arbitrary, according to
+    the <label>Auto Scale</label> setting.
+    </p></dd>
+<dt>Shape</dt>
+<dd><p>Marker shape from a list of options.
+    </p></dd>
+<dt>Scale</dt>
+<dd><p>Scales the size of variable-sized markers.
+    Adjusting the slider will make all markers larger or smaller.
+    </p></dd>
+<dt>Auto Scale</dt>
+<dd><p>Determines whether the basic size of variable sized markers is
+    automatically scaled to have a sensible size. If checked, then the sizes
+    of all the plotted markers are examined, and some dynamically calculated
+    factor is applied to them all to make them a sensible size (by default,
+    the largest ones will be a few tens of pixels).
+    If unchecked, the sizes will be the actual input values in units of pixels.
+    </p>
+    <p>If auto-scaling is off, then markers will keep exactly the same
+    screen size during pan and zoom operations;
+    if it's on, then the visible sizes will change according
+    to what other points are currently plotted. 
     </p></dd>
 </dl>
 </p>
@@ -8224,7 +8520,7 @@ see the <ref id="form-ellipse">Ellipse</ref> form).
 </figure>
 
 <p>The <label>Ellipse</label> form (&IMG.FORM_ELLIPSE;)
-draws an ellipse (or rectangle, or other similar figure) defined by 
+draws an ellipse (or rectangle, triangle, or other similar figure) defined by 
 major and minor radii and an optional rotation angle.
 </p>
 
@@ -8294,6 +8590,72 @@ scribble on the screen.
     </p></dd>
 <dt>Antialiasing</dt>
 <dd><p>If true, pixels are blurred to give the line a smoother appearance.
+    </p></dd>
+</dl>
+</p>
+
+</subsubsubsect>
+
+<subsubsubsect id="form-linearfit">
+<subhead><title>Linear Fit Form</title></subhead>
+
+<figure>
+<caption><px>Linear Fit configuration panel</px></caption>
+<figureimage src="&FIG.form_linearfit;"/>
+<!-- Data from VizieR J/A+A/320/79/table4 -->
+</figure>
+
+<p>The <label>Linear Fit</label> form (&IMG.FORM_LINEARFIT;)
+determines a least-squares best fit of a line to the data points,
+optionally weighted by a given value, and plots the corresponding line.
+</p>
+
+<p>The configuration options are:
+<dl>
+<dt>Weight</dt>
+<dd><p>Weighting to apply to each point.
+    If left blank, no weighting (equivalent to unit weighting) is applied.
+    If independent sampling errors <code>E</code> are available for each point,
+    a suitable value for this may be <code>1./(E*E)</code>
+    (equivalently <code>pow(E,-2)</code>).
+    </p></dd>
+<dt>Thickness</dt>
+<dd><p>Line thickness in pixels.
+    </p></dd>
+<dt>Dash</dt>
+<dd><p>Dash pattern.  The line is solid by default.
+    </p></dd>
+<dt>Antialiasing</dt>
+<dd><p>If true, pixels are blurred to give the line a smoother appearance.
+    </p></dd>
+</dl>
+</p>
+
+<p>As well as drawing the line onto the plot,
+the calculated fitting coefficients are
+displayed at the bottom of the form configuration panel,
+under the heading <label>Report</label>.
+Note the coefficients are calculated by subset, and
+are only displayed for one subset at a time.
+To see the calculated values, select the subset of interest in
+the <label>Subset</label> selector.
+The reported items are:
+<dl>
+<dt>Equation</dt>
+<dd><p>The equation of the line.
+    The basic linear equation is <code>y=m*x+c</code>,
+    but if one or both of the axes are plotted logarithmically,
+    the fit is performed to take account of this, and the equation
+    is displayed accordingly.
+    </p></dd>
+<dt>c</dt>
+<dd><p>The constant intercept of the line on the Y axis.
+    </p></dd>
+<dt>m</dt>
+<dd><p>The line gradient.
+    </p></dd>
+<dt>Correlation</dt>
+<dd><p>Pearson's product moment correlation coefficient.
     </p></dd>
 </dl>
 </p>
@@ -8455,7 +8817,6 @@ and plots a line linking the two points in a position pair.
 
 <p>Configuration options are:
 <dl>
-<dt>Shading Mode</dt>
 <dt>Shading Mode</dt>
 <dd><p>See <ref id="ShapeMode"/>.
     </p></dd>
@@ -8656,7 +9017,7 @@ shapes plotted.
 <p>This is like <ref id="mode-auto">Auto</ref> mode, but with more
 user-configurable options.  The options are:
 <dl>
-<dt>Map</dt>
+<dt>Density Shader</dt>
 <dd><p>The colour map for displaying density values.
     There are two types, relative and absolute.
     Relative maps have names marked by a star ("*"), and alter the
@@ -8665,22 +9026,34 @@ user-configurable options.  The options are:
     For a single-dataset plot, the absolute maps are best, but for
     multiple subsets it may be less confusing to use a relative one.
     </p></dd>
-<dt>Map Clip</dt>
+<dt>Shader Clip</dt>
 <dd><p>Select only a part of the colour map selected above.
     By default the whole colour map is used, but if you want the range
     of colours in the plot to be formed from only a part of the colour
     band shown in the <label>Shader</label> control,
     you can move the handles in from the end of this slider.
     </p></dd>
-<dt>Log</dt>
-<dd><p>Selects whether the colour map should be applied linearly or
-    logarithmically to the range of densities.  The default is logarithmic.
+<dt>Shader Flip</dt>
+<dd><p>Whether the density scale should map forwards or backwards
+    into the colour map.
     </p></dd>
-<dt>Flip</dt>
-<dd><p>Selects whether the colour map should be applied forwards or
-    backwards to the range of densities.
+<dt>Shader Quantise</dt>
+<dd><p>Allows the colour map to be quantised.
+    By default, the colour map is effectively continuous.
+    If you slide the slider to the right, the map will be split into
+    a decreasing number of discrete colours.  This can be used to generate
+    a contour-like efect, and may make it easier to trace the boundaries
+    of regions of interest by eye.
     </p></dd>
-<dt>Sub-range</dt>
+<dt>Scaling</dt>
+<dd><p>Determines the function used to map the range of density values
+    onto the colour map.
+    Options are <label>linear</label>,
+                <label>logarithmic</label>,
+                <label>square</label> and
+                <label>square root</label>.
+    </p></dd>
+<dt>Density Subrange</dt>
 <dd><p>Adjusts the density range over which the colour
     map is applied.  By default the colour map is scaled using limits
     found from the data density in the plot (the most dense few pixels are
@@ -8768,7 +9141,45 @@ and the scrolling works a bit differently.
 
 <p>See the <ref id="StackPlotWindow" plaintextref="yes">Window Overview</ref>
 for features common to all plotting windows.
-The following subsections describe
+</p>
+
+<p>The following non-standard action is available from the toolbar
+as well as the <label>Plot</label> menu:
+<dl>
+
+<dt>&IMG.RESIZE_Y; Rescale Y</dt>
+<dd><p>Adjusts the vertical range of the visible data region
+    to accommodate all the histogram bars in the currently
+    visible horizontal region of the plot.
+    The horizontal range is not changed.
+    </p></dd>
+
+</dl>
+</p>
+
+<p>In addition, the histogram window lets you export the binned data as
+a new table, either saving it or loading it directly into TOPCAT's
+table list.
+The following actions are available in the <label>Export</label> menu:
+<dl>
+
+<dt>&IMG.HISTO_SAVE; Save as Table</dt>
+<dd><p>The bin counts/sums corresponding to the currently plotted histogram
+    will be written to disk in tabular form.  The first two columns give
+    the lower and upper bounds of each bin, and the subsequent columns
+    give the occupancies of each bin for each plotted data set.
+    If only one dataset is plotted, there will only be three columns.
+    </p></dd>
+
+<dt>&IMG.HISTO_IMPORT; Import as Table</dt>
+<dd><p>Assembles a table as per the <label>Save</label> option above,
+    but rather than writing it to disk imports it directly into TOPCAT,
+    where it can be manipulated in all the usual ways.
+    </p></dd>
+</dl>
+</p>
+
+<p>The following subsections describe
 <ref id="histogramNavigation">navigation</ref>,
 <ref id="HistogramAxisControl">axis configuration</ref> and
 <ref id="ConfigControl_histobars">bar configuration</ref>.
@@ -8920,10 +9331,12 @@ The following subsections describe
     <ul>
     <li>&FORM.mark;</li>
     <li>&FORM.size;</li>
+    <li>&FORM.sizexy;</li>
     <li>&FORM.vector;</li>
     <li>&FORM.error;</li>
     <li>&FORM.ellipse;</li>
     <li>&FORM.line;</li>
+    <li>&FORM.linearfit;</li>
     <li>&FORM.label;</li>
     <li>&FORM.contour;</li>
     </ul></li>
@@ -9000,8 +9413,8 @@ tab of the <ref id="PlaneAxisControl">Axes control</ref>.
 <subsubsubsect id="PlaneAxisControl">
 <subhead><title>Plane Axes Control</title></subhead>
 
-<p>The <label>Axes</label> control (&IMG.AXIS_EDIT;) for the
-plane plot window has six tabs.
+<p>The <label>Axes</label> control (&IMG.AXIS_CONFIG;) for the
+plane plot window has the following tabs:
 </p>
 
 <figure>
@@ -9205,6 +9618,7 @@ The following subsections describe
     <ul>
     <li>&FORM.mark;</li>
     <li>&FORM.size;</li>
+    <li>&FORM.sizexy;</li>
     <li>&FORM.vector;</li>
     <li>&FORM.ellipse;</li>
     <li>&FORM.label;</li>
@@ -9279,8 +9693,8 @@ tab of the <ref id="SkyAxisControl">Axes control</ref>.
 <subsubsubsect id="SkyAxisControl">
 <subhead><title>Sky Axes Control</title></subhead>
 
-<p>The <label>Axes</label> control (&IMG.AXIS_EDIT;) for the
-sky plot window has five tabs.
+<p>The <label>Axes</label> control (&IMG.AXIS_CONFIG;) for the
+sky plot window has the following tabs:
 </p>
 
 <figure>
@@ -9474,6 +9888,7 @@ The following subsections describe
     <ul>
     <li>&FORM.mark;</li>
     <li>&FORM.size;</li>
+    <li>&FORM.sizexy;</li>
     <li>&FORM.vector;</li>
     <li>&FORM.error;</li>
     <li>&FORM.ellipse;</li>
@@ -9573,8 +9988,8 @@ tab of the <ref id="CubeAxisControl">Axes control</ref>.
 <subsubsubsect id="CubeAxisControl">
 <subhead><title>Cube Axes Control</title></subhead>
 
-<p>The <label>Axes</label> control (&IMG.AXIS_EDIT;) for the
-cube plot window has seven tabs.
+<p>The <label>Axes</label> control (&IMG.AXIS_CONFIG;) for the
+cube plot window has the following tabs:
 </p>
 
 <figure>
@@ -9786,6 +10201,7 @@ The following subsections describe
     <ul>
     <li>&FORM.mark;</li>
     <li>&FORM.size;</li>
+    <li>&FORM.sizexy;</li>
     <li>&FORM.label;</li>
     <li>&FORM.contour;</li>
     </ul></li>
@@ -9877,8 +10293,8 @@ tab of the <ref id="SphereAxisControl">Axes control</ref>.
 <subsubsubsect id="SphereAxisControl">
 <subhead><title>Sphere Axes Control</title></subhead>
 
-<p>The <label>Axes</label> control (&IMG.AXIS_EDIT;) for the
-sphere plot window has five tabs.
+<p>The <label>Axes</label> control (&IMG.AXIS_CONFIG;) for the
+sphere plot window has the following tabs:
 </p>
 
 <figure>
@@ -10131,8 +10547,8 @@ tab of the <ref id="PlaneAxisControl">Axes control</ref>.
 <subsubsubsect id="TimeAxisControl">
 <subhead><title>Time Axes Control</title></subhead>
 
-<p>The <label>Axes</label> (&IMG.AXIS_EDIT;) for the
-time plot window has six tabs.
+<p>The <label>Axes</label> (&IMG.AXIS_CONFIG;) for the
+time plot window has the following tabs:
 </p>
 
 <figure>
@@ -14026,7 +14442,9 @@ rows either between two or more local tables or within a single table.
 This topic is discussed in more detail in <ref id="join"/>.
 Windows for other kinds of joins are described elsewhere:
 concatenation in <ref id="ConcatWindow"/> and matching with 
-remote tables via VO services in <ref id="vo-windows"/>.
+remote tables via VO services in <ref id="vo-windows"/>
+and against VizieR and SIMBAD via the CDS X-Match service in
+<ref id="CdsUploadMatchWindow"/>.
 </p>
 
 <p>The <ref id="match-windows-common">next subsection</ref>
@@ -14985,6 +15403,17 @@ to define the actual query or queries to submit to the selected service.
 The windows themselves are described in the following subsections.
 </p>
 
+<p>TOPCAT also provides access to two important services provided by
+the CDS (Centre de Donn&#x00e9;es astronomiques de Strasbourg):
+the
+<ref id="VizierTableLoadDialog">VizieR Catalogue Service Query</ref> and
+<ref id="CdsUploadMatchWindow">CDS X-Match Upload Window</ref>.
+These are not strictly speaking Virtual Observatory services,
+but since they provide access to the comprehensive VizieR archive
+of astronomical tables they can provide similar or superior
+functionality to their VO counterparts, so it's worth being aware of them.
+</p>
+
 <subsubsect id="vo-windows-common">
 <subhead><title>Common Features</title></subhead>
 
@@ -15015,21 +15444,33 @@ for services matching your constraints.
 This consists of the following parts:
 <dl>
 <dt>Registry</dt>
-<dd><p>This contains the URL for the registry that will be queried for
+<dd><p>This determines the registry that will be queried for
     suitable data services.  You can select from the available options,
     or enter a URL corresponding to some other registry service that 
-    you know about.  The default is the AstroGrid registry, which at 
-    time of writing usually works quite well, but other registries may
+    you know about.  The default is currently the GAVO registry, which at 
+    time of writing usually works pretty well, but other registries may
     have somewhat different data holdings.  Some registries don't work
     very well, so you may have trouble if you use other ones.
-    The <label>Update Registry List</label> item in the 
+    </p>
+    <p>To the right of this box is a selector that allows you to choose
+    between two registry protocol options: <label>RegTAP</label> and
+    <label>RI1.0</label>, corresponding to the IVOA
+    <webref url="http://www.ivoa.net/documents/RegTAP/index.html"
+            >Relational Registry</webref> and
+    <webref url="http://www.ivoa.net/documents/RegistryInterface/"
+            >Registry Interface 1.0</webref>
+    standards respectively.
+    At the time of writing (June 2014), RI1.0
+    is being phased out, and RegTAP is recommended.  It is in any case
+    considerably faster and more reliable than RI1.0.
+    Unless you are a registry enthusiast, sticking to RegTAP is recommended.
+    </p>
+    <p>The <label>Update Registry List</label> item in the 
     <label>Registry</label> menu queries the currently selected registry
-    for other registries, and adds more entries to the selector box.
-    Although this ought to work, it seems that records representing
-    registries themselves are often misconfigured, 
-    so most of the reulting items at
-    the time of writing fail for one reason or another.  But if you're
-    a registry enthusiast, feel free to experiment with it.
+    for other registries, and adds more entries to the selector box
+    as appropriate;
+    the little round indicator between the URL and protocol selectors
+    indicates progress of this query.
     </p></dd>
 <dt>Keywords</dt>
 <dd><p>Fill this in with keywords appropriate to the services you want to
@@ -15085,8 +15526,9 @@ to make another selection of registry entries.
 </p>
 
 <p>When the query completes, a table of matching entries is displayed
-below the Submit button.
-This contains one row for each matching entry, i.e. each service of
+below the Submit button.  The number of resources found is displayed
+at the bottom, labelled <label>Resource Count</label>.
+The table contains one row for each matching entry, i.e. each service of
 the appropriate type that you can submit your data query to.
 The columns in the table give a short name, title, description and
 some other information about each service.
@@ -15674,8 +16116,8 @@ using the <ref id="ActivationQueryWindow">Activation Window</ref>.
 
 <p>The Table Access Protocol (TAP) load window can be opened using the
 <label>TAP Query</label> button (&IMG.TAP_DIALOG;)
-from the Load Window's toolbar or the Control Window's
-<label>VO</label> menu.
+in the Control Window's toolbar or <label>VO</label> menu,
+or the Load Window's toolbar.
 It allows you to use the TAP protocol to
 make freeform queries of remote database services 
 using an SQL-like language.
@@ -16199,6 +16641,201 @@ further or to pick up the completed result.
 <subsect>
 <subhead><title>Other Windows</title></subhead>
 
+<subsubsect id="CdsUploadMatchWindow">
+<subhead><title>CDS Upload X-Match Window</title></subhead>
+
+<figure>
+<caption><px>CDS Upload X-Match Window</px></caption>
+<figureimage src="&FIG.CdsUploadMatchWindow;"/>
+</figure>
+
+<p>The CDS Upload X-Match Window allows you to join a local table
+with any table provided by the 
+<webref url="http://vizier.u-strasbg.fr/">VizieR</webref>
+database of astronomical tables or with
+<webref url="http://simbad.u-strasbg.fr/">SIMBAD</webref>.
+You can access the window from the main
+<ref id="ControlWindow">Control Window</ref> using the
+<label>CDS Upload Match</label> button (&IMG.CDSXMATCH;)
+in the toolbar, or the <label>Joins</label> or <label>VO</label> menus.
+This window is an interface to the excellent
+<webref url="http://cdsxmatch.u-strasbg.fr/">CDS X-Match service</webref>
+provided by the Centre de Donn&#x00e9;es astronomiques de Strasbourg
+(<webref url="http://cds.u-strasbg.fr">CDS</webref>).
+The service is very fast, and in most cases it is the best way to
+match a local table against a large external table hosted by a service.
+In particular, it is almost certainly much better than using
+the <ref id="ConeMultiWindow">Multi-Cone</ref> window,
+though it's less flexible than <ref id="TapTableLoadDialog">TAP</ref>.
+</p>
+
+<p>The local table is uploaded to the X-Match service in blocks,
+and the matches for each block are retrieved in turn and eventually
+stitched together to form the final result.
+The tool only uploads sky position and an identifier for each row of
+the input table, but all columns of the input table are reinstated
+in the result for reference.  These details are mostly transparent
+when using the service, though it may help to understand how the progress
+bar moves.
+</p>
+
+<p>The window has three panels, described below.
+</p>
+
+<p>The <label>Remote Table</label> panel allows you to select the
+CDS table against which to match.
+The table must be entered by name in the <label>VizieR Table ID/Alias</label>
+field, and may be in one of the following forms:
+<ul>
+<li>"simbad", to indicate the 
+    <webref url="http://simbad.u-strasbg.fr/simbad/">SIMBAD database</webref>
+    of known astronomical objects.
+    </li>
+<li>A VizieR table identifier, for instance "II/246/out".
+    <em>Note</em> these must name the table not just the catalogue
+    (which may contain several tables), so for instance "II/246" will not work.
+    No help is currently provided in this window to search for these IDs,
+    you have to use one of the services or web pages provide by CDS to
+    locate them.
+    A good tip is the table searching facility at the TAPVizieR service,
+    <webref url="http://tapvizier.u-strasbg.fr/adql/"/>.
+    </li>
+<li>A VizieR table alias, for instance "2mass".
+    A few tens of these are defined for the largest
+    and most-used tables in VizieR, and these can be selected by clicking
+    on the selection box.
+    </li>
+</ul>
+</p>
+
+<p>When a table name has been entered, additional information
+(Name, Alias, Description and Row Count)
+will be downloaded from CDS and displayed in the lower part of the
+Remote Table panel.  If nothing shows up here, then the table name
+is not legal for the X-Match service, and the <label>Go</label> button
+will be disabled.
+</p>
+
+<p>Sky coverage information is also displayed, including the proportion
+of the sky covered by the table and a graphical indication of the
+covered regions on the sky.
+</p>
+
+<p>The <label>Local Table</label> panel allows you to indicate the
+local table (the one loaded into TOPCAT) that you want to match.
+You must select the required table and indicate its Right Ascension
+and Declination columns.
+</p>
+
+<p>The <label>Match Parameters</label> panel supplies the other information
+about how the match will operate:
+<dl>
+<dt>Radius</dt>
+<dd><p>The maximum distance between a local table and remote table position
+    to count as a match.  There is a maximum enforced on this value by
+    the CDS X-Match service, currently 2 arcminutes.
+    </p></dd>
+<dt>Find mode</dt>
+<dd><p>Determines in what form the result is generated and used.
+    The following options are available:
+    <dl>
+    <dt>Best</dt>
+    <dd><p>Load a new table with one row for each local row that matches
+        a remote row, giving the closest match.  Unmatched local rows
+        are not included.
+        </p></dd>
+    <dt>All</dt>
+    <dd><p>Load a new table with one row for each remote row that matches
+        a local row.  The match is symmetric between local and remote tables.
+        </p></dd>
+    <dt>Each</dt>
+    <dd><p>Load a new table with the same number of rows as the local table,
+        in the same order.  The best remote match, if any, appears alongside
+        the local row, but if there is no match the remote columns are blank.
+        </p></dd>
+    <dt>Best Remote</dt>
+    <dd><p>Load a new table with one row for each remote table row that
+        matches the local table.
+        <em>Note</em> there is currently a bug in this mode;
+        if the match is done in N blocks then a remote row may appear 
+        up to N times rather than just one.  This may be fixed in
+        a future release, but to avoid it you can make sure that the
+        <label>Block size</label> is greater than the row count.
+        </p></dd>
+    <dt>Add Subset</dt>
+    <dd><p>No new table is loaded,
+        but a new <ref id="subsets">Row Subset</ref> is added to the
+        local table indicating which rows had at least one match to the
+        remote table.
+        </p></dd>
+    </dl>
+    </p></dd>
+    <dt>Rename columns</dt>
+    <dd><p>If columns from two input tables are combined, it's possible
+        that some may share the same name.  Multiple columns in a table
+        with the same name can cause confusion, so this selector allows
+        you to determine whether and how such name clashes are dealt with.
+        Columns from the remote table can be renamed by appending a
+        specified suffix, either always or only in case of duplicate names.
+        </p></dd>
+    <dt>Block size</dt>
+    <dd><p>The number of rows uploaded to the X-Match service at a time.
+        This should not affect the result, though it may affect performance.
+        </p>
+        <p>Large blocksizes tend to be good (up to a point) for
+        reducing the total amount of time a large xmatch operation takes,
+        but they can make it harder to see the job progressing.
+        There is also the danger (for ALL-type find modes)
+        of exceeding the return size limit, which will result in
+        truncation of the returned result.
+        At time of writing, the upload limit is 100Mbyte (about 3Mrow),
+        and the maximum return size is 2Mrow.
+        </p></dd>
+</dl>
+</p>
+
+<p>When all the fields have been filled in, hit the <label>Go</label>
+button and the match will start; progress will be logged in the progress
+bar at the bottom of the window.  To stop the match before it has
+completed, hit the <label>Stop</label> button.
+Note that the <label>Go</label> button is only enabled when a legal
+table name has been entered at the top.
+</p>
+
+<p>The remote table in most cases contains only a subset of the
+the columns in the relevant VizieR table, including the most useful ones.
+The service currently provides no straightforward way to acquire columns
+which are not returned by default.
+</p>
+
+<p>The following item is available in the toolbar and <label>Search</label>
+menu:
+<dl>
+<dt>&IMG.FOOTPRINT; Use Service Coverage</dt>
+<dd><p>If this option is selected, then the sky coverage of the
+    service is used to pre-filter local table rows.
+    In this case those rows that fall outside the coverage area of
+    the remote table are not uploaded for matching, since it is
+    known that they will not match.  This option should therefore
+    not affect the result, but improve performance, and as such
+    should generally be turned on (the default).
+    </p></dd>
+</dl>
+</p>
+
+<p><strong>Acknowledgement</strong>: CDS note that if the use of the
+X-Match service is useful to your research, they would appreciate
+the following acknowledgement:
+<blockquote>
+<em>
+  "This research made use of the cross-match service provided by
+  CDS, Strasbourg."
+</em>
+</blockquote>
+</p>
+
+</subsubsect>
+
 <subsubsect id="ConcatWindow">
 <subhead><title>Concatenation Window</title></subhead>
 
@@ -16210,7 +16847,7 @@ further or to pick up the completed result.
 <p>The Concatenation Window allows you to join two tables together
 top-to-bottom.  It can be obtained using the 
 <label>Concatenate Tables</label> button (&IMG.CONCAT;) in the
-<ref id="ControlWindow">Control Window</ref> toolbar or Joins menu.
+<ref id="ControlWindow">Control Window</ref> <label>Joins</label> menu.
 </p>
 
 <p>When two windows are concatenated
@@ -16960,6 +17597,120 @@ the fields, a popup window will give you a message describing the
 problem.
 </p>
 
+</subsubsect>
+
+<subsubsect id="ClassifyWindow">
+<subhead><title>Column Classification Window</title></subhead>
+
+<figure>
+<caption><px>Column Classification Window</px></caption>
+<figureimage src="&FIG.ClassifyWindow;"/>
+</figure>
+
+<p>The Column Classification Window takes a column or other algebraic
+expression, and generates a number of mutually exclusive 
+<ref id="subsets">Row Subsets</ref> based on its contents.
+For instance if you have a column with different integer values
+representing different object types, this window will let you
+add a new subset to the table for each of the distinct values (object types)
+appearing in the table.  Each subset contains rows with a single
+value of the classification expression you supply.
+In the above example, a new subset will be created for each
+of the four most commonly-occurring constellations in the table.
+</p>
+
+<p>You can activate this dialogue using the
+<label>Classify By Column</label> (&IMG.CLASSIFY;) button in the
+<ref id="SubsetWindow">Subsets Window</ref>.
+</p>
+
+<p>In the <label>Query</label> panel, you specify the 
+expression you want to classify on.
+You can select a simple column name from the drop-down list,
+or type in an algebraic expression as described in <ref id="jel"/>.
+If you want to classify on ranges of values rather than exact
+equivalence you can use an expression that rounds to an integer,
+for instance "<code>toInteger(RMAG/2.0)*2</code>" would give you subsets
+corresponding to bins of width 2 in magnitude.
+When you have entered the expression, you may need to click the
+<label>Classify</label> button to start the classification
+(or it may happen automatically).
+The classification will often complete straight away,
+but for large tables it could take a noticeable amount of time,
+in which case a progress bar is shown at the bottom of the window.
+You can stop a long-running classification in progress with the
+<label>Stop</label> button.
+If you have a very large table with many distinct categories in the given
+column, the process can take a lot of memory - if the application runs out
+of memory, a warning will pop up and the classification will not complete.
+</p>
+
+<p>When the classification has run, the results are displayed in
+the <label>Results</label> panel.
+Two fields control the way these results are displayed:
+<dl>
+<dt>Number of Categories</dt>
+<dd><p>Since in general there may be a large number of different values
+    in the column of interest (as many as there are rows), only the
+    few most popular ones are shown.
+    This field controls the maximum number shown,
+    you can adjust it as required.
+    The fixed value after the entry field shows the total number of
+    distinct values discovered in the data;
+    increasing the field's value beyond this value will have no further effect.
+    </p></dd>
+<dt>Subset name prefix</dt>
+<dd><p>Defines the prefix added to the column values to give the default
+    name for each subset that will be added to the table.
+    The application tries to come up with something sensible
+    based on the classification expression, but doesn't always succeed.
+    If you type in a new prefix here, all the subsets listed below 
+    are given new default names accordingly.
+    </p></dd>
+</dl>
+</p>
+
+<p>The results are displayed in a table, each row corresponding to
+a Row Subset that can be added to the table based on the classification.
+The subsets are shown in decreasing order of popularity
+(the subset containing the most rows is listed first).
+The final row, labelled "<label>other</label>", groups all the
+rows which are not in any of the other currently selected and displayed
+subsets.
+The following columns are shown:
+<dl>
+<dt>Count</dt>
+<dd><p>Number of rows in the subset.
+    </p></dd>
+<dt>Value</dt>
+<dd><p>The classification value shared by all rows in the subset.
+    </p></dd>
+<dt>Subset Name</dt>
+<dd><p>The name of the subset that will be added.
+    The applicaiton tries to come up with sensible default names,
+    but doesn't always succeed - you can edit this field as required.
+    If the name matches the name of any subset already present in the table,
+    when the new subset is added it will replace the old one.
+    </p></dd>
+<dt>Add Subset?</dt>
+<dd><p>If this box is checked, the <label>Add Subsets</label> button below
+    will add a subset corresponding to this row; if not, it will be ignored.
+    If unchecked, the rows from this subset are considered part of the
+    <label>other</label> subset listed at the bottom
+    (you can see the <label>Count</label> field in the <label>other</label>
+    row adjusting when you include or exclude subsets by checking/uncheking
+    this box).
+    </p></dd>
+</dl>
+</p>
+
+<p>When you have adjusted subset names and selected the ones you want
+to add, click the <label>Add Subsets</label> button at the bottom,
+and one subset will be added to the table for each of the items with the
+<label>Add Subset?</label> checkbox ticked.
+If you don't want to add any of these subsets after all,
+just hit <label>Cancel</label> or close the window.
+</p>
 
 </subsubsect>
 
@@ -17327,6 +18078,8 @@ Some of the notable contributers are these:
 <li>Thomas Boch (CDS)</li>
 <li>Laurent Bourges (JMMC)</li>
 <li>Danny Boxhoorn (Kapteyn, Groningen)</li>
+<li>Baptiste Cecconi (LESIA)</li>
+<li>Igor Chilingarian (CfA)</li>
 <li>Malcolm Currie (Starlink, RAL)</li>
 <li>Clive Davenhall (Royal Observatory Edinburgh)</li>
 <li>Luke Davies (Bristol)</li>
@@ -17347,7 +18100,9 @@ Some of the notable contributers are these:
 <li>Tim Jenness (JACH)</li>
 <li>JJ Kavelaars (NRC)</li>
 <li>Gerard Lemson (MPE Garching)</li>
+<li>Mark Mahabir (Leicester)</li>
 <li>Bob Mann (Royal Observatory Edinburgh)</li>
+<li>Gr&#x00e9;gory Mantelet (ARI)</li>
 <li>Ben Maughan (Bristol)</li>
 <li>Richard McMahon (IoA)</li>
 <li>Guillaume Mella (JMMC)</li>
@@ -17355,15 +18110,18 @@ Some of the notable contributers are these:
 <li>Douglas Morgan (Bristol)</li>
 <li>August Muench (CfA)</li>
 <li>Simon Murphy (ANU)</li>
-<li>Francois Ochsenbein (CDS)</li>
+<li>Fran&#x00e7;ois Ochsenbein (CDS)</li>
 <li>Clive Page (Leicester)</li>
 <li>Menelaus Perdikeas (ESAC)</li>
+<li>Fran&#x00e7;ois-Xavier Pineau (CDS)</li>
 <li>Roy Platon (RAL)</li>
 <li>James Price (Bristol)</li>
 <li>Anita Richards (Jodrell Bank)</li>
+<li>Kristin Riebe (AIP)</li>
 <li>Aaron Robotham (Bristol)</li>
 <li>Yannick Roehlly (OAMP)</li>
 <li>Mike Read (ROE)</li>
+<li>Petr &#x0160;koda (AIAS, CZ)</li>
 <li>Mattia Vaccari (Western Cape)</li>
 <li>Juande Sandander Vela (IAA-CSIC)</li>
 <li>Mike Watson (Leicester)</li>
@@ -20021,32 +20779,262 @@ introduced since the last version:
     </dl>
     </p></dd>
 
-<dt>Next version</dt>
+<dt>Version 4.2 (4 July 2014)</dt>
 <dd><p>
-    <ul>
-    <li>Set antialiasing on by default for OSX - get it right this time.</li>
-    <li>Modify the way antialiasing is controlled.  The Grid antialiasing
-        option, where present, now just covers the actual grid lines.
-        Text antialiasing is now selected with a new "Antialias" option
-        in the (now possibly misnamed) "Text Syntax" item
-        in Font configuration.  This now affects the Aux axis and Legend
-        labelling as well as the grid labelling.</li>
-    <li>Add old-style frame zooming on new-style plots using middle button
-        (or shift) drag.</li>
-    <li>Form configuration options are now preserved, rather than reset,
-        when a new table is selected in one of the plot windows.</li>
-    <li>Fixed some bugs related to TAP table uploads.</li>
-    <li>Use RegTAP as (default) alternative to RI1.0 for registry queries
-        (user documentation not yet updated).</li>
-    <li>Update the endpoint for the NVO/VAO RI1.0 registry, on advice from
-        Theresa Dower.</li>
-    <li>Upgraded Gregory Mantelet's ADQL library to version 1.2.
-        Better ADQL parsing.</li>
-    <li>Added new graphics output format <code>png-transp</code>
-        to generate PNG files with transparent backgrounds.</li>
-    <li>Fix out-by-one error in reporting of Row of min/max values
-        in Statistics window.</li>
-    </ul>
+    <dl>
+    <dt>Significant new functionality and changes:</dt>
+    <dd><p>
+        <ul>
+        <li>Add the new
+            <ref id="CdsUploadMatchWindow">CDS X-Match Upload Window</ref>.
+            In most cases (matching with a table that can be found in VizieR)
+            this window can and should be used instead of the old
+            Multi-Cone window - it is <em>much</em> faster.
+            The button for this window replaces the
+            MultiCone button in the main Control Window toolbar.
+            MultiCone is still available from the VO and Joins menus,
+            but is now for most purposes deprecated.</li>
+        <li>Windows with a <ref id="RegistryPanel">Registry Query Panel</ref>
+            can now talk to the registry using either RI1.0
+            (the only option in previous versions) or RegTAP.
+            RegTAP is generally much better
+            (faster, less bandwidth, more reliable),
+            and is the default choice, but a selector allows you
+            to revert to RI1.0 if preferred.</li>
+        <li>The "frame"-style zooming that was used in old-style plots
+            is now available in the new-style plots - drag the mouse
+            using the middle button or shift key.</li>
+        <li>The <ref id="TapTableLoadDialog">TAP Window</ref> button
+            replaces the Concatenate window button on the toolbar.
+            The Concatenate window is still available from the
+            Joins menu.  This is not new functionality, but the UI change
+            reflects the growing usefulness of TAP services.</li>
+        </ul>
+        </p></dd>
+    <dt>Minor improvements:</dt>
+    <dd><p>
+        <ul>
+        <li>Form configuration options are now preserved, rather than reset,
+            when a new table is selected in one of the plot windows.</li>
+        <li>Registry search panels now display resource count at the bottom of
+            the resource list.</li>
+        <li>Update the endpoint for the NVO/VAO RI1.0 registry
+            (now deprecated in favour of RegTAP), on advice from
+            Theresa Dower.</li>
+        <li>Fixed TAP load dialogue so that by default it stays open after a
+            table is loaded (the <label>Stay Open</label> option is set true
+            by default).</li>
+        <li>Improve TAP window Running Jobs display.  The Job URL is now always
+            shown even when the other job details scroll off screen,
+            and the details scroll to the top not the bottom when a job is
+            selected or refreshed.</li>
+        <li>Upgraded Gregory Mantelet's ADQL library to version 1.2.
+            Better ADQL parsing.</li>
+        <li>Modify the way antialiasing is controlled in plot windows.
+            The Grid antialiasing
+            option, where present, now just covers the actual grid lines.
+            Text antialiasing is now selected with a new "Antialias" option
+            in the (now possibly misnamed) "Text Syntax" item
+            in Font configuration.  This now affects the Aux axis and Legend
+            labelling as well as the grid labelling.</li>
+        <li>Added new graphics output format <code>png-transp</code>
+            to generate PNG files with transparent backgrounds.</li>
+        </ul>
+        </p></dd>
+    <dt>Bug fixes:</dt>
+    <dd><p>
+        <ul>
+        <li>Set antialiasing on by default for OSX -
+            get it right this time.</li>
+        <li>Fixed some bugs related to TAP table uploads.</li>
+        <li>Fix out-by-one error in reporting of Row of min/max values
+            in Statistics window.</li>
+        <li>Add missing geometric reserved words to ADQL reserved word list.
+            Has a slight effect on ADQL validation in TAP window.</li>
+        <li>No longer disable "View URL As ..." options in Activation window
+            when no suitable columns are present.</li>
+        <li>Fixed bug in which cube plot navigation help button gave you
+            sphere plot help and vice versa.</li>
+        </ul>
+        </p></dd>
+    </dl>
+    </p></dd>
+
+<dt>Version 4.2-1 (13 November 2014)</dt>
+<dd><p>
+    <dl>
+    <dt>New functionality:</dt>
+    <dd><p>
+        <ul>
+        <li>Add (experimental) read-only support for Gaia/DPAC 
+            <ref id="inGbin">GBIN format</ref>.</li>
+        <li>Add special variables <code>$ncol</code> and <code>$nrow</code> to
+            the <ref id="jelParams">expression language</ref>
+            to refer to the column and row counts in the underlying table.
+            The special variable <code>index</code> is also deprecated in favour
+            of <code>$index</code> or <code>$0</code>.</li>
+        <li>Support viewing tables up to 2<sup>31</sup>
+            (2 billion) rows in the table viewer window.
+            The previous limit was 2<sup>27</sup> (134 million) rows.
+            This does not necessarily mean that using TOPCAT on Gigarow tables
+            is a good idea!</li>
+        </ul>
+        </p></dd>
+    <dt>Minor improvements and bugfixes:</dt>
+    <dd><p>
+        <ul>
+        <li>Change the default RegTAP registry endpoint to
+            <code>http://reg.g-vo.org/tap</code>,
+            which should have good reliability,
+            since it can point to different RegTAP services as required.</li>
+        <li>Add some more colour maps for aux/density shading.</li>
+        <li>Fix regression bug (introduced at v4.2) which caused authentication
+            to fail when using the SQL Query load dialogue.</li>
+        <li>Attempting to write FITS tables with &gt;999 columns now fails
+            with a more helpful error message.</li>
+        <li>Somewhat improved Unicode handling in VOTables.
+            If you load a VOTable with columns marked
+            <code>datatype="unicodeChar"</code>
+            and save it again, the columns now remain <code>unicodeChar</code>
+            instead of getting squashed to type <code>char</code>.
+            Some lurking Unicode-related issues remain.</li>
+        <li>Fix time plot to work for ISO-8601 times.
+            This change also breaks use of ISO-8601 times in non-time plots,
+            but that didn't work particularly well before.
+            Please complain if this change of functionality
+            causes a problem.</li>
+        <li>Fix problem with activation action image viewer selection box.</li>
+        <li>Update JSAMP to v1.3.5.</li>
+        </ul>
+        </p></dd>
+    </dl>
+    </p></dd>
+
+<dt>Version 4.2-2 (6 February 2015)</dt>
+<dd><p>
+    <dl>
+    <dt>Plotting enhancements:</dt>
+    <dd><p>
+        <ul>
+        <li>New <ref id="form-linearfit">Linear Fitting</ref> form for
+            Plane plot.
+            This reinstates behaviour available from old plot windows,
+            but it provides some more options, like point weighting.</li>
+        <li>New <ref id="form-sizexy">SizeXY</ref> form,
+            which allows plotting (optionally autoscaled) markers
+            with horizontal and vertical extents
+            independently determined by input data.</li>
+        <li>New <ref id="FrameControl">Frame</ref> fixed control
+            in plot windows with two tabs,
+            <label>Size</label> and <label>Title</label>.
+            Size allows explicit setting of output plot dimensions
+            and alignment in pixels - can be useful when exporting plots.
+            Title lets you add a text title at the top of the plot.</li>
+        <li>New <label>Save</label>/<label>Import</label> options in
+            <ref id="HistogramPlotWindow">Histogram window</ref>
+            allow you to export histogram bin data as a new table
+            (this reinstates behaviour available from old plot windows).</li>
+        <li>More flexibility when assigning colour maps, in the
+            <ref id="ShaderControl">Aux Axis</ref> control,
+            <ref id="mode-density">Density</ref> shading mode, and
+            <ref id="SpectrogramLayerControl">Spectrogram</ref> layer control.
+            These now provide a <label>Scaling</label> option allowing use of
+            Square and Sqrt mappings as well as Linear and Logarithmic,
+            and a <label>Quantise</label> slider allowing quantisation of
+            the colour map to discrete levels.</li>
+        <li><label>Rescale Y</label> button added to
+            <ref id="HistogramPlotWindow">Histogram</ref> window.</li>
+        <li>Histogram normalisation option adjusted
+            so that total area under bars,
+            rather than total height of bars, is fixed.</li>
+        <li>Tick Crowding configuration option added to
+            <ref id="ShaderControl">Aux Axis control</ref> Ramp tab.
+            Also changed default for Aux axis to use fewer ticks.</li>
+        <li>Some "dart" options (fixed-base open or filled triangles)
+            added for plotting <ref id="form-vector">vectors</ref>.</li>
+        <li>Some "triangle" options (variable-base open or filled triangles)
+            added for plotting <ref id="form-ellipse">ellipses</ref>.</li>
+        <li>Max Marker Size option replaced with with Autoscaling option in
+            plot <ref id="form-size">Size</ref> form.
+            You can now optionally turn off autoscaling and specify marker size
+            in pixels instead.</li>
+        <li>Every slider control in plot windows now has a little button
+            on the right that resets it to its default value.</li>
+        <li>The text labels for configuration options and coordinate
+            entry fields in the plot windows now provide a tooltip 
+            of the form "<code>name=value</code>".
+            These strings give the STILTS parameter assignment
+            corresponding to the current setting.</li>
+        </ul>
+        </p></dd>
+    <dt>Other enhancements</dt>
+    <dd><p>
+        <ul>
+        <li>New <ref id="ClassifyWindow">Column Classification Window</ref>
+            lets you add mutually exclusive subsets
+            based on column contents.</li>
+        </ul>
+        </p></dd>
+    <dt>FITS I/O:</dt>
+    <dd><p>
+        <ul>
+        <li>Reworked part of the FITS input implementation,
+            in particular adjusting the way memory mapping is done to reduce
+            resource requirements on some platforms.
+            If you notice any difference, it should be reduced virtual and
+            perhaps resident memory usage, and some (~10%?) performance
+            improvements, when reading large FITS/colfits files.
+            However, please report anything that appears to be working worse
+            than before.</li>
+        <li>Colfits files can now be accessed from streams,
+            not just uncompressed disk files
+            (though that's not necessarily a good idea).</li>
+        </ul>
+        </p></dd>
+    <dt>MacOS packaging</dt>
+    <dd><p>Some changes have been made to the MacOS DMG file/application
+        bundle.  I believe these are at worst harmless, but pre-release
+        testing of platform-specific features is patchy, so problems are
+        possible - please report if you find any, or if the following items
+        don't seem to be working.
+        <ul>
+        <li>OSX application bundle adjusted so that the DMG file
+            <em>should</em> work on any MacOS with
+            either legacy Apple Java 6 or
+            Oracle/OpenJDK Java 7+ installed.</li>
+        <li>OSX application bundle adjusted (I think) so that application
+            working directory is user's home directory.</li>
+        </ul>
+        </p></dd>
+    <dt>Bugfixes and workarounds:</dt>
+    <dd><p>
+        <ul>
+        <li>Fixed a query bug (missing <code>REQUEST=queryData</code> parameter)
+            in the <ref id="SsaMultiWindow">Multiple SSA Query</ref> window.
+            This long-standing bug would have stopped this window working at all
+            with well-behaved SSA services.</li>
+        <li>Fixed error in fits-var output
+            (PCOUNT header card did not include block alignment gap).</li>
+        <li>Graphics coordinates are now calculated in floating point
+            rather than as integers.  This fixes problems that could
+            cause scaled vectors, ellipses etc to be drawn with shapes
+            or orientations badly wrong due to rounding errors.
+            It also improves plotting of analytic functions, especially 
+            to vector contexts (PDF/EPS).</li>
+        <li>Fix some problems to do with zooming to very large/small
+            plot axis ranges.</li>
+        <li>Hide error bars (etc) that would extend to negative values
+            on logarithmic axes; previously they were being drawn in anomalous
+            places.</li>
+        <li>Fix Aux axis positioning for 3D plots so that the numeric labels
+            don't get snipped off at top and bottom.</li>
+        <li>Add a hack that allows LDAC FITS tables to be treated sensibly
+            in auto-format-detection mode.</li>
+        <li>Make VOTable handling more robust against unknown (illegal)
+            datatypes.</li>
+        </ul>
+        </p></dd>
+    </dl>
     </p></dd>
 
 </dl>

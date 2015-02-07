@@ -14,6 +14,7 @@ import javax.swing.JPanel;
 import javax.swing.JRadioButton;
 import javax.swing.event.ChangeEvent;
 import javax.swing.event.ChangeListener;
+import uk.ac.starlink.topcat.LineBox;
 import uk.ac.starlink.topcat.ResourceIcon;
 import uk.ac.starlink.topcat.ToggleButtonModel;
 import uk.ac.starlink.ttools.plot2.Captioner;
@@ -168,7 +169,8 @@ public class LegendControl extends TabberControl {
      */
     public float[] getLegendPosition() {
         return insideModel_.isSelected()
-             ? new float[] { pusher_.getXPosition(), pusher_.getYPosition() }
+             ? new float[] { pusher_.getXPosition(),
+                             1f - pusher_.getYPosition() }
              : null;
     }
 

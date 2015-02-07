@@ -5,9 +5,11 @@ import java.io.File;
 import java.io.FileOutputStream;
 import java.io.IOException;
 import java.io.OutputStream;
+import java.lang.reflect.Modifier;
 import java.util.Arrays;
-import java.util.Comparator;
 import java.util.Iterator;
+import java.util.logging.Level;
+import java.util.logging.Logger;
 import uk.ac.starlink.task.Parameter;
 import uk.ac.starlink.task.Task;
 import uk.ac.starlink.ttools.Stilts;
@@ -15,9 +17,8 @@ import uk.ac.starlink.ttools.task.LineInvoker;
 import uk.ac.starlink.util.LoadException;
 
 /**
- * Writes a usage paragraph specific to one of the STILTS tasks.
- * Output is to standard output.  This class is designed to be used
- * from its {@link #main} method.
+ * Write usage paragraphs specific to the STILTS tasks.
+ * This class is designed to be used from its <code>main</code> method.
  *
  * @author   Mark Taylor
  * @since    17 Aug 2005
@@ -32,7 +33,7 @@ public class UsageWriter {
             throws LoadException {
         out_ = out;
         taskName_ = taskName;
-        task_ = (Task) Stilts.getTaskFactory().createObject( taskName_ );
+        task_ = Stilts.getTaskFactory().createObject( taskName_ );
     }
 
     private void writeXml() throws IOException {
@@ -41,14 +42,17 @@ public class UsageWriter {
         outln( "<subhead><title>Usage</title></subhead>" );
         outln( "<p>The usage of <code>" + taskName_ + "</code> is" );
         outln( "<verbatim><![CDATA[" );
-        outln( LineInvoker.getPrefixedTaskUsage( task_, prefix )
-                          .replaceFirst( "\n+$", "" ) );
+        outln( LineInvoker
+              .getPrefixedParameterUsage( task_.getParameters(), prefix )
+              .replaceFirst( "\n+$", "" ) );
         outln( "]]></verbatim>" );
         outln( "If you don't have the <code>stilts</code> script installed," );
         outln( "write \"<code>java -jar stilts.jar</code>\" instead of" );
         outln( "\"<code>stilts</code>\" - see <ref id=\"invoke\"/>." );
         outln( "The available <code>&lt;stilts-flags&gt;</code> are listed" );
         outln( "in <ref id=\"stilts-flags\"/>." );
+        outln( "For programmatic invocation, the Task class for this" );
+        outln( "command is <code>" + task_.getClass().getName() + "</code>." );
         outln( "</p>" );
         outln();
 
@@ -60,16 +64,9 @@ public class UsageWriter {
             outln( "</p>" );
             outln( "<p>" );
             outln( "<dl>" );
-            Arrays.sort( params, new Comparator() {
-                public int compare( Object o1, Object o2 ) {
-                    Parameter p1 = (Parameter) o1;
-                    Parameter p2 = (Parameter) o2;
-                    return ((Parameter) o1).getName()
-                          .compareTo( ((Parameter) o2).getName() );
-                }
-            } );
+            Arrays.sort( params, Parameter.BY_NAME );
             for ( int i = 0; i < params.length; i++ ) {
-                outln( xmlItem( params[ i ] ) );
+                outln( xmlItem( params[ i ], false ) );
             }
             outln( "</dl>" );
             outln( "</p>" );
@@ -86,26 +83,114 @@ public class UsageWriter {
      * and description.
      * 
      * @param  param  parameter
+     * @param  isBasic  if true, avoid adding XML constructs which won't be
+     *                  evident (and may cause parsing trouble)
+     *                  in plain text output
      * @return   XML snippet for <code>param</code>
      */
-    public static String xmlItem( Parameter param ) {
-        String usage = ( param.getName() + " = " + param.getUsage() )
-                      .replaceAll( "<", "&lt;" )
-                      .replaceAll( ">", "&gt;" );
+    public static String xmlItem( Parameter param, boolean isBasic ) {
         String descrip = param.getDescription();
         if ( descrip == null ) {
             throw new NullPointerException( "No description for parameter "
                                           + param );
         }
-        StringBuffer sbuf = new StringBuffer();
-        sbuf.append( "<dt><code>" )
-            .append( ( param.getName() + " = " + param.getUsage() )
-                    .replaceAll( "<", "&lt;" )
-                    .replaceAll( ">", "&gt;" ) )
-            .append( "</code></dt>\n" )
+        return new StringBuffer()
+            .append( "<dt>" )
+            .append( "<code>" )
+            .append( getUsageXml( param ) )
+            .append( "</code>" )
+            .append( " " )
+            .append( nbsps( 6 ) )
+            .append( "<em>(" )
+            .append( getTypeXml( param, isBasic ) )
+            .append( ")</em>" )
+            .append( "</dt>\n" )
             .append( "<dd>" )
-            .append( param.getDescription().toString() );
-        String dflt = param.getDefault();
+            .append( descrip )
+            .append( getDefaultXml( param ) )
+            .append( "</dd>" )
+            .toString();
+    }
+
+    /**
+     * Returns XML text giving the basic usage text for a parameter.
+     *
+     * @param  param  parameter to describe
+     * @return  XML snippet giving name=value
+     */
+    private static String getUsageXml( Parameter param ) {
+        return ( param.getName() + " = " + param.getUsage() )
+              .replaceAll( "<", "&lt;" )
+              .replaceAll( ">", "&gt;" );
+    }
+
+    /**
+     * Returns XML text describing the value class of a parameter. 
+     *
+     * @param  param   parameter to describe
+     * @param  isBasic  if true, avoid adding XML constructs which won't be
+     *                  evident (and may cause parsing trouble)
+     *                  in plain text output
+     * @return  XML snippet
+     */
+    private static String getTypeXml( Parameter param, boolean isBasic ) {
+        Class vClazz = param.getValueClass();
+        boolean isArray = vClazz.getComponentType() != null;
+        Class clazz = isArray ? vClazz.getComponentType() : vClazz;
+        String arraySuffix = isArray ? "[]" : "";
+        String clazzName = clazz.getName();
+        int pkgLeng = clazzName.lastIndexOf( "." );
+        String pkgName = pkgLeng >= 0 ? clazzName.substring( 0, pkgLeng ) : "";
+        String unqName = clazz.getSimpleName();
+        final String docset;
+        if ( pkgName.startsWith( "java" ) ) {
+            docset = "&corejavadocs;";
+        }
+        else if ( pkgName.startsWith( "uk.ac.starlink.ttools" ) ) {
+            docset = "&stiltsjavadocs;";
+        }
+        else if ( pkgName.startsWith( "uk.ac.starlink.table" ) ) {
+            docset = "&stiljavadocs;";
+        }
+        else {
+            docset = null;
+        }
+        boolean isPublic = Modifier.isPublic( clazz.getModifiers() );
+        StringBuffer sbuf = new StringBuffer();
+        if ( pkgName.length() == 0 ||
+             pkgName.startsWith( "java.lang" ) ||
+             ! isPublic ) {
+            sbuf.append( unqName )
+                .append( arraySuffix );
+        }
+        else if ( docset == null || isBasic ) {
+            sbuf.append( clazzName )
+                .append( arraySuffix );
+        }
+        else {
+            sbuf.append( "<javadoc docset='" )
+                .append( docset )
+                .append( "'" )
+                .append( " class='" )
+                .append( clazzName )
+                .append( "'" )
+                .append( ">" )
+                .append( unqName )
+                .append( arraySuffix )
+                .append( "</javadoc>" );
+        }
+        return sbuf.toString();
+    }
+
+    /**
+     * Returns XML text giving the default value for a parameter.
+     *
+     * @param  param  parameter to describe
+     * @return  XML snippet giving default string (may be empty)
+     */
+    private static String getDefaultXml( Parameter param ) {
+        String dflt = param.getStringDefault();
+        StringBuffer sbuf = new StringBuffer();
         if ( dflt != null && dflt.length() > 0 ) {
             sbuf.append( "<p>[Default: <code>" )
                 .append( dflt.replaceAll( "&", "&amp;" )
@@ -113,7 +198,20 @@ public class UsageWriter {
                              .replaceAll( ">", "&gt;" ) )
                 .append( "</code>]</p>" );
         }
-        sbuf.append( "</dd>" );
+        return sbuf.toString();
+    }
+
+    /**
+     * Returns a padding string containing non-breaking spaces.
+     *
+     * @param  count  number of spaces
+     * @return  count-char padding string
+     */
+    private static String nbsps( int count ) {
+        StringBuffer sbuf = new StringBuffer( count );
+        for ( int i = 0; i < count; i++ ) {
+            sbuf.append( "\u00a0" );
+        }
         return sbuf.toString();
     }
 
@@ -135,6 +233,7 @@ public class UsageWriter {
      * surrounding XML boilerplate.
      */
     public static void main( String[] args ) throws IOException, LoadException {
+        Logger.getLogger( "uk.ac.starlink.ttools" ).setLevel( Level.WARNING );
         if ( args.length == 0 ) {
             String[] taskNames = Stilts.getTaskFactory().getNickNames();
             File dir = new File( "." );

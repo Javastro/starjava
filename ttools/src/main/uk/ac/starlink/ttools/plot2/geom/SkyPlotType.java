@@ -18,6 +18,7 @@ import uk.ac.starlink.ttools.plot2.layer.ShapeMode;
 import uk.ac.starlink.ttools.plot2.layer.ShapePlotter;
 import uk.ac.starlink.ttools.plot2.layer.SkyVectorCoordSet;
 import uk.ac.starlink.ttools.plot2.layer.SkyEllipseCoordSet;
+import uk.ac.starlink.ttools.plot2.layer.SizeXyForm;
 import uk.ac.starlink.ttools.plot2.paper.PaperTypeSelector;
 
 /**
@@ -42,9 +43,7 @@ public class SkyPlotType implements PlotType {
      */
     private SkyPlotType() {
         dataGeoms_ = new DataGeom[] {
-            SkyDataGeom.createGeom( null, null ),
-            SkyDataGeom.createGeom( SkySys.EQUATORIAL, SkySys.GALACTIC ),
-            SkyDataGeom.createGeom( SkySys.GALACTIC, SkySys.EQUATORIAL ),
+            SkyDataGeom.GENERIC,
         };
     }
 
@@ -57,9 +56,12 @@ public class SkyPlotType implements PlotType {
         ShapeForm[] forms = new ShapeForm[] {
             MarkForm.SINGLE,
             SizeForm.getInstance(),
-            MultiPointForm.createVectorForm( new SkyVectorCoordSet( true ),
+            SizeXyForm.getInstance(),
+            MultiPointForm.createVectorForm( "SkyVector",
+                                             new SkyVectorCoordSet( true ),
                                              true ),
-            MultiPointForm.createEllipseForm( new SkyEllipseCoordSet(), true ),
+            MultiPointForm.createEllipseForm( "SkyEllipse",
+                                              new SkyEllipseCoordSet(), true ),
             PairLinkForm.getInstance(),
             MarkForm.PAIR,
         };

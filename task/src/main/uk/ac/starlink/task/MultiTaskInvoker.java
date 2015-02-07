@@ -18,16 +18,17 @@ import uk.ac.starlink.util.ObjectFactory;
 public class MultiTaskInvoker {
 
     private final String toolName_;
-    private final ObjectFactory taskFactory_;
+    private final ObjectFactory<Task> taskFactory_;
     private String versionMessage_;
 
     /**
      * Constructor.
      *
      * @param  toolName  user-known name for the tool
-     * @param  taskFactory  factory which produces {@link Task} objects
+     * @param  taskFactory  lists available tasks
      */
-    public MultiTaskInvoker( String toolName, ObjectFactory taskFactory ) {
+    public MultiTaskInvoker( String toolName,
+                             ObjectFactory<Task> taskFactory ) {
         toolName_ = toolName;
         taskFactory_ = taskFactory;
     }
@@ -42,14 +43,14 @@ public class MultiTaskInvoker {
      * @param  args  command line words
      */
     public int invoke( String[] args ) {
-        List argList = new ArrayList( Arrays.asList( args ) );
+        List<String> argList = new ArrayList<String>( Arrays.asList( args ) );
 
         /* Process flags. */
         boolean debug = false;
         boolean bench = false;
         int verbose = 0;
-        for ( Iterator it = argList.iterator(); it.hasNext(); ) {
-            String arg = (String) it.next();
+        for ( Iterator<String> it = argList.iterator(); it.hasNext(); ) {
+            String arg = it.next();
             if ( arg.charAt( 0 ) != '-' ) {
                 break;
             }
@@ -95,7 +96,7 @@ public class MultiTaskInvoker {
         String taskName = (String) argList.remove( 0 );
         Task task;
         try {
-            task = (Task) taskFactory_.createObject( taskName );
+            task = taskFactory_.createObject( taskName );
         }
         catch ( LoadException e ) {
             System.err.println( "No such task " + taskName );
@@ -195,7 +196,7 @@ public class MultiTaskInvoker {
             Parameter param = params[ i ];
             ubuf.append( padding );
             boolean optional = param.isNullPermitted()
-                            || param.getDefault() != null;
+                            || param.getStringDefault() != null;
             ubuf.append( optional ? "[" : "" )
                 .append( param.getName() )
                 .append( '=' )

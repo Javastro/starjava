@@ -5,7 +5,7 @@ import uk.ac.starlink.table.StarTableFactory;
 import uk.ac.starlink.table.TableBuilder;
 import uk.ac.starlink.table.TableFormatException;
 import uk.ac.starlink.task.Environment;
-import uk.ac.starlink.task.Parameter;
+import uk.ac.starlink.task.StringParameter;
 import uk.ac.starlink.task.ParameterValueException;
 import uk.ac.starlink.task.TaskException;
 
@@ -15,18 +15,41 @@ import uk.ac.starlink.task.TaskException;
  * @author   Mark Taylor
  * @since    15 Aug 2005
  */
-public class InputFormatParameter extends Parameter implements ExtraParameter {
+public class InputFormatParameter extends StringParameter
+                                  implements ExtraParameter {
 
     public InputFormatParameter( String name ) {
         super( name );
-        setPrompt( "Format name for input table" );
         setNullPermitted( false );
-        setDefault( StarTableFactory.AUTO_HANDLER );
+        setStringDefault( StarTableFactory.AUTO_HANDLER );
+        setTableDescription( "the input table", null );
+    }
 
+    /** 
+     * Sets the wording used to refer to the input table in parameter
+     * descriptions. 
+     * If not set, the wording "the input table" is used.
+     *  
+     * @param  inDescrip  text to replace "the input table"
+     * @param  tableParam  if supplied, gives the table parameter on behalf
+     *                     of which this format parameter is operating;
+     *                     may be null
+     */ 
+    public final void
+            setTableDescription( String inDescrip,
+                                 AbstractInputTableParameter tableParam ) {
+        setPrompt( "Format name for " + inDescrip );
+        StringBuffer dbuf = new StringBuffer();
+        dbuf.append( inDescrip );
+        if ( tableParam != null ) {
+            dbuf.append( " as specified by parameter <code>" )
+                .append( tableParam.getName() )
+                .append( "</code>" );
+        }
         setDescription( new String[] {
-            "<p>Specifies the format of the input table",
-            "(one of the known formats listed in <ref id='inFormats'/>).",
-            "This flag can be used if you know what format your input",
+            "<p>Specifies the format of " + dbuf.toString() + ".",
+            "The known formats are listed in <ref id='inFormats'/>.",
+            "This flag can be used if you know what format your",
             "table is in.",
             "If it has the special value",
             "<code>" + StarTableFactory.AUTO_HANDLER + "</code> (the default),",
@@ -65,7 +88,7 @@ public class InputFormatParameter extends Parameter implements ExtraParameter {
         return sbuf.toString();
     }
 
-    public void setValueFromString( Environment env, String stringval )
+    public String stringToObject( Environment env, String stringval )
             throws TaskException {
         if ( ! StarTableFactory.AUTO_HANDLER.equals( stringval ) ) {
             try {
@@ -76,7 +99,7 @@ public class InputFormatParameter extends Parameter implements ExtraParameter {
                     this, "Unknown format " + stringval, e );
             }
         }
-        super.setValueFromString( env, stringval );
+        return super.stringToObject( env, stringval );
     }
 
     private StarTableFactory getTableFactory( Environment env ) {

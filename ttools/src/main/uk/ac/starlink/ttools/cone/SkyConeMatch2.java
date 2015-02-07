@@ -19,6 +19,7 @@ import uk.ac.starlink.task.Environment;
 import uk.ac.starlink.task.IntegerParameter;
 import uk.ac.starlink.task.Parameter;
 import uk.ac.starlink.task.ParameterValueException;
+import uk.ac.starlink.task.StringParameter;
 import uk.ac.starlink.task.TaskException;
 import uk.ac.starlink.task.UsageException;
 import uk.ac.starlink.ttools.task.ChoiceMode;
@@ -42,18 +43,18 @@ import uk.ac.starlink.ttools.task.TableProducer;
 public abstract class SkyConeMatch2 extends SingleMapperTask {
 
     private final Coner coner_;
-    private final Parameter raParam_;
-    private final Parameter decParam_;
-    private final Parameter srParam_;
-    private final Parameter copycolsParam_;
-    private final ChoiceParameter modeParam_;
-    private final Parameter distcolParam_;
+    private final StringParameter raParam_;
+    private final StringParameter decParam_;
+    private final StringParameter srParam_;
+    private final StringParameter copycolsParam_;
+    private final ChoiceParameter<String> modeParam_;
+    private final StringParameter distcolParam_;
     private final BooleanParameter ostreamParam_;
     private final IntegerParameter parallelParam_;
     private final ConeErrorPolicyParameter erractParam_;
     private final JoinFixActionParameter fixcolsParam_;
-    private final Parameter insuffixParam_;
-    private final Parameter conesuffixParam_;
+    private final StringParameter insuffixParam_;
+    private final StringParameter conesuffixParam_;
     private final BooleanParameter usefootParam_;
     private final IntegerParameter nsideParam_;
     private static final Logger logger_ =
@@ -72,7 +73,7 @@ public abstract class SkyConeMatch2 extends SingleMapperTask {
     public SkyConeMatch2( String purpose, Coner coner, int maxParallel ) {
         super( purpose, new ChoiceMode(), true, true );
         coner_ = coner;
-        List paramList = new ArrayList();
+        List<Parameter> paramList = new ArrayList<Parameter>();
         String system = coner.getSkySystem();
         String inDescrip = "the input table";
     
@@ -84,8 +85,8 @@ public abstract class SkyConeMatch2 extends SingleMapperTask {
             SkyCoordParameter.createDecParameter( "dec", system, inDescrip );
         paramList.add( decParam_ );
 
-        srParam_ = new Parameter( "sr" );
-        srParam_.setUsage( "<expr>" );
+        srParam_ = new StringParameter( "sr" );
+        srParam_.setUsage( "<expr/deg>" );
         srParam_.setPrompt( "Search radius in degrees" );
         srParam_.setDescription( new String[] {
             "<p>Expression which evaluates to the search radius in degrees",
@@ -99,19 +100,22 @@ public abstract class SkyConeMatch2 extends SingleMapperTask {
 
         /* Permit "best1" as an undocumented alternative to "best", since
          * it has the meaning of best1 in the pair match tasks. */
-        modeParam_ = new ChoiceParameter( "find", new String[] {
-            "best", "all", "each",
-        } ) {
+        modeParam_ =
+            new ChoiceParameter<String>( "find",
+                                         new String[] {
+                                             "best", "all", "each",
+                                         } ) {
             @Override
-            public void setValueFromString( Environment env, String value )
-                    throws TaskException {
-                if ( "best1".equalsIgnoreCase( value ) ) {
-                    value = "best";
+            public String stringToObject( Environment env, String sval ) {
+                if ( "best1".equalsIgnoreCase( sval ) ) {
+                    return "best";
                 }
-                super.setValueFromString( env, value );
+                else {
+                    return sval;
+                }
             }
         };
-        modeParam_.setDefault( "all" );
+        modeParam_.setStringDefault( "all" );
         modeParam_.setPrompt( "Type of match to perform" );
         modeParam_.setDescription( new String[] {
             "<p>Determines which matches are retained.",
@@ -159,7 +163,7 @@ public abstract class SkyConeMatch2 extends SingleMapperTask {
             "which covers VizieR and a few other cone search services.",
             "</p>",
         } );
-        usefootParam_.setDefault( Boolean.TRUE.toString() );
+        usefootParam_.setBooleanDefault( true );
         paramList.add( usefootParam_ );
 
         nsideParam_ = new IntegerParameter( "footnside" );
@@ -183,14 +187,13 @@ public abstract class SkyConeMatch2 extends SingleMapperTask {
             "</p>",
         } );
         nsideParam_.setMinimum( 1 );
-        nsideParam_.setDefault( Integer.toString( MocServiceCoverage
-                                                 .getServiceNside() ) );
+        nsideParam_.setNullPermitted( true );
         paramList.add( nsideParam_ );
 
-        copycolsParam_ = new Parameter( "copycols" );
+        copycolsParam_ = new StringParameter( "copycols" );
         copycolsParam_.setUsage( "<colid-list>" );
         copycolsParam_.setNullPermitted( true );
-        copycolsParam_.setDefault( "*" );
+        copycolsParam_.setStringDefault( "*" );
         copycolsParam_.setPrompt( "Columns to be copied from input table" );
         copycolsParam_.setDescription( new String[] {
             "<p>List of columns from the input table which are to be copied",
@@ -206,9 +209,9 @@ public abstract class SkyConeMatch2 extends SingleMapperTask {
         } );
         paramList.add( copycolsParam_ );
 
-        distcolParam_ = new Parameter( "scorecol" );
+        distcolParam_ = new StringParameter( "scorecol" );
         distcolParam_.setNullPermitted( true );
-        distcolParam_.setDefault( "Separation" );
+        distcolParam_.setStringDefault( "Separation" );
         distcolParam_.setPrompt( "Angular distance output column name" );
         distcolParam_.setUsage( "<col-name>" );
         distcolParam_.setDescription( new String[] {
@@ -223,7 +226,7 @@ public abstract class SkyConeMatch2 extends SingleMapperTask {
         paramList.add( distcolParam_ );
 
         parallelParam_ = new IntegerParameter( "parallel" );
-        parallelParam_.setDefault( "1" );
+        parallelParam_.setIntDefault( 1 );
         parallelParam_.setPrompt( "Number of queries to make in parallel" );
         parallelParam_.setUsage( "<n>" );
         parallelParam_.setMinimum( 1 );
@@ -266,7 +269,7 @@ public abstract class SkyConeMatch2 extends SingleMapperTask {
         paramList.add( erractParam_ );
 
         ostreamParam_ = new BooleanParameter( "ostream" );
-        ostreamParam_.setDefault( "false" );
+        ostreamParam_.setBooleanDefault( false );
         ostreamParam_.setPrompt( "Whether output will be strictly streamed" );
         ostreamParam_.setDescription( new String[] {
             "<p>If set true, this will cause the operation to stream on",
@@ -318,7 +321,7 @@ public abstract class SkyConeMatch2 extends SingleMapperTask {
         String distanceCol = distcolParam_.stringValue( env );
         boolean bestOnly;
         boolean includeBlanks;
-        String mode = modeParam_.stringValue( env );
+        String mode = modeParam_.objectValue( env );
         if ( mode.toLowerCase().equals( "best" ) ) {
             bestOnly = true;
             includeBlanks = false;
@@ -338,18 +341,13 @@ public abstract class SkyConeMatch2 extends SingleMapperTask {
         TableProducer inProd = createInputProducer( env );
         ConeSearcher coneSearcher = coner_.createSearcher( env, bestOnly );
         final Coverage footprint;
-        if ( usefootParam_.booleanValue( env ) ) {
-            footprint = coner_.getCoverage( env );
-            int nside = nsideParam_.intValue( env );
-            if ( nside != MocServiceCoverage.getServiceNside() ) {
-                try {
-                    MocServiceCoverage.setServiceNside( nside );
-                }
-                catch ( IllegalArgumentException e ) {
-                    throw new ParameterValueException( nsideParam_,
-                                                       e.getMessage(), e );
-                }
+        if ( usefootParam_.booleanValue( env ) &&
+             coner_ instanceof ConeSearchConer ) {
+            Integer nSide = nsideParam_.intValue( env );
+            if ( nSide != null ) {
+                ((ConeSearchConer) coner_).setNside( nSide.intValue() );
             }
+            footprint = coner_.getCoverage( env );
         }
         else {
             footprint = null;

@@ -1,9 +1,12 @@
 package uk.ac.starlink.ttools.task;
 
+import java.util.ArrayList;
+import java.util.List;
 import uk.ac.starlink.task.Environment;
+import uk.ac.starlink.task.ObjectFactoryParameter;
 import uk.ac.starlink.task.Parameter;
-import uk.ac.starlink.task.ParameterValueException;
 import uk.ac.starlink.task.TaskException;
+import uk.ac.starlink.ttools.Formatter;
 import uk.ac.starlink.ttools.Stilts;
 import uk.ac.starlink.ttools.TableConsumer;
 import uk.ac.starlink.ttools.mode.ProcessingMode;
@@ -16,12 +19,9 @@ import uk.ac.starlink.util.ObjectFactory;
  * @author   Mark Taylor
  * @since    15 Aug 2005
  */
-public class OutputModeParameter extends Parameter
-                                 implements TableConsumerParameter,
-                                            ExtraParameter {
-
-    private ProcessingMode mode_;
-    private TableConsumer consumer_;
+public class OutputModeParameter
+             extends ObjectFactoryParameter<ProcessingMode>
+             implements TableConsumerParameter, ExtraParameter {
 
     /**
      * Constructor.
@@ -29,13 +29,13 @@ public class OutputModeParameter extends Parameter
      * @param  name  parameter name
      */
     public OutputModeParameter( String name ) {
-        super( name );
+        super( name, Stilts.getModeFactory() );
         setPrompt( "Output mode" );
-        setDefault( "out" );
+        setStringDefault( "out" );
         setUsage( "<out-mode> <mode-args>" );
 
         StringBuffer sbuf = new StringBuffer();
-        String[] modeNames = Stilts.getModeFactory().getNickNames();
+        String[] modeNames = getObjectFactory().getNickNames();
         sbuf.append( "<ul>\n" );
         for ( int i = 0; i < modeNames.length; i++ ) {
             sbuf.append( "<li><code>" )
@@ -68,14 +68,13 @@ public class OutputModeParameter extends Parameter
     }
 
     public String getExtraUsage( TableEnvironment env ) {
-        ObjectFactory modeFactory = Stilts.getModeFactory();
-        String[] names = modeFactory.getNickNames();
+        String[] names = getObjectFactory().getNickNames();
         StringBuffer sbuf = new StringBuffer();
         sbuf.append( "   Available modes, with associated arguments:\n" );
         for ( int i = 0; i < names.length; i++ ) {
             String name = names[ i ];
             try {
-                sbuf.append( getModeUsage( names[ i ], "      " ) );
+                sbuf.append( getModeUsage( names[ i ], 6 ) );
             }
             catch ( LoadException e ) {
                 if ( env.isDebug() ) {
@@ -100,76 +99,49 @@ public class OutputModeParameter extends Parameter
      * Returns a usage message for a given processing mode.
      *
      * @param  modeName  name of the mode
-     * @param  prefix  prefix for each line of output (e.g. padding spaces)
+     * @param  indent  number of spaces to indent each line
      * @return   usage message
      */
-    public String getModeUsage( String modeName, String prefix )
+    public String getModeUsage( String modeName, int indent )
             throws LoadException {
-        ProcessingMode mode = (ProcessingMode)
-                              Stilts.getModeFactory().createObject( modeName );
-        StringBuffer sbuf = new StringBuffer();
-        StringBuffer line = new StringBuffer()
-            .append( prefix )
-            .append( getName() )
-            .append( '=' )
-            .append( modeName );
-        String pad = prefix + line.substring( prefix.length() )
-                                  .toString().replaceAll( ".", " " );
+        ProcessingMode mode = getObjectFactory().createObject( modeName );
+        List<String> wordList = new ArrayList<String>();
+        wordList.add( getName() + "=" + modeName );
         Parameter[] params = mode.getAssociatedParameters();
         for ( int i = 0; i < params.length; i++ ) {
             Parameter param = params[ i ];
-            String word = " " + param.getName() + "=" + param.getUsage();
-            if ( line.length() + word.length() > 78 ) {
-                sbuf.append( line )
-                    .append( '\n' );
-                line = new StringBuffer( pad );
-            }
-            line.append( word );
+            wordList.add( param.getName() + "=" + param.getUsage() );
         }
-        sbuf.append( line )
-            .append( '\n' );
-        return sbuf.toString();
+        return Formatter.formatWords( wordList, indent );
     }
 
-    public void setValueFromString( Environment env, String stringval ) 
-            throws TaskException {
-        ObjectFactory modeFactory = Stilts.getModeFactory();
-        if ( ! modeFactory.isRegistered( stringval ) ) {
-            throw new ParameterValueException( this, "No such mode: " 
-                                                    + stringval );
-        }
-        try {
-            ProcessingMode mode = (ProcessingMode)
-                                  modeFactory.createObject( stringval );
-            consumer_ = mode.createConsumer( env );
-            mode_ = mode;
-        }
-        catch ( LoadException e ) {
-            throw new ParameterValueException( this, "Mode " + stringval +
-                                               " unavailable - " + e, e );
-        }
-        super.setValueFromString( env, stringval );
-    }
-
-    /**
-     * Returns a TableConsumer which corresponds to the value of this
-     * parameter.
-     *
-     * @param  env  execution environment
-     */
     public TableConsumer consumerValue( Environment env ) throws TaskException {
-        checkGotValue( env );
-        return consumer_;
+        ProcessingMode mode = objectValue( env );
+        return mode == null ? null : mode.createConsumer( env );
     }
 
     /**
      * Sets the value directly from a given TableConsumer.
      *
+     * @param  env   execution environment
      * @param  consumer  table consumer
      */
-    public void setValueFromConsumer( TableConsumer consumer ) {
-        consumer_ = consumer;
-        setStringValue( consumer.toString() );
-        setGotValue( true );
+    public void setValueFromConsumer( Environment env,
+                                      final TableConsumer consumer )
+            throws TaskException {
+        setValueFromObject( env, new ProcessingMode() {
+            public TableConsumer createConsumer( Environment env ) {
+                return consumer;
+            }
+            public Parameter[] getAssociatedParameters() {
+                return new Parameter[ 0 ];
+            }
+            public String getDescription() {
+                return "";
+            }
+            public String toString() {
+                return consumer.toString();
+            }
+        } );
     }
 }

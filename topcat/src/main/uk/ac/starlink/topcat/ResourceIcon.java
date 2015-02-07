@@ -85,6 +85,7 @@ public class ResourceIcon implements Icon {
         GAVO_LOGO = makeIcon( "gavo48.gif" ),
         ESA_LOGO = makeIcon( "esa48.gif" ),
         VIZIER_LOGO = makeIcon( "vizier_logo.gif" ),
+        EU_LOGO = makeIcon( "eu48.gif" ),
 
         /* Generic actions. */
         CLOSE = makeIcon( "multiply4.gif"),
@@ -143,6 +144,7 @@ public class ResourceIcon implements Icon {
         VIZIER = makeIcon( "vizmini.gif" ),
         BASTI = makeIcon( "BaSTI_icon_B.gif" ),
         TREE_DIALOG = makeIcon( "browse.gif" ),
+        CLASSIFY = makeIcon( "classify3.gif" ),
 
         /* Specific actions. */
         UNSORT = makeIcon( "arrow_level.gif" ),
@@ -229,6 +231,9 @@ public class ResourceIcon implements Icon {
         SKETCH = makeIcon( "sketch1.gif" ),
         PROGRESS = makeIcon( "plot_prog.gif" ),
         MATCHPLOT = makeIcon( "matchplot2.gif" ),
+        CDSXMATCH = makeIcon( "xm3.png" ),
+        HISTO_SAVE = makeIcon( "histo-save.gif" ),
+        HISTO_IMPORT = makeIcon( "histo-import.gif" ),
 
         /* Plot2 icons. */
         UP_DOWN = makeIcon( "updown8.gif" ),
@@ -247,6 +252,8 @@ public class ResourceIcon implements Icon {
         SMALL_CLOSE = makeIcon( "x9.gif" ),
         SMALL_HELP = makeIcon( "q9.gif" ),
         ADD_CONTROL = makeIcon( "addlayer4.png" ),
+        AXIS_CONFIG = makeIcon( "axed5.gif" ),
+        FRAME_CONFIG = makeIcon( "axframe.gif" ),
 
         /* Datanode (hierarchy browser) icons. */
         COLLAPSED = makeIcon( "handle1.gif" ),
@@ -664,6 +671,7 @@ public class ResourceIcon implements Icon {
         nameMap.put( "ADD_FORM_ERROR", toAddIcon( TTRI.FORM_ERROR ) );
         nameMap.put( "ADD_FORM_ELLIPSE", toAddIcon( TTRI.FORM_ELLIPSE ) );
         nameMap.put( "ADD_PLOT_LINE", toAddIcon( TTRI.PLOT_LINE ) );
+        nameMap.put( "ADD_FORM_LINEARFIT", toAddIcon( TTRI.FORM_LINEARFIT ) );
         nameMap.put( "ADD_PLOT_LABEL", toAddIcon( TTRI.PLOT_LABEL ) );
         nameMap.put( "ADD_PLOT_CONTOUR", toAddIcon( TTRI.PLOT_CONTOUR ) );
         nameMap.put( "ADD_FORM_MARKS2", toAddIcon( TTRI.FORM_MARKS2 ) );

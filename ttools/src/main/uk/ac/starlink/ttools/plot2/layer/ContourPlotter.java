@@ -14,7 +14,9 @@ import uk.ac.starlink.ttools.plot2.Decal;
 import uk.ac.starlink.ttools.plot2.Drawing;
 import uk.ac.starlink.ttools.plot2.LayerOpt;
 import uk.ac.starlink.ttools.plot2.PlotLayer;
+import uk.ac.starlink.ttools.plot2.PlotUtil;
 import uk.ac.starlink.ttools.plot2.PointCloud;
+import uk.ac.starlink.ttools.plot2.ReportMap;
 import uk.ac.starlink.ttools.plot2.SubCloud;
 import uk.ac.starlink.ttools.plot2.Surface;
 import uk.ac.starlink.ttools.plot2.config.ConfigKey;
@@ -38,16 +40,41 @@ import uk.ac.starlink.ttools.plot2.paper.PaperType;
 public class ContourPlotter extends AbstractPlotter<ContourStyle> {
 
     private static final ConfigKey<Integer> NLEVEL_KEY =
-        IntegerConfigKey.createSpinnerKey( new ConfigMeta( "nlevel",
-                                                           "Level Count" ),
-                                           5, 0, 999 );
+        IntegerConfigKey.createSpinnerKey(
+            new ConfigMeta( "nlevel", "Level Count" )
+           .setShortDescription( "Maximum number of contours" )
+           .setXmlDescription( new String[] {
+                "<p>Number of countour lines drawn.",
+                "In fact, this is an upper limit;",
+                "if there is not enough variation in the plot's density,",
+                "then fewer conrour lines will be drawn.",
+                "</p>",
+            } )
+        , 5, 0, 999 );
     private static final ConfigKey<Integer> SMOOTH_KEY =
-        IntegerConfigKey.createSpinnerKey( new ConfigMeta( "smooth",
-                                                           "Smoothing" ),
-                                           4, 1, 40 );
+        IntegerConfigKey.createSpinnerKey(
+            new ConfigMeta( "smooth", "Smoothing" )
+           .setStringUsage( "<pixels>" )
+           .setShortDescription( "Smoothing kernel size in pixels" )
+           .setXmlDescription( new String[] {
+                "<p>The size of the smoothing kernel applied to the",
+                "density before performing the contour determination.",
+                "If set too low the contours will be too crinkly,",
+                "and if too high they will lose definition.",
+                "</p>",
+            } )
+        , 4, 1, 40 );
     private static final ConfigKey<Double> OFFSET_KEY =
-        DoubleConfigKey.createSliderKey( new ConfigMeta( "zero", "Zero Point" ),
-                                         0, -2, +2, false );
+        DoubleConfigKey.createSliderKey(
+            new ConfigMeta( "zero", "Zero Point" )
+           .setShortDescription( "Level of first contour" )
+           .setXmlDescription( new String[] {
+                "<p>Determines the level at which the first contour",
+                "(and hence all the others, which are separated from it",
+                "by a fixed amount) are drawn.",
+                "</p>",
+            } )
+        , 0, -2, +2, false );
     private static final Logger logger_ =
         Logger.getLogger( "uk.ac.starlink.ttools.plot2" );
 
@@ -56,6 +83,27 @@ public class ContourPlotter extends AbstractPlotter<ContourStyle> {
      */
     public ContourPlotter() {
         super( "Contour", ResourceIcon.PLOT_CONTOUR, 1, new Coord[ 0 ] );
+    }
+
+    public String getPlotterDescription() {
+        return PlotUtil.concatLines( new String[] {
+            "<p>Plots position density contours.",
+            "This provides another way",
+            "(alongside the",
+            ShapeMode.modeRef( ShapeMode.AUTO ),
+            "and",
+            ShapeMode.modeRef( ShapeMode.DENSITY ),
+            "shading modes)",
+            "to visualise the characteristics of overdense regions",
+            "in a crowded plot.",
+            "It's not very useful if you just have a few points.",
+            "</p>",
+            "<p>The contours are currently drawn as pixels rather than lines",
+            "so they don't look very beautify in exported vector",
+            "output formats (PDF, PostScript).",
+            "This may be improved in the future.",
+            "</p>",
+        } );
     }
 
     public ConfigKey[] getStyleKeys() {
@@ -153,6 +201,10 @@ public class ContourPlotter extends AbstractPlotter<ContourStyle> {
                     return true;
                 }
             } );
+        }
+
+        public ReportMap getReport( Object plan ) {
+            return null;
         }
 
         /**

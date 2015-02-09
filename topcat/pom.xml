@@ -10,11 +10,11 @@
    <parent>
       <artifactId>starlink-base</artifactId>
       <groupId>uk.ac.starlink</groupId>
-      <version>1.0-SNAPSHOT</version>
+      <version>2015.1-SNAPSHOT</version>
       <relativePath>../maven/pom.xml</relativePath>
    </parent>
    <name>topcat</name>
-   <version>4.2-SNAPSHOT</version>
+   <version>4.2-2</version>
    <description>TOPCAT TOPCAT - Tool for OPerations on Catalogues And Tables</description>
    <dependencies>
       <dependency>

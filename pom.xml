@@ -4,13 +4,12 @@
          xmlns="http://maven.apache.org/POM/4.0.0"
          xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/maven-v4_0_0.xsd">
     <modelVersion>4.0.0</modelVersion>
-    <groupId>uk.ac.starlink</groupId>
     <artifactId>starlink-build</artifactId>
     <packaging>pom</packaging>
     <parent>
         <artifactId>starlink-base</artifactId> <!-- could split the base from the versions -->
         <groupId>uk.ac.starlink</groupId>
-        <version>1.0-SNAPSHOT</version>
+        <version>2015.1-SNAPSHOT</version>
         <relativePath>maven/pom.xml</relativePath>
     </parent>
     <name>Starlink Build</name>
@@ -42,6 +41,7 @@
 <!-- <module>jsky</module>  -->
 <module>mirage</module>
 <module>ndtools</module> 
+<module>plastic</module>
 <module>ndx</module> 
 <module>pal</module>
 <module>rv</module>

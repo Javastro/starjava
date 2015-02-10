@@ -56,12 +56,6 @@
 
 		<dependency>
 			<groupId>uk.ac.starlink</groupId>
-			<artifactId>hds</artifactId>
-		</dependency>
-
-
-		<dependency>
-			<groupId>uk.ac.starlink</groupId>
 			<artifactId>ndx</artifactId>
 		</dependency>
 

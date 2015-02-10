@@ -28,10 +28,6 @@
 			<artifactId>xercesImpl</artifactId>
 		</dependency>
 		<dependency>
-			<groupId>xml-apis</groupId>
-			<artifactId>xml-apis</artifactId>
-		</dependency>
-		<dependency>
 			<groupId>uk.ac.starlink-third</groupId>
 			<artifactId>jini-core</artifactId>
 			<version>1.0</version>

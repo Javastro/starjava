@@ -63,6 +63,12 @@
 		<dependency>
 			<groupId>uk.ac.starlink</groupId>
 			<artifactId>plastic</artifactId>
+        <exclusions>
+           <exclusion> <!-- exclude this version because it has the org.xml.sax api in it -->
+          <groupId>xmlrpc</groupId>
+          <artifactId>xmlrpc</artifactId>
+        </exclusion>
+         </exclusions>
 		</dependency>
 		<dependency>
 			<groupId>uk.ac.starlink-third</groupId>

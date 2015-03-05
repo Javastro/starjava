@@ -10,11 +10,11 @@
    <parent>
       <artifactId>starlink-base</artifactId>
       <groupId>uk.ac.starlink</groupId>
-      <version>2015.1-SNAPSHOT</version>
+      <version>2015.1</version>
       <relativePath>../maven/pom.xml</relativePath>
    </parent>
-   <name>sog</name>
-   <version>0.3</version>
+  <name>sog</name>
+   <version>${starlink.sog.version}</version>
    <description>SoG - Son of GAIA SoG - Son of GAIA</description>
    <dependencies>
 

@@ -10,11 +10,11 @@
    <parent>
       <artifactId>starlink-base</artifactId>
       <groupId>uk.ac.starlink</groupId>
-      <version>2015.1-SNAPSHOT</version>
+      <version>2015.1</version>
       <relativePath>../maven/pom.xml</relativePath>
    </parent>
-   <name>starlink util</name>
-   <version>1.0</version>
+  <name>starlink util</name>
+   <version>${starlink.starlink util.version}</version>
    <description>UTIL - utility classes</description>
    <dependencies>
       <dependency>

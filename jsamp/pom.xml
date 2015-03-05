@@ -13,11 +13,11 @@
    <parent>
       <artifactId>starlink-base</artifactId>
       <groupId>uk.ac.starlink</groupId>
-      <version>2015.1-SNAPSHOT</version>
+      <version>2015.1</version>
       <relativePath>../maven/pom.xml</relativePath>
    </parent>
-   <name>jsamp</name>
-   <version>1.3-4</version>
+  <name>jsamp</name>
+   <version>${starlink.jsamp.version}</version>
    <description>JSAMP - SAMP toolkit</description>
    <dependencies>
       <dependency>

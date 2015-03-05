@@ -10,11 +10,11 @@
    <parent>
       <artifactId>starlink-base</artifactId>
       <groupId>uk.ac.starlink</groupId>
-      <version>2015.1-SNAPSHOT</version>
+      <version>2015.1</version>
       <relativePath>../maven/pom.xml</relativePath>
    </parent>
-   <name>frog</name>
-   <version>0.7.0</version>
+  <name>frog</name>
+   <version>${starlink.frog.version}</version>
    <description>FROG - A Time Series Analysis Package FROG - A Time Series Analysis Package</description>
    <dependencies>
 

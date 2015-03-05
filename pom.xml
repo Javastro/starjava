@@ -9,7 +9,7 @@
     <parent>
         <artifactId>starlink-base</artifactId> <!-- could split the base from the versions -->
         <groupId>uk.ac.starlink</groupId>
-        <version>2015.1-SNAPSHOT</version>
+        <version>2015.1</version>
         <relativePath>maven/pom.xml</relativePath>
     </parent>
     <name>Starlink Build</name>

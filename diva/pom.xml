@@ -10,11 +10,11 @@
    <parent>
       <artifactId>starlink-base</artifactId>
       <groupId>uk.ac.starlink</groupId>
-      <version>2015.1-SNAPSHOT</version>
+      <version>2015.1</version>
       <relativePath>../maven/pom.xml</relativePath>
    </parent>
-   <name>diva</name>
-   <version>1.0-1</version>
+  <name>diva</name>
+   <version>${starlink.diva.version}</version>
    <description>DIVA - visualizing and interacting with dynamic information spaces</description>
    <dependencies>
 

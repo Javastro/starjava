@@ -10,11 +10,11 @@
    <parent>
       <artifactId>starlink-base</artifactId>
       <groupId>uk.ac.starlink</groupId>
-      <version>2015.1-SNAPSHOT</version>
+      <version>2015.1</version>
       <relativePath>../maven/pom.xml</relativePath>
    </parent>
-   <name>splat</name>
-   <version>3.10-0</version>
+  <name>splat</name>
+   <version>${starlink.splat.version}</version>
    <description>Starlink SPLAT-VO - A Spectral Analysis Tool Starlink SPLAT-VO - A Spectral Analysis Tool</description>
    <dependencies/>
 </project>

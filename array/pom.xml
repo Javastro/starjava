@@ -10,11 +10,11 @@
    <parent>
       <artifactId>starlink-base</artifactId>
       <groupId>uk.ac.starlink</groupId>
-      <version>2015.1-SNAPSHOT</version>
+      <version>2015.1</version>
       <relativePath>../maven/pom.xml</relativePath>
    </parent>
    <name>array</name>
-   <version>0.2</version>
+   <version>${starlink.array.version}</version>
    <description>ARRAY API</description>
    
    <build>

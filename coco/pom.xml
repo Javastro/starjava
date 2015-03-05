@@ -10,11 +10,11 @@
    <parent>
       <artifactId>starlink-base</artifactId>
       <groupId>uk.ac.starlink</groupId>
-      <version>2015.1-SNAPSHOT</version>
+      <version>2015.1</version>
       <relativePath>../maven/pom.xml</relativePath>
    </parent>
-   <name>coco</name>
-   <version>1.0</version>
+  <name>coco</name>
+   <version>${starlink.coco.version}</version>
    <description>COCO - celestial coordinate conversion</description>
    <dependencies>
 

@@ -10,11 +10,11 @@
    <parent>
       <artifactId>starlink-base</artifactId>
       <groupId>uk.ac.starlink</groupId>
-      <version>2015.1-SNAPSHOT</version>
+      <version>2015.1</version>
       <relativePath>../maven/pom.xml</relativePath>
    </parent>
-   <name>vo</name>
-   <version>0.2</version>
+  <name>vo</name>
+   <version>${starlink.vo.version}</version>
    <description>VO - Classes for access to some VO services</description>
    <dependencies>
        <dependency>

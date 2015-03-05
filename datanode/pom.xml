@@ -9,7 +9,7 @@
 	<parent>
 		<artifactId>starlink-base</artifactId>
 		<groupId>uk.ac.starlink</groupId>
-		<version>2015.1-SNAPSHOT</version>
+		<version>2015.1</version>
 		<relativePath>../maven/pom.xml</relativePath>
 	</parent>
 	<name>datanode</name>

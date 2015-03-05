@@ -10,11 +10,11 @@
    <parent>
       <artifactId>starlink-base</artifactId>
       <groupId>uk.ac.starlink</groupId>
-      <version>2015.1-SNAPSHOT</version>
+      <version>2015.1</version>
       <relativePath>../maven/pom.xml</relativePath>
    </parent>
-   <name>registry</name>
-   <version>1.2</version>
+  <name>registry</name>
+   <version>${starlink.registry.version}</version>
    <description>Registry Client</description>
    <dependencies>
     <dependency>

@@ -10,11 +10,11 @@
    <parent>
       <artifactId>starlink-base</artifactId>
       <groupId>uk.ac.starlink</groupId>
-      <version>2015.1-SNAPSHOT</version>
+      <version>2015.1</version>
       <relativePath>../maven/pom.xml</relativePath>
    </parent>
-   <name>soapserver</name>
-   <version>0.4</version>
+  <name>soapserver</name>
+   <version>${starlink.soapserver.version}</version>
    <description>SOAPSERVER</description>
    <dependencies>
 

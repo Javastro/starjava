@@ -173,6 +173,8 @@
             <configuration>
               <tasks>
                 <echo>Generating stilts.py</echo>
+                <echo file="${project.build.outputDirectory}/uk/ac/starlink/ttools/stilts.version"
+          message="${project.version}"/>
                     <java classname="uk.ac.starlink.ttools.build.JyStilts"
                       output="${project.build.outputDirectory}/stilts.py"
                       failonerror="yes"
@@ -186,7 +188,7 @@
                     </java>
                 
                 
-                
+            
                </tasks>
             </configuration>
             <goals>

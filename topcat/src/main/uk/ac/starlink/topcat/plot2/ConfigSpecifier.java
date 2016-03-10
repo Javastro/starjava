@@ -3,11 +3,14 @@ package uk.ac.starlink.topcat.plot2;
 import java.awt.BorderLayout;
 import java.awt.event.ActionEvent;
 import java.awt.event.ActionListener;
+import java.util.logging.Logger;
 import javax.swing.JComponent;
 import javax.swing.JLabel;
 import javax.swing.JOptionPane;
 import javax.swing.JPanel;
 import uk.ac.starlink.table.gui.LabelledComponentStack;
+import uk.ac.starlink.ttools.plot2.ReportMap;
+import uk.ac.starlink.ttools.plot2.PlotUtil;
 import uk.ac.starlink.ttools.plot2.config.ConfigException;
 import uk.ac.starlink.ttools.plot2.config.ConfigKey;
 import uk.ac.starlink.ttools.plot2.config.ConfigMap;
@@ -24,6 +27,10 @@ import uk.ac.starlink.ttools.plot2.config.SpecifierPanel;
  * specifier components, but these can be decorated by supplying
  * a suitable {@link ComponentGui} object.
  *
+ * <p>The {@link #checkConfig checkConfig} method provides a hook for
+ * additional conditions that will be applied to the ConfigMap output
+ * values from this specifier.
+ *
  * @author   Mark Taylor
  * @since    12 Mar 2013
  */
@@ -35,6 +42,8 @@ public class ConfigSpecifier extends SpecifierPanel<ConfigMap> {
             return key.createSpecifier();
         }
     };
+    private static final Logger logger_ =
+        Logger.getLogger( "uk.ac.starlink.topcat.plot2" );
 
     /**
      * Constructs a config specifier with a default GUI.
@@ -64,8 +73,6 @@ public class ConfigSpecifier extends SpecifierPanel<ConfigMap> {
         }
     }
 
-    
-    @Override
     protected JComponent createComponent() {
         LabelledComponentStack stack = new LabelledComponentStack();
         for ( int ik = 0; ik < kspecs_.length; ik++ ) {
@@ -100,6 +107,54 @@ public class ConfigSpecifier extends SpecifierPanel<ConfigMap> {
     }
 
     public ConfigMap getSpecifiedValue() {
+        ConfigMap lastConfig = null;
+        while ( true ) {
+            ConfigMap config = getUncheckedConfig();
+
+            /* Check that we're not in an infinite loop.  That shouldn't
+             * happen if reportError has done its job, but play it safe
+             * just in case. */
+            if ( config.equals( lastConfig ) ) {
+                logger_.warning( "Fixing config failed to change anything"
+                               + " - bail out and hope for the best" );
+                return config;
+            }
+            try {
+                checkConfig( config );
+                return config;
+            }
+            catch ( ConfigException e ) {
+                reportError( e );
+            }
+            lastConfig = config;
+        }
+    }
+
+    /**
+     * Performs additional checks on the result produced by this
+     * specifier prior to returning the value from {@link #getSpecifiedValue}.
+     * If something is wrong with the supplied <code>config</code>,
+     * implementations may throw a ConfigException here to indicate the problem.
+     * Per-key specifiers ought in general to police the values that
+     * they return, but this method provides a hook for checks applying
+     * to disallowed interactions between individually legal values.
+     *
+     * <p>The default implementation does nothing.
+     *
+     * @param  config  config map to check
+     * @throws  ConfigException  if there's something wrong with
+     *                           the supplied map
+     * @see  #checkRangeSense checkRangeSense
+     */
+    protected void checkConfig( ConfigMap config ) throws ConfigException {
+    }
+
+    /**
+     * Acquires the current state of this component as a ConfigMap.
+     *
+     * @return   config map aggregating state for all this specifier's keys
+     */
+    private ConfigMap getUncheckedConfig() {
         ConfigMap map = new ConfigMap();
         for ( int ik = 0; ik < kspecs_.length; ik++ ) {
             kspecs_[ ik ].putValue( map );
@@ -110,6 +165,12 @@ public class ConfigSpecifier extends SpecifierPanel<ConfigMap> {
     public void setSpecifiedValue( ConfigMap configMap ) {
         for ( ConfigKey<?> key : configMap.keySet() ) {
             configureSpecifierFromMap( key, configMap );
+        }
+    }
+
+    public void submitReport( ReportMap report ) {
+        for ( KSpec kspec : kspecs_ ) {
+            kspec.specifier_.submitReport( report );
         }
     }
 
@@ -203,6 +264,39 @@ public class ConfigSpecifier extends SpecifierPanel<ConfigMap> {
          * Specifier.reportError would be required) so that it can take
          * specific actions; e.g. in case of text field, grey out the
          * bad text for user editing rather than deleting it altogether. */
+    }
+
+    /**
+     * Utility method to check that min/max keys specifying a range
+     * are not the wrong way round.  Note that indefinite values at
+     * either end are OK.
+     *
+     * @param  config  config map
+     * @param  axName  axis name, used for error messages
+     * @param  minKey  config key for minimum value
+     * @param  maxKey  config key for maximum value
+     * @throws  ConfigException   if the min value is definitely
+     *                            greater than or equal to the max value
+     */
+    public static void checkRangeSense( ConfigMap config, String axName,
+                                        ConfigKey<Double> minKey,
+                                        ConfigKey<Double> maxKey )
+            throws ConfigException {
+        double min = PlotUtil.toDouble( config.get( minKey ) );
+        double max = PlotUtil.toDouble( config.get( maxKey ) );
+        final String errMsg;
+        if ( min > max ) {
+            errMsg = axName + " range backwards  (" + min + " > " + max + ")";
+        }
+        else if ( min == max ) {
+            errMsg = axName + " zero range (" + min + " = " + max + ")";
+        }
+        else {
+            errMsg = null;
+        }
+        if ( errMsg != null ) {
+            throw new ConfigException( maxKey, errMsg );
+        }
     }
 
     /**

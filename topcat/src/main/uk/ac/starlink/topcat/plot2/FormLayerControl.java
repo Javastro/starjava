@@ -11,6 +11,7 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.logging.Level;
 import javax.swing.Box;
 import javax.swing.DefaultListModel;
 import javax.swing.Icon;
@@ -56,7 +57,6 @@ public abstract class FormLayerControl
     private final SubsetConfigManager subsetManager_;
     private final TopcatListener tcListener_;
     private final SubsetStack subStack_;
-    private final ReportLogger reportLogger_;
     private TopcatModel tcModel_;
 
     /**
@@ -80,7 +80,6 @@ public abstract class FormLayerControl
         super( null, controlIcon );
         posCoordPanel_ = posCoordPanel;
         autoPopulate_ = autoPopulate;
-        reportLogger_ = new ReportLogger( this );
         final TopcatListener externalTcListener = tcListener;
 
         /* Set up a selector for which table to plot. */
@@ -193,7 +192,10 @@ public abstract class FormLayerControl
                         PlotUtil.arrayConcat( posContents, extraContents );
                     DataSpec dspec =
                         new GuiDataSpec( tcModel_, subset, contents );
-                    layerList.add( fc.createLayer( geom, dspec, subset ) );
+                    PlotLayer layer = fc.createLayer( geom, dspec, subset );
+                    if ( layer != null ) {
+                        layerList.add( layer );
+                    }
                 }
             }
         }
@@ -233,17 +235,17 @@ public abstract class FormLayerControl
         }
         DataGeom geom = posCoordPanel_.getDataGeom();
         for ( FormControl fc : getActiveFormControls() ) {
-            if ( fc.hasReports() ) {
-                Map<RowSubset,ReportMap> sreports =
-                    new LinkedHashMap<RowSubset,ReportMap>();
-                GuiCoordContent[] extraContents = fc.getExtraCoordContents();
-                if ( extraContents != null ) {
-                    GuiCoordContent[] contents =
-                        PlotUtil.arrayConcat( posContents, extraContents );
-                    for ( RowSubset rset : subsets ) {
-                        DataSpec dspec =
-                            new GuiDataSpec( tcModel_, rset, contents );
-                        PlotLayer layer = fc.createLayer( geom, dspec, rset );
+            Map<RowSubset,ReportMap> sreports =
+                new LinkedHashMap<RowSubset,ReportMap>();
+            GuiCoordContent[] extraContents = fc.getExtraCoordContents();
+            if ( extraContents != null ) {
+                GuiCoordContent[] contents =
+                    PlotUtil.arrayConcat( posContents, extraContents );
+                for ( RowSubset rset : subsets ) {
+                    DataSpec dspec =
+                        new GuiDataSpec( tcModel_, rset, contents );
+                    PlotLayer layer = fc.createLayer( geom, dspec, rset );
+                    if ( layer != null ) {
                         ReportMap report =
                             reports.get( LayerId.createLayerId( layer ) );
                         if ( report != null ) {
@@ -251,8 +253,8 @@ public abstract class FormLayerControl
                         }
                     }
                 }
-                fc.submitReports( sreports );
             }
+            fc.submitReports( sreports );
         }
     }
 
@@ -363,7 +365,7 @@ public abstract class FormLayerControl
         posCoordPanel_.setTable( tcModel_, autoPopulate_ );
         FormControl[] fcs = getActiveFormControls();
         for ( int ifc = 0; ifc < fcs.length; ifc++ ) {
-            fcs[ ifc ].setTable( tcModel_, subsetManager_ );
+            fcs[ ifc ].setTable( tcModel_, subsetManager_, subStack_ );
         }
 
         /* If there is no new table, just clear the list of subsets

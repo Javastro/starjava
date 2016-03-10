@@ -13,6 +13,7 @@ import uk.ac.starlink.ttools.plot2.config.ConfigException;
 import uk.ac.starlink.ttools.plot2.config.ConfigKey;
 import uk.ac.starlink.ttools.plot2.config.ConfigMap;
 import uk.ac.starlink.ttools.plot2.config.ConfigMeta;
+import uk.ac.starlink.ttools.plot2.config.Specifier;
 import uk.ac.starlink.ttools.plot2.config.StringConfigKey;
 import uk.ac.starlink.ttools.plot2.config.StyleKeys;
 import uk.ac.starlink.ttools.plot2.layer.FunctionPlotter;
@@ -27,7 +28,6 @@ public class FunctionLayerControl extends ConfigControl
                                   implements LayerControl {
 
     private final FunctionPlotter plotter_;
-    private final ReportLogger reportLogger_;
     private static final ConfigKey<String> FUNCLABEL_KEY =
         new StringConfigKey( new ConfigMeta( "label", "Label" ), "Function" );
 
@@ -39,7 +39,6 @@ public class FunctionLayerControl extends ConfigControl
     public FunctionLayerControl( FunctionPlotter plotter ) {
         super( plotter.getPlotterName(), plotter.getPlotterIcon() );
         plotter_ = plotter;
-        reportLogger_ = new ReportLogger( this );
         AutoConfigSpecifier legendSpecifier =
             new AutoConfigSpecifier( new ConfigKey[] { FUNCLABEL_KEY,
                                                        StyleKeys.SHOW_LABEL },
@@ -100,7 +99,16 @@ public class FunctionLayerControl extends ConfigControl
     }
 
     public void submitReports( Map<LayerId,ReportMap> reports ) {
-        reportLogger_.submitReports( reports );
+        PlotLayer[] layers = getPlotLayers();
+        PlotLayer layer = layers.length == 1 ? layers[ 0 ] : null;
+        if ( layer != null ) {
+            ReportMap report = reports.get( LayerId.createLayerId( layer ) );
+            if ( report != null ) {
+                for ( Specifier<ConfigMap> cspec : getConfigSpecifiers() ) {
+                    cspec.submitReport( report );
+                }
+            }
+        }
     }
 
     public String getCoordLabel( String userCoordName ) {

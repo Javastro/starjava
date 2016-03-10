@@ -36,7 +36,10 @@ public class ResourceIcon {
         PLOT_LINE = readIcon( "plot-line.gif" ),
         PLOT_LABEL = readIcon( "plot-label.gif" ),
         PLOT_SPECTRO = readIcon( "plot-spectro.gif" ),
-        PLOT_HISTO = readIcon( "plot-histo.gif" ),
+        FORM_HISTOGRAM = readIcon( "form-histogram.gif" ),
+        FORM_KDE = readIcon( "form-kde.gif" ),
+        FORM_KNN = readIcon( "form-knn.gif" ),
+        FORM_DENSOGRAM = readIcon( "form-densogram.gif" ),
         PLOT_LINK2 = readIcon( "plot-link2.gif" ),
         FORM_MARK = readIcon( "form-mark.gif" ),
         FORM_SIZE = readIcon( "form-size.gif" ),
@@ -45,6 +48,8 @@ public class ResourceIcon {
         FORM_ERROR = readIcon( "form-error.gif" ),
         FORM_ERROR1 = readIcon( "form-error1.gif" ),
         FORM_VECTOR = readIcon( "form-vector.gif" ),
+        FORM_DENSITY = readIcon( "form-density.gif" ),
+        FORM_SKYDENSITY = readIcon( "form-skydensity.gif" ),
         FORM_LINEARFIT = readIcon( "form-linearfit.gif" ),
         FORM_LINK2 = readIcon( "form-link2.gif" ),
         FORM_LINK3 = readIcon( "form-link3.gif" ),
@@ -56,6 +61,7 @@ public class ResourceIcon {
         MODE_ALPHA = readIcon( "mode-transparent.gif" ),
         MODE_ALPHA_FIX = readIcon( "mode-transparent-lock.gif" ),
         MODE_AUX = readIcon( "mode-aux.gif" ),
+        MODE_WEIGHT = readIcon( "mode-weight.gif" ),
         DRAG1 = readIcon( "drag1.gif" ),
         DRAG2 = readIcon( "drag2.gif" ),
         DRAG3 = readIcon( "drag3.gif" ),
@@ -66,7 +72,7 @@ public class ResourceIcon {
         ZERO = readIcon( "ozero.png" ),
 
         /* Placeholder and terminator. */
-        DO_WHAT = readIcon( "burst.gif" );
+        TTOOLS_DOWHAT = readIcon( "burst.gif" );
 
     /**
      * Private constructor prevents instantiation.

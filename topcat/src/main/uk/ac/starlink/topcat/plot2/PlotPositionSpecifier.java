@@ -9,6 +9,7 @@ import javax.swing.JComponent;
 import javax.swing.JLabel;
 import javax.swing.JOptionPane;
 import javax.swing.JTextField;
+import uk.ac.starlink.ttools.plot2.ReportMap;
 import uk.ac.starlink.ttools.plot2.config.ConfigException;
 import uk.ac.starlink.ttools.plot2.config.ConfigKey;
 import uk.ac.starlink.ttools.plot2.config.ConfigMap;
@@ -95,6 +96,9 @@ public class PlotPositionSpecifier extends SpecifierPanel<PlotPosition> {
         configSpecifier_.setSpecifiedValue( config );
     }
 
+    public void submitReport( ReportMap report ) {
+    }
+
     public JComponent createComponent() {
         return configSpecifier_.createComponent();
     }
@@ -112,7 +116,7 @@ public class PlotPositionSpecifier extends SpecifierPanel<PlotPosition> {
             public String valueToString( Integer value ) {
                 return value == null ? "" : value.toString();
             }
-            public Integer stringToValue( String txt ) {
+            public Integer stringToValue( String txt ) throws ConfigException {
                 if ( txt == null || txt.trim().length() == 0 ) {
                     return null;
                 }
@@ -152,6 +156,8 @@ public class PlotPositionSpecifier extends SpecifierPanel<PlotPosition> {
                     public void setSpecifiedValue( Integer value ) {
                         txtField_.setText( valueToString( value ) );
                         fireAction();
+                    }
+                    public void submitReport( ReportMap report ) {
                     }
                 };
             }

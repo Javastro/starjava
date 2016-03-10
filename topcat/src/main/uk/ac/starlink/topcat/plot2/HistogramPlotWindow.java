@@ -41,9 +41,14 @@ import uk.ac.starlink.ttools.plot2.geom.PlaneDataGeom;
 import uk.ac.starlink.ttools.plot2.geom.PlanePlotType;
 import uk.ac.starlink.ttools.plot2.geom.PlaneSurface;
 import uk.ac.starlink.ttools.plot2.geom.PlaneSurfaceFactory;
+import uk.ac.starlink.ttools.plot2.layer.AbstractKernelDensityPlotter;
 import uk.ac.starlink.ttools.plot2.layer.BinBag;
+import uk.ac.starlink.ttools.plot2.layer.DensogramPlotter;
+import uk.ac.starlink.ttools.plot2.layer.FixedKernelDensityPlotter;
 import uk.ac.starlink.ttools.plot2.layer.FunctionPlotter;
 import uk.ac.starlink.ttools.plot2.layer.HistogramPlotter;
+import uk.ac.starlink.ttools.plot2.layer.KnnKernelDensityPlotter;
+import uk.ac.starlink.ttools.plot2.layer.Normalisation;
 import uk.ac.starlink.ttools.plot2.paper.PaperTypeSelector;
 
 /**
@@ -107,6 +112,11 @@ public class HistogramPlotWindow
             }
         };
         insertRescaleAction( yRescaleAct );
+
+        /* Switch off default sketching, since with histograms the
+         * sketched result typically looks unlike the final one
+         * (fewer samples mean the bars are shorter). */
+        getSketchModel().setSelected( false );
 
         /* Complete the setup. */
         getToolBar().addSeparator();
@@ -221,7 +231,7 @@ public class HistogramPlotWindow
                 (HistogramPlotter.HistoStyle) layer.getStyle();
             GuiDataSpec dataSpec = (GuiDataSpec) layer.getDataSpec();
             boolean isCumulative = style.isCumulative();
-            boolean isNormalised = style.isNormalised();
+            Normalisation norm = style.getNormalisation();
             int icWeight = plotter.getWeightCoordIndex();
             boolean hasWeight =
                 icWeight >= 0 && ! dataSpec.isCoordBlank( icWeight );
@@ -229,7 +239,7 @@ public class HistogramPlotWindow
                   hasWeight
                 ? dataSpec.getCoordDataLabels( icWeight )[ 0 ]
                 : null;
-            boolean isInt = ! hasWeight && ! isNormalised;
+            boolean isInt = ! hasWeight && norm == Normalisation.NONE;
             TopcatModel tcModel = dataSpec.getTopcatModel();
             RowSubset rset = dataSpec.getRowSubset();
 
@@ -255,7 +265,7 @@ public class HistogramPlotWindow
 
             /* Assemble a description for the column. */
             List<String> descripWords = new ArrayList<String>();
-            if ( isNormalised ) {
+            if ( norm != Normalisation.NONE ) {
                 descripWords.add( "normalised" );
             }
             if ( isCumulative ) {
@@ -287,7 +297,7 @@ public class HistogramPlotWindow
             final Number[] data = new Number[ nrow ];
             final Class clazz = isInt ? Integer.class : Double.class;
             for ( Iterator<BinBag.Bin> binIt =
-                      binBag.binIterator( isCumulative, isNormalised );
+                      binBag.binIterator( isCumulative, norm );
                   binIt.hasNext(); ) {
                 BinBag.Bin bin = binIt.next();
                 Double xmin = new Double( bin.getXMin() );
@@ -332,48 +342,79 @@ public class HistogramPlotWindow
      */
     private void rescaleY() {
         Range yrange = readVerticalRange();
-        if ( yrange != null ) {
-            PlotPanel plotPanel = getPlotPanel();
-            PlaneSurface surface = (PlaneSurface) plotPanel.getLatestSurface();
-            double[] xbounds = surface.getDataLimits()[ 0 ];
-            boolean ylogFlag = surface.getLogFlags()[ 1 ];
-            PlotUtil.padRange( yrange, ylogFlag );
-            double[] ybounds = yrange.getFiniteBounds( ylogFlag );
-            PlaneAspect aspect = new PlaneAspect( xbounds, ybounds );
-            getAxisController().setAspect( aspect );
-            plotPanel.replot();
-        }
+        PlotPanel plotPanel = getPlotPanel();
+        PlaneSurface surface = (PlaneSurface) plotPanel.getLatestSurface();
+        double[] xbounds = surface.getDataLimits()[ 0 ];
+        boolean ylogFlag = surface.getLogFlags()[ 1 ];
+        PlotUtil.padRange( yrange, ylogFlag );
+        double[] ybounds = yrange.getFiniteBounds( ylogFlag );
+        PlaneAspect aspect = new PlaneAspect( xbounds, ybounds );
+        getAxisController().setAspect( aspect );
+        plotPanel.replot();
     }
 
     /**
      * Returns a Range object corresponding to the extent on the Y axis
      * of histogram bin data currently plotted.
-     * If there is a table read error, which shouldn't happen,
-     * null is returned.
      *
      * @return  Y range of plotted histogram data, or null
      */
     private Range readVerticalRange() {
+        PlotPanel plotPanel = getPlotPanel();
+
+        /* Initialise range object with the lower limit for the bottom of
+         * the bars. */
+        Range yRange = new Range();
+        Surface surface = plotPanel.getSurface();
+        boolean isLog = surface instanceof PlaneSurface
+                     && ((PlaneSurface) surface ).getLogFlags()[ 1 ];
+        yRange.submit( isLog ? 1 : 0 );
+
+        /* Get the heights of the entries in the bin data table.
+         * This will cover the HistogramPlotter layers. */
         StarTable binsTable = getBinDataTable();
-        int ncol = binsTable.getColumnCount();
-        Range yrange = new Range();
-        try {
-            RowSequence rseq = binsTable.getRowSequence();
-            while ( rseq.next() ) {
-                Object[] row = rseq.getRow();
-                for ( int icol = BINS_TABLE_INTRO_NCOL; icol < ncol; icol++ ) {
-                    Object value = row[ icol ];
-                    if ( value instanceof Number ) {
-                        yrange.submit( ((Number) value).doubleValue() );
+        if ( binsTable != null ) {
+            int ncol = binsTable.getColumnCount();
+            try {
+                RowSequence rseq = binsTable.getRowSequence();
+                while ( rseq.next() ) {
+                    Object[] row = rseq.getRow();
+                    for ( int icol = BINS_TABLE_INTRO_NCOL; icol < ncol;
+                          icol++ ) {
+                        Object value = row[ icol ];
+                        if ( value instanceof Number ) {
+                            yRange.submit( ((Number) value).doubleValue() );
+                        }
+                    }
+                }
+                rseq.close();
+            }
+            catch ( IOException e ) {
+                // shouldn't happen
+            }
+        }
+
+        /* Interrogate the KernelDensityPlotter layers separately. */
+        PlotLayer[] layers = plotPanel.getPlotLayers();
+        ReportMap[] reports = plotPanel.getReports();
+        int nl = layers.length;
+        for ( int il = 0; il < nl; il++ ) {
+            PlotLayer layer = layers[ il ];
+            ReportMap report = reports[ il ];
+            if ( report != null ) {
+                Plotter plotter = layer.getPlotter();
+                if ( plotter instanceof AbstractKernelDensityPlotter ) {
+                    double[] bins =
+                        report.get( AbstractKernelDensityPlotter.BINS_KEY );
+                    for ( double bin : bins ) {
+                        yRange.submit( bin );
                     }
                 }
             }
-            rseq.close();
-            return yrange;
         }
-        catch ( IOException e ) {
-            return null;
-        }
+
+        /* Return the populated range object. */
+        return yRange;
     }
 
     /**
@@ -395,6 +436,9 @@ public class HistogramPlotWindow
         public Plotter[] getPlotters() {
             return new Plotter[] {
                 new HistogramPlotter( PlaneDataGeom.X_COORD, true ),
+                new FixedKernelDensityPlotter( PlaneDataGeom.X_COORD, true ),
+                new KnnKernelDensityPlotter( PlaneDataGeom.X_COORD, true ),
+                new DensogramPlotter( PlaneDataGeom.X_COORD, true ),
                 FunctionPlotter.PLANE,
             };
         }

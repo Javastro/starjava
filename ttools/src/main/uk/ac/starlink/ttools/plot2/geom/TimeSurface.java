@@ -114,24 +114,16 @@ public class TimeSurface implements Surface {
 
     public boolean dataToGraphics( double[] dpos, boolean visibleOnly,
                                    Point2D.Double gp ) {
-        if ( dpos == null ) {
-            return false;
-        }
         double gx = tAxis_.dataToGraphics( dpos[ 0 ] );
         double gy = yAxis_.dataToGraphics( dpos[ 1 ] );
-        if ( Double.isNaN( gx ) || Double.isNaN( gy ) ) {
-            return false;
+        if ( ! visibleOnly ||
+             ( gx >= gxlo_ && gx < gxhi_ && gy >= gylo_ && gy < gyhi_ ) ) {
+            gp.x = gx;
+            gp.y = gy;
+            return true;
         }
         else {
-            if ( visibleOnly &&
-                 ( gx < gxlo_ || gx >= gxhi_ || gy < gylo_ || gy >= gyhi_ ) ) {
-                return false;
-            }
-            else {
-                gp.x = gx;
-                gp.y = gy;
-                return true;
-            }
+            return false;
         }
     }
 
@@ -249,7 +241,7 @@ public class TimeSurface implements Surface {
      */
     TimeAspect center( double[] dpos, boolean tFlag, boolean yFlag ) {
         Point2D.Double gp = new Point2D.Double();
-        return dataToGraphics( dpos, false, gp )
+        return dataToGraphics( dpos, false, gp ) && PlotUtil.isPointFinite( gp )
              ? pan( gp, new Point2D.Double( ( gxlo_ + gxhi_ ) * 0.5,
                                             ( gylo_ + gyhi_ ) * 0.5 ),
                     tFlag, yFlag )

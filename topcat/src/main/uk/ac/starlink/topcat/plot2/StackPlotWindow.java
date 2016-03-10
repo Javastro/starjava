@@ -23,6 +23,7 @@ import java.util.Iterator;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.logging.Level;
 import java.util.logging.Logger;
 import javax.swing.AbstractAction;
 import javax.swing.Action;
@@ -117,6 +118,8 @@ public class StackPlotWindow<P,A> extends AuxWindow {
     private final Action resizeAction_;
     private final boolean canSelectPoints_;
     private final JMenu exportMenu_;
+    private final ToggleButtonModel sketchModel_;
+    private static final Level REPORT_LEVEL = Level.INFO;
     private static final Logger logger_ =
         Logger.getLogger( "uk.ac.starlink.ttools.plot2" );
 
@@ -186,11 +189,11 @@ public class StackPlotWindow<P,A> extends AuxWindow {
                 return legendControl.getLegendPosition();
             }
         };
-        ToggleButtonModel sketchModel =
+        sketchModel_ =
             new ToggleButtonModel( "Sketch Frames", ResourceIcon.SKETCH,
                                    "Draw intermediate frames from subsampled "
                                  + "data when navigating very large plots" );
-        sketchModel.setSelected( true );
+        sketchModel_.setSelected( true );
         showProgressModel_ =
             new ToggleButtonModel( "Show Plot Progress", ResourceIcon.PROGRESS,
                                    "Report progress for slow plots in the "
@@ -208,7 +211,7 @@ public class StackPlotWindow<P,A> extends AuxWindow {
         plotPanel_ =
             new PlotPanel<P,A>( storeFact, axisController_, layerFact,
                                 posFact, legendFact, legendPosFact, titleFact,
-                                shaderControl, sketchModel,
+                                shaderControl, sketchModel_,
                                 plotType.getPaperTypeSelector(), compositor,
                                 placeProgressBar().getModel(),
                                 showProgressModel_ );
@@ -491,7 +494,7 @@ public class StackPlotWindow<P,A> extends AuxWindow {
         if ( axlockModel != null ) {
             getToolBar().add( axlockModel.createToolbarButton() );
         }
-        getToolBar().add( sketchModel.createToolbarButton() );
+        getToolBar().add( sketchModel_.createToolbarButton() );
         getToolBar().add( showProgressModel_.createToolbarButton() );
         getToolBar().add( exportAction );
         for ( int i = 0; i < stackActions.length; i++ ) {
@@ -526,7 +529,7 @@ public class StackPlotWindow<P,A> extends AuxWindow {
         if ( axlockModel != null ) {
             plotMenu.add( axlockModel.createMenuItem() );
         }
-        plotMenu.add( sketchModel.createMenuItem() );
+        plotMenu.add( sketchModel_.createMenuItem() );
         plotMenu.add( showProgressModel_.createMenuItem() );
         plotMenu.add( navdecModel.createMenuItem() );
         getJMenuBar().add( plotMenu );
@@ -618,6 +621,16 @@ public class StackPlotWindow<P,A> extends AuxWindow {
      */
     public JMenu getExportMenu() {
         return exportMenu_;
+    }
+
+    /**
+     * Returns the button model controlling whether intermediate plots are
+     * shown while assembling large/slow plots.
+     *
+     * @return  sketch button model
+     */
+    public ToggleButtonModel getSketchModel() {
+        return sketchModel_;
     }
 
     /**
@@ -1211,8 +1224,26 @@ public class StackPlotWindow<P,A> extends AuxWindow {
         for ( int il = 0; il < nl; il++ ) {
             rmap.put( LayerId.createLayerId( layers[ il ] ), reports[ il ] );
         }
+        axisController_.submitReports( rmap );
         for ( LayerControl control : stackModel_.getLayerControls( false ) ) {
             control.submitReports( rmap );
+        }
+        if ( logger_.isLoggable( REPORT_LEVEL ) ) {
+            for ( int il = 0; il < nl; il++ ) {
+                ReportMap report = reports[ il ];
+                if ( report != null ) {
+                    String rtxt = report.toString( false );
+                    if ( rtxt.length() > 0 ) {
+                        String msg = new StringBuffer()
+                            .append( "Layer " )
+                            .append( il )
+                            .append( ": " )
+                            .append( rtxt )
+                            .toString();
+                        logger_.log( REPORT_LEVEL, msg );
+                    }
+                }
+            }
         }
 
         /* Initiate updating point count, which may be slow. */

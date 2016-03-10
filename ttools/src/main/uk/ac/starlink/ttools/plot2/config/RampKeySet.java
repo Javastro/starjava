@@ -100,8 +100,9 @@ public class RampKeySet implements KeySet<RampKeySet.Ramp> {
         quantiseKey_ = new DoubleConfigKey( quantiseMeta, Double.NaN ) {
             final double LIMIT = 64;
             public Specifier<Double> createSpecifier() {
-                return new SliderSpecifier( 2, LIMIT, true, LIMIT,
-                                            true, false ) {
+                return new SliderSpecifier( 2, LIMIT, true, LIMIT, true,
+                                            SliderSpecifier.TextOption
+                                                           .ENTER_ECHO ) {
                     @Override
                     public Double getSpecifiedValue() {
                         double v = super.getSpecifiedValue();
@@ -124,10 +125,13 @@ public class RampKeySet implements KeySet<RampKeySet.Ramp> {
             "range are mapped to the selected colour ramp.",
             "</p>",
         } );
-        scalingKey_ =
-            new OptionConfigKey<Scaling>( scalingMeta, Scaling.class,
-                                          Scaling.getStretchOptions(),
-                                          dfltScaling );
+        scalingKey_ = new OptionConfigKey<Scaling>( scalingMeta, Scaling.class,
+                                                    Scaling.getStretchOptions(),
+                                                    dfltScaling ) {
+            public String getXmlDescription( Scaling scaling ) {
+                return scaling.getDescription();
+            }
+        };
         scalingKey_.setOptionUsage();
         scalingKey_.addOptionsXml();
         keyList.add( scalingKey_ );

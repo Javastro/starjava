@@ -44,10 +44,12 @@ import uk.ac.starlink.task.ParameterValueException;
 import uk.ac.starlink.task.StringParameter;
 import uk.ac.starlink.task.Task;
 import uk.ac.starlink.task.TaskException;
+import uk.ac.starlink.task.UsageException;
 import uk.ac.starlink.ttools.func.Strings;
 import uk.ac.starlink.ttools.plot.GraphicExporter;
 import uk.ac.starlink.ttools.plot.Range;
 import uk.ac.starlink.ttools.plot.Style;
+import uk.ac.starlink.ttools.plot2.AuxReader;
 import uk.ac.starlink.ttools.plot2.AuxScale;
 import uk.ac.starlink.ttools.plot2.Captioner;
 import uk.ac.starlink.ttools.plot2.DataGeom;
@@ -65,6 +67,7 @@ import uk.ac.starlink.ttools.plot2.ShadeAxisFactory;
 import uk.ac.starlink.ttools.plot2.SubCloud;
 import uk.ac.starlink.ttools.plot2.Surface;
 import uk.ac.starlink.ttools.plot2.SurfaceFactory;
+import uk.ac.starlink.ttools.plot2.config.ConfigException;
 import uk.ac.starlink.ttools.plot2.config.ConfigKey;
 import uk.ac.starlink.ttools.plot2.config.ConfigMap;
 import uk.ac.starlink.ttools.plot2.config.KeySet;
@@ -936,10 +939,11 @@ public abstract class AbstractPlot2Task implements Task, DynamicTask {
      * @param   suffix  suffix associated with layer
      * @return  array of plot finder for layer-specific parameters
      */
-    private ParameterFinder[] getLayerParameterFinders( Environment env,
-                                                        PlotContext context,
-                                                        final LayerType layer,
-                                                        final String suffix )
+    private ParameterFinder[]
+            getLayerParameterFinders( Environment env,
+                                      final PlotContext context,
+                                      final LayerType layer,
+                                      final String suffix )
             throws TaskException {
         List<ParameterFinder> finderList = new ArrayList<ParameterFinder>();
 
@@ -972,6 +976,17 @@ public abstract class AbstractPlot2Task implements Task, DynamicTask {
                     } );
                 }
             }
+        }
+
+        /* Layer geometry-specific parameters. */
+        Parameter[] geomParams = context.getGeomParameters( suffix );
+        for ( int igp = 0; igp < geomParams.length; igp++ ) {
+            final int igp0 = igp;
+            finderList.add( new ParameterFinder<Parameter>() {
+                public Parameter createParameter( String sfix ) {
+                    return context.getGeomParameters( sfix )[ igp0 ];
+                }
+            } );
         }
 
         /* Layer non-positional parameters. */
@@ -1450,23 +1465,31 @@ public abstract class AbstractPlot2Task implements Task, DynamicTask {
     private ShadeAxisFactory createShadeAxisFactory( Environment env,
                                                      PlotLayer[] layers )
             throws TaskException {
+
+        /* Locate the first layer that references the aux colour scale. */
+        AuxScale scale = AuxScale.COLOR;
+        PlotLayer scaleLayer = getFirstAuxLayer( layers, scale );
+
+        /* Work out whether to display the colour ramp at all. */
         Boolean auxvis = auxvisibleParam_.objectValue( env );
-        boolean hasAux = auxvis == null
-                       ? Arrays.asList( AuxScale.getAuxScales( layers ) )
-                               .contains( AuxScale.COLOR )
-                       : auxvis.booleanValue();
+        boolean hasAux = auxvis == null ? scaleLayer != null
+                                        : auxvis.booleanValue();
         if ( ! hasAux ) {
             return null;
         }
+
+        /* Find a suitable label for the colour ramp. */
+        if ( scaleLayer != null ) {
+            auxlabelParam_.setStringDefault( getAuxLabel( scaleLayer, scale ) );
+        }
+        String label = auxlabelParam_.objectValue( env );
+
+        /* Configure and return a shade axis accordingly. */
         RampKeySet rampKeys = StyleKeys.AUX_RAMP;
         Captioner captioner = getCaptioner( env );
         ConfigMap auxConfig = createBasicConfigMap( env, rampKeys.getKeys() );
         RampKeySet.Ramp ramp = rampKeys.createValue( auxConfig );
         double crowd = auxcrowdParam_.doubleValue( env );
-
-        /* Really, I should default this from the value of the first
-         * layer aux data value. */
-        String label = auxlabelParam_.objectValue( env );
         return RampKeySet
               .createShadeAxisFactory( ramp, captioner, label, crowd );
     }
@@ -1529,7 +1552,14 @@ public abstract class AbstractPlot2Task implements Task, DynamicTask {
         /* Work out the requested style. */
         @SuppressWarnings("unchecked")
         Plotter<S> splotter = (Plotter<S>) plotter;
-        S style = splotter.createStyle( config );
+        S style;
+        try {
+            style = splotter.createStyle( config );
+        }
+        catch ( ConfigException e ) {
+            throw new UsageException( e.getConfigKey().getMeta().getShortName()
+                                    + ": " + e.getMessage(), e );
+        }
 
         /* Return a layer based on these. */
         return splotter.createLayer( geom, dataSpec, style );
@@ -1996,6 +2026,55 @@ public abstract class AbstractPlot2Task implements Task, DynamicTask {
             plist.add( new ConfigParameter( keys[ ik ] ) );
         }
         return plist;
+    }
+
+    /**
+     * Identifies and returns the first layer in a given list that
+     * appears to make use of a given AuxScale.
+     * The test is whether it does ranging for the scale.
+     *
+     * @param   layers  list of known layers
+     * @param   scale   target scale
+     * @return  one of the layers in the given list that appears to use
+     *          <code>scale</code>, or null if none do
+     */
+    private static PlotLayer getFirstAuxLayer( PlotLayer[] layers,
+                                               AuxScale scale ) {
+        for ( PlotLayer layer : layers ) {
+            if ( layer.getAuxRangers().containsKey( scale ) ) {
+                return layer;
+            }
+        }
+        return null;
+    }
+
+    /**
+     * Tries to return the name of an input data quantity used in plotting
+     * a given layer that corresponds to a given AuxScale.
+     *
+     * @param   layer   plot layer
+     * @param   scale   scale
+     * @return  user-readable name for data corresponding to
+     *          <code>scale</code> in <code>layer</code>,
+     *          or null if there's no obvious answer
+     */
+    private static String getAuxLabel( PlotLayer layer, AuxScale scale ) {
+        AuxReader rdr = layer.getAuxRangers().get( scale );
+        if ( rdr != null ) {
+            int icAux = rdr.getCoordIndex();
+            if ( icAux >= 0 ) {
+                DataSpec dataSpec = layer.getDataSpec();
+                assert dataSpec == null || dataSpec instanceof JELDataSpec;
+                if ( dataSpec instanceof JELDataSpec ) {
+                    String[] exprs =
+                        ((JELDataSpec) dataSpec).getCoordExpressions( icAux );
+                    if ( exprs.length == 1 ) {
+                        return exprs[ 0 ];
+                    }
+                }
+            }
+        }
+        return null;
     }
 
     /**

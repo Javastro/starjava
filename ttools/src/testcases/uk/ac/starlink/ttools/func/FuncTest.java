@@ -124,6 +124,39 @@ public class FuncTest extends TestCase {
                                        .array( 1, 1, 0, 0, 0, 2, 2, 2 ) ) );
 
         assertEquals( "1; 2; 4", Arrays.join( new int[] { 1, 2, 4, }, "; " ) );
+
+        assertArrayEquals( new double[] { 1.5, 3.5, Double.NaN },
+                           Arrays.add( new int[] { 1, 2, 3, },
+                                       new float[] { .5f, 1.5f, Float.NaN } ) );
+        assertArrayEquals( new double[] { 3, 4, Double.NaN },
+                           Arrays.add( new float[] { 1f, 2f, Float.NaN, },
+                                       2 ) );
+        assertNull( Arrays.add( "no array", new int[] { 1, 3 } ) );
+        assertNull( Arrays.add( new int[] { 1, 3 }, "no array" ) );
+
+        assertArrayEquals( new double[] { 1.0, 1.75, 2.5 },
+                           Arrays.subtract( new int[] { 1, 2, 3 },
+                                            new float[] { 0, 0.25f, 0.5f } ) );
+
+        assertArrayEquals( new double[] { 0.5, 3.0, Double.NaN },
+                           Arrays.multiply( new int[] { 1, 2, 3, },
+                                            new float[] { .5f, 1.5f,
+                                                          Float.NaN } ) );
+        assertArrayEquals( new double[] { 2, 4, Double.NaN },
+                           Arrays.multiply( new float[] { 1f, 2f, Float.NaN, },
+                                            2 ) );
+        assertNull( Arrays.multiply( "no array", new int[] { 1, 3 } ) );
+        assertNull( Arrays.multiply( new int[] { 1, 3 }, "no array" ) );
+
+        assertArrayEquals( new double[] { 3, 4, 3 },
+                           Arrays
+                          .condition( new boolean[] { true, false, true },
+                                      3, 4 ) );
+        assertArrayEquals( new double[] { 1, 0.5, 4 },
+                           Arrays.reciprocal( new float[] { 1, 2, 0.25f, } ) );
+        assertArrayEquals( new double[] { 0, 3, 0.5 },
+                           Arrays.divide( new short[] { 0, 9, 4 },
+                                          new double[] { 1, 3, 8 } ) );
     }
 
     public void testConversions() {
@@ -529,6 +562,18 @@ public class FuncTest extends TestCase {
 
         assertEquals( "+45:00:00", CoordsDegrees.degreesToDms( 45 ) );
         assertEquals( "-90:00:00.000", CoordsDegrees.degreesToDms( -90, 3 ) );
+    }
+
+    public void testTilings() {
+        final double pi4 = 4.0 * Math.PI;
+        assertEquals( pi4, Tilings.healpixSteradians( 0 ) * 12 );
+        assertEquals( pi4, Tilings.healpixSteradians( 2 ) * 12 * 4 * 4 );
+        assertEquals( 360*360/Math.PI, Tilings.healpixSqdeg( 0 ) * 12 );
+        assertEquals( Tilings.healpixResolution( 9 ),
+                      Math.sqrt( Tilings.healpixSqdeg( 9 ) ) );
+        assertEquals( pi4, Tilings.sqdegToSteradians( 129600 / Math.PI ),
+                      1e-6 );
+        assertEquals( 41253, Tilings.steradiansToSqdeg( pi4 ), 1. );
     }
 
     public void testJELClasses() {

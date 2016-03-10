@@ -125,6 +125,9 @@ public class FunctionPlotter extends
             public String valueToString( FuncAxis axis ) {
                 return axis.getAxisName();
             }
+            public String getXmlDescription( FuncAxis axis ) {
+                return null;
+            }
         }.setOptionUsage();
     }
 
@@ -160,7 +163,8 @@ public class FunctionPlotter extends
         };
     }
 
-    public FunctionStyle createStyle( ConfigMap config ) {
+    public FunctionStyle createStyle( ConfigMap config )
+            throws ConfigException {
         String xname = config.get( XNAME_KEY );   
         String fexpr = config.get( FEXPR_KEY );
         if ( xname == null || xname.trim().length() == 0 ||
@@ -364,7 +368,8 @@ public class FunctionPlotter extends
                 double x = xs[ ip ];
                 double f = function.evaluate( x );
                 if ( axis.xfToData( surface_, x, f, dpos ) &&
-                     surface_.dataToGraphics( dpos, false, gpos ) ) {
+                     surface_.dataToGraphics( dpos, false, gpos ) &&
+                     PlotUtil.isPointReal( gpos ) ) {
                     tracer.addVertex( gpos.x, gpos.y );
                 }
             }

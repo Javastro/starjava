@@ -9,14 +9,14 @@
 	<parent>
 		<artifactId>starlink-base</artifactId>
 		<groupId>uk.ac.starlink</groupId>
-		<version>2015.1</version>
+		<version>2016.1</version>
 		<relativePath>../maven/pom.xml</relativePath>
 	</parent>
 	<properties>
 	 <maven.test.skip>true</maven.test.skip> <!--FIXME -should run tests - attempt to exclude one compilation failure (below) did not work -->
 	</properties>
 	<name>table</name>
-	<version>3.0-9</version>
+	<version>${starlink.table.version}</version>
 	<description>TABLE - table data access classes</description>
 	<dependencies>
 		<dependency>

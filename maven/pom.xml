@@ -8,7 +8,7 @@
    <artifactId>starlink-bom</artifactId>
    <name>Starlink Bill of Materials</name>
    <description>A pom that only includes the dependency management to define the release versions of the various modules it can be included</description>
-   <version>2015.1</version>
+   <version>2016.1</version>
    <packaging>pom</packaging>
    <url>http://dev.starlink.ac.uk/</url>
    <issueManagement>
@@ -63,15 +63,15 @@
       <starlink.rv.version>1.0</starlink.rv.version>
       <starlink.soapserver.version>0.4</starlink.soapserver.version>
       <starlink.sog.version>0.3</starlink.sog.version>
-      <starlink.splat.version>3.10-0</starlink.splat.version>
+      <starlink.splat.version>3.11-0</starlink.splat.version>
       <starlink.srb.version>0.1</starlink.srb.version>
       <starlink.startask.version>0.1</starlink.startask.version>
-      <starlink.table.version>3.0-9</starlink.table.version>
+      <starlink.table.version>3.1</starlink.table.version>
       <starlink.tamfits.version>0.96a</starlink.tamfits.version>
       <starlink.task.version>0.2</starlink.task.version>
-      <starlink.topcat.version>4.0-SNAPSHOT</starlink.topcat.version>
+      <starlink.topcat.version>4.3-SNAPSHOT</starlink.topcat.version>
       <starlink.treeview.version>3.0</starlink.treeview.version>
-      <starlink.ttools.version>3.0-2</starlink.ttools.version>
+      <starlink.ttools.version>3.0-6</starlink.ttools.version>
       <starlink.util.version>1.0</starlink.util.version>
       <starlink.vo.version>0.2</starlink.vo.version>
       <starlink.votable.version>2.0</starlink.votable.version>

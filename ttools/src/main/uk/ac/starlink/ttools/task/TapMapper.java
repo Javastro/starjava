@@ -2,10 +2,7 @@ package uk.ac.starlink.ttools.task;
 
 import adql.parser.ParseException;
 import java.io.IOException;
-import java.io.InputStream;
 import java.io.PrintStream;
-import java.net.URLConnection;
-import java.net.URL;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.LinkedHashMap;
@@ -22,9 +19,9 @@ import uk.ac.starlink.task.Parameter;
 import uk.ac.starlink.task.ParameterValueException;
 import uk.ac.starlink.task.StringParameter;
 import uk.ac.starlink.task.TaskException;
-import uk.ac.starlink.task.URLParameter;
 import uk.ac.starlink.util.ContentCoding;
 import uk.ac.starlink.vo.AdqlValidator;
+import uk.ac.starlink.vo.EndpointSet;
 import uk.ac.starlink.vo.TapQuery;
 import uk.ac.starlink.vo.UwsJob;
 import uk.ac.starlink.votable.DataFormat;
@@ -39,12 +36,14 @@ import uk.ac.starlink.votable.VOTableWriter;
  */
 public class TapMapper implements TableMapper {
 
-    private final URLParameter urlParam_;
+    private final TapEndpointParams endpointParams_;
     private final StringParameter adqlParam_;
     private final BooleanParameter parseParam_;
     private final BooleanParameter syncParam_;
     private final StringParameter langParam_;
     private final LongParameter maxrecParam_;
+    private final StringParameter destructionParam_;
+    private final LongParameter durationParam_;
     private final ContentCodingParameter codingParam_;
     private final Parameter<VOTableWriter> vowriterParam_;
     private final TapResultReader resultReader_;
@@ -56,14 +55,17 @@ public class TapMapper implements TableMapper {
         paramList.add( createUploadNameParameter( VariableTablesInput
                                                  .NUM_SUFFIX ) );
 
-        urlParam_ = new URLParameter( "tapurl" );
-        urlParam_.setPrompt( "Base URL of TAP service" );
-        urlParam_.setDescription( new String[] {
-            "<p>The base URL of a Table Access Protocol service.",
-            "This is the bare URL without a trailing \"/[a]sync\".",
-            "</p>",
-        } );
-        paramList.add( urlParam_ );
+        endpointParams_ = new TapEndpointParams( "tapurl" );
+        paramList.add( endpointParams_.getBaseParameter() );
+
+        /* For now don't report the other endpoint parameters,
+         * since most of them will have no effect in practice,
+         * and they would confuse the documentation.
+         * But they are present undocumented if necessary. */
+        if ( false ) {
+            paramList.addAll( Arrays.asList( endpointParams_
+                                            .getOtherParameters() ) );
+        }
 
         adqlParam_ = new StringParameter( "adql" );
         adqlParam_.setPrompt( "ADQL query text" );
@@ -74,6 +76,7 @@ public class TapMapper implements TableMapper {
             "\"SELECT\".",
             "</p>",
         } );
+        adqlParam_.setUsage( "<query-text>" );
         paramList.add( adqlParam_ );
 
         parseParam_ = new BooleanParameter( "parse" );
@@ -123,9 +126,51 @@ public class TapMapper implements TableMapper {
             "If no value is set, the service's default policy will be used.",
             "</p>",
         } );
+        maxrecParam_.setUsage( "<nrow>" );
         maxrecParam_.setMinimum( 0L );
         maxrecParam_.setNullPermitted( true );
         paramList.add( maxrecParam_ );
+
+        destructionParam_ = new StringParameter( "destruction" );
+        destructionParam_.setPrompt( "Async job destruction time (ISO8601)" );
+        destructionParam_.setDescription( new String[] {
+            "<p>Posts an updated value of the UWS DESTRUCTION parameter",
+            "to the query job before it starts.",
+            "This only makes sense for asynchronous jobs",
+            "(<code>" + syncParam_.getName() + "</code>=false).",
+            "</p>",
+            "<p>The supplied value should be an ISO-8601-like string,",
+            "giving the new requested job destruction time.",
+            "The service is not obliged to honour this request.",
+            "See <webref url='http://www.ivoa.net/documents/UWS/20101010/'",
+            ">UWS v1.0</webref>, sec 2.2.3.3.",
+            "</p>",
+        } );
+        destructionParam_.setUsage( "<iso8601>" );
+        destructionParam_.setNullPermitted( true );
+        paramList.add( destructionParam_ );
+
+        durationParam_ = new LongParameter( "executionduration" );
+        durationParam_.setPrompt( "Async job max duration (seconds)" );
+        durationParam_.setDescription( new String[] {
+            "<p>Posts an updated value of the UWS EXECUTIONDURATION parameter",
+            "to the query job before it starts.",
+            "This only makes sense for asynchronous jobs",
+            "(<code>" + syncParam_.getName() + "</code>=false).",
+            "</p>",
+            "<p>The supplied value is an integer giving the maximum number",
+            "of wall-clock seconds for which the job is permitted to",
+            "execute before being forcibly terminated.",
+            "A value of zero indicates unlimited duration.",
+            "The service is not obliged to honour this request.",
+            "See <webref url='http://www.ivoa.net/documents/UWS/20101010/'",
+            ">UWS v1.0</webref>, sec 2.2.3.4.",
+            "</p>",
+        } );
+        durationParam_.setUsage( "<seconds>" );
+        durationParam_.setMinimum( 0 );
+        durationParam_.setNullPermitted( true );
+        paramList.add( durationParam_ );
 
         codingParam_ = new ContentCodingParameter();
         paramList.add( codingParam_ );
@@ -168,6 +213,7 @@ public class TapMapper implements TableMapper {
             "to submit a PQL query.",
             "</p>",
         } );
+        langParam_.setUsage( "<lang-name>" );
         langParam_.setStringDefault( "ADQL" );
         paramList.add( langParam_ );
 
@@ -183,7 +229,7 @@ public class TapMapper implements TableMapper {
 
     public TableMapping createMapping( Environment env, final int nup )
             throws TaskException {
-        final URL serviceUrl = urlParam_.objectValue( env );
+        final EndpointSet endpointSet = endpointParams_.getEndpointSet( env );
         final String adql = adqlParam_.stringValue( env );
         if ( parseParam_.booleanValue( env ) ) {
             AdqlValidator validator = new AdqlValidator( null, null, null );
@@ -222,7 +268,7 @@ public class TapMapper implements TableMapper {
                 public StarTable mapTables( InputTableSpec[] inSpecs )
                         throws TaskException, IOException {
                     TapQuery tq =
-                        createTapQuery( serviceUrl, adql, extraParams, upNames,
+                        createTapQuery( endpointSet, adql, extraParams, upNames,
                                         inSpecs, uploadLimit, vowriter );
                     return tq.executeSync( tfact.getStoragePolicy(), coding );
                 }
@@ -233,17 +279,25 @@ public class TapMapper implements TableMapper {
                 resultReader_.createResultProducer( env, coding );
             final boolean progress =
                 resultReader_.getProgressParameter().booleanValue( env );
+            final String destruction = destructionParam_.stringValue( env );
+            final Long duration = durationParam_.objectValue( env );
             final PrintStream errStream = env.getErrorStream();
             return new TableMapping() {
                 public StarTable mapTables( InputTableSpec[] inSpecs )
                         throws TaskException, IOException {
                     TapQuery tq =
-                        createTapQuery( serviceUrl, adql, extraParams, upNames,
+                        createTapQuery( endpointSet, adql, extraParams, upNames,
                                         inSpecs, uploadLimit, vowriter );
                     UwsJob tapJob = tq.submitAsync();
                     if ( progress ) {
                         errStream.println( "SUBMITTED ..." );
                         errStream.println( tapJob.getJobUrl() );
+                    }
+                    if ( duration != null ) {
+                        tapJob.postExecutionDuration( duration.longValue() );
+                    }
+                    if ( destruction != null ) { 
+                        tapJob.postDestruction( destruction );
                     }
                     tapJob.start();
                     return resultProducer.waitForResult( tapJob );
@@ -255,7 +309,7 @@ public class TapMapper implements TableMapper {
     /**
      * Returns a new TapQuery object from values available at execution time.
      *
-     * @param  serviceUrl  base service URL for TAP service (excluding "/async")
+     * @param  endpointSet  location of TAP service endpoints
      * @param  adql   text of ADQL query
      * @param  extraParams  key->value map for optional parameters;
      *                      if any of these match the names of standard
@@ -269,7 +323,8 @@ public class TapMapper implements TableMapper {
      *                      if negative, no limit is applied
      * @return   new TAP query object
      */
-    private static TapQuery createTapQuery( URL serviceUrl, String adql,
+    private static TapQuery createTapQuery( EndpointSet endpointSet,
+                                            String adql,
                                             Map<String,String> extraParams,
                                             String[] upNames,
                                             InputTableSpec[] inSpecs,
@@ -281,7 +336,7 @@ public class TapMapper implements TableMapper {
         for ( int iu = 0; iu < nup; iu++ ) {
             uploadMap.put( upNames[ iu ], inSpecs[ iu ].getWrappedTable() );
         }
-        return new TapQuery( serviceUrl, adql, extraParams, uploadMap, 
+        return new TapQuery( endpointSet, adql, extraParams, uploadMap, 
                              uploadLimit, vowriter );
     }
 

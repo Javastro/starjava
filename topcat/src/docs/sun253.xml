@@ -35,197 +35,234 @@
    !   Use -Dswing.metalTheme=steel when taking screenshots for visual
    !   consistency. -->
   <!ENTITY figs '../figures/'>
-  <!ENTITY FIG.ControlWindow '&figs;ControlWindow.gif'>
-  <!ENTITY FIG.ColumnInfoWindow '&figs;ColumnInfoWindow.gif'>
-  <!ENTITY FIG.JTable '&figs;JTable.gif'>
-  <!ENTITY FIG.ParameterWindow '&figs;ParameterWindow.gif'>
-  <!ENTITY FIG.TableViewerWindow '&figs;TableViewerWindow.gif'>
-  <!ENTITY FIG.SubsetWindow '&figs;SubsetWindow.gif'>
-  <!ENTITY FIG.StatsWindow '&figs;StatsWindow.gif'>
-  <!ENTITY FIG.LoadWindow '&figs;LoadWindow.gif'>
-  <!ENTITY FIG.FilestoreTableLoadDialog '&figs;FilestoreTableLoadDialog.gif'>
-  <!ENTITY FIG.TreeTableLoadDialog '&figs;TreeTableLoadDialog.gif'>
-  <!ENTITY FIG.SQLTableLoadDialog '&figs;SQLTableLoadDialog.gif'>
-  <!ENTITY FIG.ConeSearchDialog '&figs;ConeSearchDialog.gif'>
-  <!ENTITY FIG.GavoTableLoadDialog '&figs;GavoTableLoadDialog.gif'>
-  <!ENTITY FIG.SaveQueryWindow '&figs;SaveQueryWindow.gif'>
-  <!ENTITY FIG.FilestoreTableSaveDialog '&figs;FilestoreTableSaveDialog.gif'>
-  <!ENTITY FIG.SQLWriteDialog '&figs;SQLWriteDialog.gif'>
-  <!ENTITY FIG.ConcatWindow '&figs;ConcatWindow.gif'>
-  <!ENTITY FIG.MatchWindow '&figs;MatchWindow.gif'>
-  <!ENTITY FIG.MatchWindow1 '&figs;MatchWindow1.gif'>
-  <!ENTITY FIG.MatchWindowN '&figs;MatchWindowN.gif'>
-  <!ENTITY FIG.ActivationQueryWindow '&figs;ActivationQueryWindow.gif'>
-  <!ENTITY FIG.SoG '&figs;SoG.gif'>
-  <!ENTITY FIG.ImageWindow '&figs;ImageWindow.gif'>
-  <!ENTITY FIG.Splat '&figs;Splat.gif'>
-  <!ENTITY FIG.HelpWindow '&figs;HelpWindow.gif'>
-  <!ENTITY FIG.ParameterQueryWindow '&figs;ParameterQueryWindow.gif'>
+  <!ENTITY FIG.ControlWindow '&figs;ControlWindow.png'>
+  <!ENTITY FIG.ColumnInfoWindow '&figs;ColumnInfoWindow.png'>
+  <!ENTITY FIG.JTable '&figs;JTable.png'>
+  <!ENTITY FIG.ParameterWindow '&figs;ParameterWindow.png'>
+  <!ENTITY FIG.TableViewerWindow '&figs;TableViewerWindow.png'>
+  <!ENTITY FIG.SubsetWindow '&figs;SubsetWindow.png'>
+  <!ENTITY FIG.StatsWindow '&figs;StatsWindow.png'>
+  <!ENTITY FIG.LoadWindow '&figs;LoadWindow.png'>
+  <!ENTITY FIG.FilestoreTableLoadDialog '&figs;FilestoreTableLoadDialog.png'>
+  <!ENTITY FIG.TreeTableLoadDialog '&figs;TreeTableLoadDialog.png'>
+  <!ENTITY FIG.SQLTableLoadDialog '&figs;SQLTableLoadDialog.png'>
+  <!ENTITY FIG.ConeSearchDialog '&figs;ConeSearchDialog.png'>
+  <!ENTITY FIG.GavoTableLoadDialog '&figs;GavoTableLoadDialog.png'>
+  <!ENTITY FIG.SaveQueryWindow '&figs;SaveQueryWindow.png'>
+  <!ENTITY FIG.FilestoreTableSaveDialog '&figs;FilestoreTableSaveDialog.png'>
+  <!ENTITY FIG.SQLWriteDialog '&figs;SQLWriteDialog.png'>
+  <!ENTITY FIG.ConcatWindow '&figs;ConcatWindow.png'>
+  <!ENTITY FIG.MatchWindow '&figs;MatchWindow.png'>
+  <!ENTITY FIG.MatchWindow1 '&figs;MatchWindow1.png'>
+  <!ENTITY FIG.MatchWindowN '&figs;MatchWindowN.png'>
+  <!ENTITY FIG.ActivationQueryWindow '&figs;ActivationQueryWindow.png'>
+  <!ENTITY FIG.SoG '&figs;SoG.png'>
+  <!ENTITY FIG.ImageWindow '&figs;ImageWindow.png'>
+  <!ENTITY FIG.Splat '&figs;Splat.png'>
+  <!ENTITY FIG.HelpWindow '&figs;HelpWindow.png'>
+  <!ENTITY FIG.ParameterQueryWindow '&figs;ParameterQueryWindow.png'>
   <!ENTITY FIG.SyntheticColumnQueryWindow 
-           '&figs;SyntheticColumnQueryWindow.gif'>
-  <!ENTITY FIG.SkyColumnQueryWindow '&figs;SkyColumnQueryWindow.gif'>
+           '&figs;SyntheticColumnQueryWindow.png'>
+  <!ENTITY FIG.SkyColumnQueryWindow '&figs;SkyColumnQueryWindow.png'>
   <!ENTITY FIG.SyntheticSubsetQueryWindow 
-           '&figs;SyntheticSubsetQueryWindow.gif'>
-  <!ENTITY FIG.ClassifyWindow '&figs;ClassifyWindow.gif'>
-  <!ENTITY FIG.MethodWindow '&figs;MethodWindow.gif'>
-  <!ENTITY FIG.HtmlWindow '&figs;HtmlWindow.gif'>
-  <!ENTITY FIG.LogWindow '&figs;LogWindow.gif'>
-  <!ENTITY FIG.PointSelector '&figs;PointSelector.gif'>
-  <!ENTITY FIG.AxisWindow '&figs;AxisWindow.gif'>
-  <!ENTITY FIG.HistogramWindow '&figs;HistogramWindow.gif'>
-  <!ENTITY FIG.PlotWindow '&figs;PlotWindow.gif'>
-  <!ENTITY FIG.PlotWindow_blob '&figs;PlotWindow_blob.gif'>
-  <!ENTITY FIG.Cartesian3DWindow '&figs;Cartesian3DWindow.gif'>
-  <!ENTITY FIG.SphereWindow '&figs;SphereWindow.gif'>
-  <!ENTITY FIG.DensityWindow '&figs;DensityWindow.gif'>
-  <!ENTITY FIG.LinesWindow '&figs;LinesWindow.gif'>
-  <!ENTITY FIG.MarkStyleEditor '&figs;MarkStyleEditor.gif'>
-  <!ENTITY FIG.MarkStyleEditorNoLines '&figs;MarkStyleEditorNoLines.gif'>
-  <!ENTITY FIG.BarStyleEditor '&figs;BarStyleEditor.gif'>
-  <!ENTITY FIG.DensityStyleEditor '&figs;DensityStyleEditor.gif'>
-  <!ENTITY FIG.LinesStyleEditor '&figs;LinesStyleEditor.gif'>
-  <!ENTITY FIG.Cartesian3DWindow_aux '&figs;Cartesian3DWindow_aux.gif'>
-  <!ENTITY FIG.PlotWindow_err '&figs;PlotWindow_err.gif'>
-  <!ENTITY FIG.SphereWindow_labels '&figs;SphereWindow_labels.gif'>
-  <!ENTITY FIG.sampPanel '&figs;sampPanel.gif'>
-  <!ENTITY FIG.SampWindow_clients '&figs;SampWindow_clients.gif'>
-  <!ENTITY FIG.SampWindow_msgs '&figs;SampWindow_msgs.gif'>
-  <!ENTITY FIG.SiapTableLoadDialog '&figs;SiapTableLoadDialog.gif'>
-  <!ENTITY FIG.SsapTableLoadDialog '&figs;SsapTableLoadDialog.gif'>
-  <!ENTITY FIG.TapTableLoadDialog '&figs;TapTableLoadDialog.gif'>
+           '&figs;SyntheticSubsetQueryWindow.png'>
+  <!ENTITY FIG.ClassifyWindow '&figs;ClassifyWindow.png'>
+  <!ENTITY FIG.MethodWindow '&figs;MethodWindow.png'>
+  <!ENTITY FIG.HtmlWindow '&figs;HtmlWindow.png'>
+  <!ENTITY FIG.LogWindow '&figs;LogWindow.png'>
+  <!ENTITY FIG.PointSelector '&figs;PointSelector.png'>
+  <!ENTITY FIG.AxisWindow '&figs;AxisWindow.png'>
+  <!ENTITY FIG.HistogramWindow '&figs;HistogramWindow.png'>
+  <!ENTITY FIG.PlotWindow '&figs;PlotWindow.png'>
+  <!ENTITY FIG.PlotWindow_blob '&figs;PlotWindow_blob.png'>
+  <!ENTITY FIG.Cartesian3DWindow '&figs;Cartesian3DWindow.png'>
+  <!ENTITY FIG.SphereWindow '&figs;SphereWindow.png'>
+  <!ENTITY FIG.DensityWindow '&figs;DensityWindow.png'>
+  <!ENTITY FIG.LinesWindow '&figs;LinesWindow.png'>
+  <!ENTITY FIG.MarkStyleEditor '&figs;MarkStyleEditor.png'>
+  <!ENTITY FIG.MarkStyleEditorNoLines '&figs;MarkStyleEditorNoLines.png'>
+  <!ENTITY FIG.BarStyleEditor '&figs;BarStyleEditor.png'>
+  <!ENTITY FIG.DensityStyleEditor '&figs;DensityStyleEditor.png'>
+  <!ENTITY FIG.LinesStyleEditor '&figs;LinesStyleEditor.png'>
+  <!ENTITY FIG.Cartesian3DWindow_aux '&figs;Cartesian3DWindow_aux.png'>
+  <!ENTITY FIG.PlotWindow_err '&figs;PlotWindow_err.png'>
+  <!ENTITY FIG.SphereWindow_labels '&figs;SphereWindow_labels.png'>
+  <!ENTITY FIG.sampPanel '&figs;sampPanel.png'>
+  <!ENTITY FIG.SampWindow_clients '&figs;SampWindow_clients.png'>
+  <!ENTITY FIG.SampWindow_msgs '&figs;SampWindow_msgs.png'>
+  <!ENTITY FIG.SiapTableLoadDialog '&figs;SiapTableLoadDialog.png'>
+  <!ENTITY FIG.SsapTableLoadDialog '&figs;SsapTableLoadDialog.png'>
+  <!ENTITY FIG.TapTableLoadDialog '&figs;TapTableLoadDialog.png'>
   <!ENTITY FIG.TapTableLoadDialog_service
-           '&figs;TapTableLoadDialog_service.gif'>
-  <!ENTITY FIG.TapTableLoadDialog_query '&figs;TapTableLoadDialog_query.gif'>
-  <!ENTITY FIG.TapTableLoadDialog_jobs '&figs;TapTableLoadDialog_jobs.gif'>
-  <!ENTITY FIG.TapTableLoadDialog_resume '&figs;TapTableLoadDialog_resume.gif'>
-  <!ENTITY FIG.columnSelector '&figs;columnSelector.gif'>
-  <!ENTITY FIG.RegistryPanel '&figs;RegistryPanel.gif'>
-  <!ENTITY FIG.DalTableLoadDialog '&figs;DalTableLoadDialog.gif'>
-  <!ENTITY FIG.DalMultiPanel '&figs;DalMultiPanel.gif'>
-  <!ENTITY FIG.ConeMultiWindow '&figs;ConeMultiWindow.gif'>
-  <!ENTITY FIG.SiaMultiWindow '&figs;SiaMultiWindow.gif'>
-  <!ENTITY FIG.SsaMultiWindow '&figs;SsaMultiWindow.gif'>
-  <!ENTITY FIG.VizierTableLoadDialog '&figs;VizierTableLoadDialog.gif'>
-  <!ENTITY FIG.MemoryMonitor '&figs;MemoryMonitor.gif'>
-  <!ENTITY FIG.ParameterPanel '&figs;ParameterPanel.gif'>
-  <!ENTITY FIG.TupleSelector '&figs;TupleSelector.gif'>
-  <!ENTITY FIG.IntraMatchSpec '&figs;IntraMatchSpec.gif'>
-  <!ENTITY FIG.PairMatchSpec '&figs;PairMatchSpec.gif'>
-  <!ENTITY FIG.InterMatchSpec '&figs;InterMatchSpec.gif'>
-  <!ENTITY FIG.BaSTITableLoadDialog '&figs;BaSTITableLoadDialog.gif'>
-  <!ENTITY FIG.StackPlotWindow '&figs;StackPlotWindow.gif'>
-  <!ENTITY FIG.StackPlotWindow_float '&figs;StackPlotWindow_float.gif'>
-  <!ENTITY FIG.NavigationHelpPanel '&figs;NavigationHelpPanel.gif'>
-  <!ENTITY FIG.StackPlotWindow_blob '&figs;StackPlotWindow_blob.gif'>
-  <!ENTITY FIG.ControlStack_fixed '&figs;ControlStack_fixed.gif'>
-  <!ENTITY FIG.form-style '&figs;form-style.gif'>
-  <!ENTITY FIG.PlotExporter '&figs;PlotExporter.gif'>
-  <!ENTITY FIG.LegendControl_style '&figs;LegendControl_style.gif'>
-  <!ENTITY FIG.LegendControl_position '&figs;LegendControl_position.gif'>
-  <!ENTITY FIG.ShaderControl_map '&figs;ShaderControl_map.gif'>
-  <!ENTITY FIG.ShaderControl_ramp '&figs;ShaderControl_ramp.gif'>
-  <!ENTITY FIG.ShaderControl_range '&figs;ShaderControl_range.gif'>
-  <!ENTITY FIG.FunctionLayerControl '&figs;FunctionLayerControl.gif'>
+           '&figs;TapTableLoadDialog_service.png'>
+  <!ENTITY FIG.TapTableLoadDialog_query '&figs;TapTableLoadDialog_query.png'>
+  <!ENTITY FIG.TapTableLoadDialog_jobs '&figs;TapTableLoadDialog_jobs.png'>
+  <!ENTITY FIG.TapTableLoadDialog_resume '&figs;TapTableLoadDialog_resume.png'>
+  <!ENTITY FIG.columnSelector '&figs;columnSelector.png'>
+  <!ENTITY FIG.RegistryPanel '&figs;RegistryPanel.png'>
+  <!ENTITY FIG.DalTableLoadDialog '&figs;DalTableLoadDialog.png'>
+  <!ENTITY FIG.DalMultiPanel '&figs;DalMultiPanel.png'>
+  <!ENTITY FIG.ConeMultiWindow '&figs;ConeMultiWindow.png'>
+  <!ENTITY FIG.SiaMultiWindow '&figs;SiaMultiWindow.png'>
+  <!ENTITY FIG.SsaMultiWindow '&figs;SsaMultiWindow.png'>
+  <!ENTITY FIG.VizierTableLoadDialog '&figs;VizierTableLoadDialog.png'>
+  <!ENTITY FIG.MemoryMonitor '&figs;MemoryMonitor.png'>
+  <!ENTITY FIG.ParameterPanel '&figs;ParameterPanel.png'>
+  <!ENTITY FIG.TupleSelector '&figs;TupleSelector.png'>
+  <!ENTITY FIG.IntraMatchSpec '&figs;IntraMatchSpec.png'>
+  <!ENTITY FIG.PairMatchSpec '&figs;PairMatchSpec.png'>
+  <!ENTITY FIG.InterMatchSpec '&figs;InterMatchSpec.png'>
+  <!ENTITY FIG.BaSTITableLoadDialog '&figs;BaSTITableLoadDialog.png'>
+  <!ENTITY FIG.StackPlotWindow '&figs;StackPlotWindow.png'>
+  <!ENTITY FIG.StackPlotWindow_float '&figs;StackPlotWindow_float.png'>
+  <!ENTITY FIG.NavigationHelpPanel '&figs;NavigationHelpPanel.png'>
+  <!ENTITY FIG.StackPlotWindow_blob '&figs;StackPlotWindow_blob.png'>
+  <!ENTITY FIG.ControlStack_fixed '&figs;ControlStack_fixed.png'>
+  <!ENTITY FIG.PlotExporter '&figs;PlotExporter.png'>
+  <!ENTITY FIG.LegendControl_style '&figs;LegendControl_style.png'>
+  <!ENTITY FIG.LegendControl_position '&figs;LegendControl_position.png'>
+  <!ENTITY FIG.ShaderControl_map '&figs;ShaderControl_map.png'>
+  <!ENTITY FIG.ShaderControl_ramp '&figs;ShaderControl_ramp.png'>
+  <!ENTITY FIG.ShaderControl_range '&figs;ShaderControl_range.png'>
+  <!ENTITY FIG.FunctionLayerControl '&figs;FunctionLayerControl.png'>
   <!ENTITY FIG.FunctionLayerControl_function
-           '&figs;FunctionLayerControl_function.gif'>
+           '&figs;FunctionLayerControl_function.png'>
   <!ENTITY FIG.FunctionLayerControl_style
-           '&figs;FunctionLayerControl_style.gif'>
+           '&figs;FunctionLayerControl_style.png'>
   <!ENTITY FIG.FunctionLayerControl_label
-           '&figs;FunctionLayerControl_label.gif'>
-  <!ENTITY FIG.SpectrogramLayerControl '&figs;SpectrogramLayerControl.gif'>
+           '&figs;FunctionLayerControl_label.png'>
+  <!ENTITY FIG.SpectrogramLayerControl '&figs;SpectrogramLayerControl.png'>
   <!ENTITY FIG.SpectrogramLayerControl_data
-           '&figs;SpectrogramLayerControl_data.gif'>
-  <!ENTITY FIG.SpectrogramLayerControl_style
-           '&figs;SpectrogramLayerControl_style.gif'>
-  <!ENTITY FIG.GangLayerControl_position '&figs;GangLayerControl_position.gif'>
-  <!ENTITY FIG.GangLayerControl_subsets '&figs;GangLayerControl_subsets.gif'>
-  <!ENTITY FIG.GangLayerControl_form '&figs;GangLayerControl_form.gif'>
+           '&figs;SpectrogramLayerControl_data.png'>
+  <!ENTITY FIG.GangLayerControl_position '&figs;GangLayerControl_position.png'>
+  <!ENTITY FIG.GangLayerControl_subsets '&figs;GangLayerControl_subsets.png'>
+  <!ENTITY FIG.GangLayerControl_form '&figs;GangLayerControl_form.png'>
   <!ENTITY FIG.GangLayerControl_pair_position
-           '&figs;GangLayerControl_pair_position.gif'>
+           '&figs;GangLayerControl_pair_position.png'>
   <!ENTITY FIG.GangLayerControl_pair_subsets
-           '&figs;GangLayerControl_pair_subsets.gif'>
+           '&figs;GangLayerControl_pair_subsets.png'>
   <!ENTITY FIG.GangLayerControl_pair_form
-           '&figs;GangLayerControl_pair_form.gif'>
+           '&figs;GangLayerControl_pair_form.png'>
   <!ENTITY FIG.HistogramLayerControl_position
-           '&figs;HistogramLayerControl_position.gif'>
+           '&figs;HistogramLayerControl_position.png'>
   <!ENTITY FIG.HistogramLayerControl_subsets
-           '&figs;HistogramLayerControl_subsets.gif'>
+           '&figs;HistogramLayerControl_subsets.png'>
   <!ENTITY FIG.HistogramLayerControl_form
-           '&figs;HistogramLayerControl_form.gif'>
-  <!ENTITY FIG.mode_flat '&figs;mode_flat.gif'>
-  <!ENTITY FIG.mode_translucent '&figs;mode_translucent.gif'>
-  <!ENTITY FIG.mode_transparent '&figs;mode_transparent.gif'>
-  <!ENTITY FIG.mode_auto '&figs;mode_auto.gif'>
-  <!ENTITY FIG.mode_density '&figs;mode_density.gif'>
-  <!ENTITY FIG.mode_aux '&figs;mode_aux.gif'>
-  <!ENTITY FIG.mode_weighted '&figs;mode_weighted.gif'>
-  <!ENTITY FIG.form_mark '&figs;form_mark.gif'>
-  <!ENTITY FIG.form_size '&figs;form_size.gif'>
-  <!ENTITY FIG.form_sizexy '&figs;form_sizexy.gif'>
-  <!ENTITY FIG.form_vector '&figs;form_vector.gif'>
-  <!ENTITY FIG.form_skyvector '&figs;form_skyvector.gif'>
-  <!ENTITY FIG.form_error '&figs;form_error.gif'>
-  <!ENTITY FIG.form_xyellipse '&figs;form_xyellipse.gif'>
-  <!ENTITY FIG.form_skyellipse '&figs;form_skyellipse.gif'>
-  <!ENTITY FIG.form_line '&figs;form_line.gif'>
-  <!ENTITY FIG.form_linearfit '&figs;form_linearfit.gif'>
-  <!ENTITY FIG.form_label '&figs;form_label.gif'>
-  <!ENTITY FIG.form_contour '&figs;form_contour.gif'>
-  <!ENTITY FIG.form_density '&figs;form_density.gif'>
-  <!ENTITY FIG.form_skydensity '&figs;form_skydensity.gif'>
-  <!ENTITY FIG.form_histogram '&figs;form_histogram.gif'>
-  <!ENTITY FIG.form_kde '&figs;form_kde.gif'>
-  <!ENTITY FIG.form_knn '&figs;form_knn.gif'>
-  <!ENTITY FIG.form_densogram '&figs;form_densogram.gif'>
-  <!ENTITY FIG.form_marks2 '&figs;form_marks2.gif'>
-  <!ENTITY FIG.form_link2 '&figs;form_link2.gif'>
-  <!ENTITY FIG.font_tab '&figs;font_tab.gif'>
-  <!ENTITY FIG.size_tab '&figs;size_tab.gif'>
-  <!ENTITY FIG.title_tab '&figs;title_tab.gif'>
-  <!ENTITY FIG.BinsControl_histogram '&figs;BinsControl_histogram.gif'>
-  <!ENTITY FIG.BinsControl_kde '&figs;BinsControl_kde.gif'>
-  <!ENTITY FIG.BinsControl_general '&figs;BinsControl_general.gif'>
-  <!ENTITY FIG.PlaneAxisControl_coords '&figs;PlaneAxisControl_coords.gif'>
+           '&figs;HistogramLayerControl_form.png'>
+  <!ENTITY FIG.HealpixLayerControl '&figs;HealpixLayerControl.png'>
+  <!ENTITY FIG.HealpixLayerControl_data '&figs;HealpixLayerControl_data.png'>
+  <!ENTITY FIG.HealpixLayerControl_style '&figs;HealpixLayerControl_style.png'>
+  <!ENTITY FIG.mode_flat '&figs;mode_flat.png'>
+  <!ENTITY FIG.mode_translucent '&figs;mode_translucent.png'>
+  <!ENTITY FIG.mode_transparent '&figs;mode_transparent.png'>
+  <!ENTITY FIG.mode_auto '&figs;mode_auto.png'>
+  <!ENTITY FIG.mode_density '&figs;mode_density.png'>
+  <!ENTITY FIG.mode_aux '&figs;mode_aux.png'>
+  <!ENTITY FIG.mode_weighted '&figs;mode_weighted.png'>
+  <!ENTITY FIG.form_mark '&figs;form_mark.png'>
+  <!ENTITY FIG.form_size '&figs;form_size.png'>
+  <!ENTITY FIG.form_sizexy '&figs;form_sizexy.png'>
+  <!ENTITY FIG.form_vector '&figs;form_vector.png'>
+  <!ENTITY FIG.form_skyvector '&figs;form_skyvector.png'>
+  <!ENTITY FIG.form_error '&figs;form_error.png'>
+  <!ENTITY FIG.form_xyellipse '&figs;form_xyellipse.png'>
+  <!ENTITY FIG.form_skyellipse '&figs;form_skyellipse.png'>
+  <!ENTITY FIG.form_line '&figs;form_line.png'>
+  <!ENTITY FIG.form_linearfit '&figs;form_linearfit.png'>
+  <!ENTITY FIG.form_quantile '&figs;form_quantile.png'>
+  <!ENTITY FIG.form_label '&figs;form_label.png'>
+  <!ENTITY FIG.form_contour '&figs;form_contour.png'>
+  <!ENTITY FIG.form_fill '&figs;form_fill.png'>
+  <!ENTITY FIG.form_grid '&figs;form_grid.png'>
+  <!ENTITY FIG.form_skydensity '&figs;form_skydensity.png'>
+  <!ENTITY FIG.form_histogram '&figs;form_histogram.png'>
+  <!ENTITY FIG.form_kde '&figs;form_kde.png'>
+  <!ENTITY FIG.form_knn '&figs;form_knn.png'>
+  <!ENTITY FIG.form_densogram '&figs;form_densogram.png'>
+  <!ENTITY FIG.form_gaussian '&figs;form_gaussian.png'>
+  <!ENTITY FIG.form_mark2 '&figs;form_mark2.png'>
+  <!ENTITY FIG.form_link2 '&figs;form_link2.png'>
+  <!ENTITY FIG.font_tab '&figs;font_tab.png'>
+  <!ENTITY FIG.size_tab '&figs;size_tab.png'>
+  <!ENTITY FIG.title_tab '&figs;title_tab.png'>
+  <!ENTITY FIG.zone_tab '&figs;zone_tab.png'>
+  <!ENTITY FIG.zone_axes '&figs;zone_axes.png'>
+  <!ENTITY FIG.BinsControl_histogram '&figs;BinsControl_histogram.png'>
+  <!ENTITY FIG.BinsControl_kde '&figs;BinsControl_kde.png'>
+  <!ENTITY FIG.BinsControl_general '&figs;BinsControl_general.png'>
+  <!ENTITY FIG.PlaneAxisControl_coords '&figs;PlaneAxisControl_coords.png'>
   <!ENTITY FIG.PlaneAxisControl_navigation
-               '&figs;PlaneAxisControl_navigation.gif'>
-  <!ENTITY FIG.PlaneAxisControl_range '&figs;PlaneAxisControl_range.gif'>
-  <!ENTITY FIG.PlaneAxisControl_grid '&figs;PlaneAxisControl_grid.gif'>
-  <!ENTITY FIG.PlaneAxisControl_labels '&figs;PlaneAxisControl_labels.gif'>
-  <!ENTITY FIG.SkyAxisControl_projection '&figs;SkyAxisControl_projection.gif'>
-  <!ENTITY FIG.SkyAxisControl_navigation '&figs;SkyAxisControl_navigation.gif'>
-  <!ENTITY FIG.SkyAxisControl_fov '&figs;SkyAxisControl_fov.gif'>
-  <!ENTITY FIG.SkyAxisControl_grid '&figs;SkyAxisControl_grid.gif'>
-  <!ENTITY FIG.CubeAxisControl_coords '&figs;CubeAxisControl_coords.gif'>
+               '&figs;PlaneAxisControl_navigation.png'>
+  <!ENTITY FIG.PlaneAxisControl_range '&figs;PlaneAxisControl_range.png'>
+  <!ENTITY FIG.PlaneAxisControl_grid '&figs;PlaneAxisControl_grid.png'>
+  <!ENTITY FIG.PlaneAxisControl_labels '&figs;PlaneAxisControl_labels.png'>
+  <!ENTITY FIG.SkyAxisControl_projection '&figs;SkyAxisControl_projection.png'>
+  <!ENTITY FIG.SkyAxisControl_navigation '&figs;SkyAxisControl_navigation.png'>
+  <!ENTITY FIG.SkyAxisControl_fov '&figs;SkyAxisControl_fov.png'>
+  <!ENTITY FIG.SkyAxisControl_grid '&figs;SkyAxisControl_grid.png'>
+  <!ENTITY FIG.CubeAxisControl_coords '&figs;CubeAxisControl_coords.png'>
   <!ENTITY FIG.CubeAxisControl_navigation
-           '&figs;CubeAxisControl_navigation.gif'>
-  <!ENTITY FIG.CubeAxisControl_range '&figs;CubeAxisControl_range.gif'>
-  <!ENTITY FIG.CubeAxisControl_view '&figs;CubeAxisControl_view.gif'>
-  <!ENTITY FIG.CubeAxisControl_grid '&figs;CubeAxisControl_grid.gif'>
-  <!ENTITY FIG.CubeAxisControl_labels '&figs;CubeAxisControl_labels.gif'>
+           '&figs;CubeAxisControl_navigation.png'>
+  <!ENTITY FIG.CubeAxisControl_range '&figs;CubeAxisControl_range.png'>
+  <!ENTITY FIG.CubeAxisControl_view '&figs;CubeAxisControl_view.png'>
+  <!ENTITY FIG.CubeAxisControl_grid '&figs;CubeAxisControl_grid.png'>
+  <!ENTITY FIG.CubeAxisControl_labels '&figs;CubeAxisControl_labels.png'>
   <!ENTITY FIG.SphereAxisControl_navigation
-           '&figs;SphereAxisControl_navigation.gif'>
-  <!ENTITY FIG.SphereAxisControl_range '&figs;SphereAxisControl_range.gif'>
-  <!ENTITY FIG.SphereAxisControl_view '&figs;SphereAxisControl_view.gif'>
-  <!ENTITY FIG.SphereAxisControl_grid '&figs;SphereAxisControl_grid.gif'>
-  <!ENTITY FIG.TimeAxisControl_coords '&figs;TimeAxisControl_coords.gif'>
+           '&figs;SphereAxisControl_navigation.png'>
+  <!ENTITY FIG.SphereAxisControl_range '&figs;SphereAxisControl_range.png'>
+  <!ENTITY FIG.SphereAxisControl_view '&figs;SphereAxisControl_view.png'>
+  <!ENTITY FIG.SphereAxisControl_grid '&figs;SphereAxisControl_grid.png'>
+  <!ENTITY FIG.TimeAxisControl_coords '&figs;TimeAxisControl_coords.png'>
   <!ENTITY FIG.TimeAxisControl_navigation
-           '&figs;TimeAxisControl_navigation.gif'>
-  <!ENTITY FIG.TimeAxisControl_range '&figs;TimeAxisControl_range.gif'>
-  <!ENTITY FIG.TimeAxisControl_grid '&figs;TimeAxisControl_grid.gif'>
-  <!ENTITY FIG.TimeAxisControl_labels '&figs;TimeAxisControl_labels.gif'>
-  <!ENTITY FIG.HistogramPlotWindow '&figs;HistogramPlotWindow.gif'>
-  <!ENTITY FIG.PlanePlotWindow '&figs;PlanePlotWindow.gif'>
-  <!ENTITY FIG.SkyPlotWindow '&figs;SkyPlotWindow.gif'>
-  <!ENTITY FIG.CubePlotWindow '&figs;CubePlotWindow.gif'>
-  <!ENTITY FIG.SpherePlotWindow '&figs;SpherePlotWindow.gif'>
-  <!ENTITY FIG.TimePlotWindow '&figs;TimePlotWindow.gif'>
-  <!ENTITY FIG.plotmatch_dialog '&figs;plotmatch_dialog.gif'>
-  <!ENTITY FIG.SkyPlotWindow_plotmatch '&figs;SkyPlotWindow_plotmatch.gif'>
-  <!ENTITY FIG.CdsUploadMatchWindow '&figs;CdsUploadMatchWindow.gif'>
+           '&figs;TimeAxisControl_navigation.png'>
+  <!ENTITY FIG.TimeAxisControl_range '&figs;TimeAxisControl_range.png'>
+  <!ENTITY FIG.TimeAxisControl_grid '&figs;TimeAxisControl_grid.png'>
+  <!ENTITY FIG.TimeAxisControl_labels '&figs;TimeAxisControl_labels.png'>
+  <!ENTITY FIG.HistogramPlotWindow '&figs;HistogramPlotWindow.png'>
+  <!ENTITY FIG.PlanePlotWindow '&figs;PlanePlotWindow.png'>
+  <!ENTITY FIG.SkyPlotWindow '&figs;SkyPlotWindow.png'>
+  <!ENTITY FIG.CubePlotWindow '&figs;CubePlotWindow.png'>
+  <!ENTITY FIG.SpherePlotWindow '&figs;SpherePlotWindow.png'>
+  <!ENTITY FIG.TimePlotWindow '&figs;TimePlotWindow.png'>
+  <!ENTITY FIG.plotmatch_dialog '&figs;plotmatch_dialog.png'>
+  <!ENTITY FIG.SkyPlotWindow_plotmatch '&figs;SkyPlotWindow_plotmatch.png'>
+  <!ENTITY FIG.CdsUploadMatchWindow '&figs;CdsUploadMatchWindow.png'>
+
+  <!-- Example plots generated in stilts. -->
+  <!ENTITY FIG.plot2-layer-mark '&figs;plot2-layer-mark.png'>
+  <!ENTITY FIG.plot2-layer-size '&figs;plot2-layer-size.png'>
+  <!ENTITY FIG.plot2-layer-sizexy '&figs;plot2-layer-sizexy.png'>
+  <!ENTITY FIG.plot2-layer-xyvector '&figs;plot2-layer-xyvector.png'>
+  <!ENTITY FIG.plot2-layer-skyvector '&figs;plot2-layer-skyvector.png'>
+  <!ENTITY FIG.plot2-layer-xyerror '&figs;plot2-layer-xyerror.png'>
+  <!ENTITY FIG.plot2-layer-xyellipse '&figs;plot2-layer-xyellipse.png'>
+  <!ENTITY FIG.plot2-layer-skyellipse '&figs;plot2-layer-skyellipse.png'>
+  <!ENTITY FIG.plot2-layer-line '&figs;plot2-layer-line.png'>
+  <!ENTITY FIG.plot2-layer-linearfit '&figs;plot2-layer-linearfit.png'>
+  <!ENTITY FIG.plot2-layer-quantile '&figs;plot2-layer-quantile.png'>
+  <!ENTITY FIG.plot2-layer-label '&figs;plot2-layer-label.png'>
+  <!ENTITY FIG.plot2-layer-contour '&figs;plot2-layer-contour.png'>
+  <!ENTITY FIG.plot2-layer-grid '&figs;plot2-layer-grid.png'>
+  <!ENTITY FIG.plot2-layer-skydensity '&figs;plot2-layer-skydensity.png'>
+  <!ENTITY FIG.plot2-layer-fill '&figs;plot2-layer-fill.png'>
+  <!ENTITY FIG.plot2-layer-histogram '&figs;plot2-layer-histogram.png'>
+  <!ENTITY FIG.plot2-layer-kde '&figs;plot2-layer-kde.png'>
+  <!ENTITY FIG.plot2-layer-knn '&figs;plot2-layer-knn.png'>
+  <!ENTITY FIG.plot2-layer-densogram '&figs;plot2-layer-densogram.png'>
+  <!ENTITY FIG.plot2-layer-gaussian '&figs;plot2-layer-gaussian.png'>
+  <!ENTITY FIG.plot2-layer-mark2 '&figs;plot2-layer-mark2.png'>
+  <!ENTITY FIG.plot2-layer-link2 '&figs;plot2-layer-link2.png'>
+  <!ENTITY FIG.plot2-shading-flat '&figs;plot2-shading-flat.png'>
+  <!ENTITY FIG.plot2-shading-auto '&figs;plot2-shading-auto.png'>
+  <!ENTITY FIG.plot2-shading-density '&figs;plot2-shading-density.png'>
+  <!ENTITY FIG.plot2-shading-transparent '&figs;plot2-shading-transparent.png'>
+  <!ENTITY FIG.plot2-shading-translucent '&figs;plot2-shading-translucent.png'>
+  <!ENTITY FIG.plot2-shading-aux '&figs;plot2-shading-aux.png'>
+  <!ENTITY FIG.plot2-shading-weighted '&figs;plot2-shading-weighted.png'>
 
   <!-- Define external URLs. -->
   <!ENTITY URL.VOTABLE "http://www.ivoa.net/Documents/latest/VOT.html">
-  <!ENTITY URL.J2SE_DOCS "http://java.sun.com/j2se/1.5.0/docs/">
+  <!ENTITY URL.J2SE_DOCS "http://docs.oracle.com/javase/6/docs/">
 
   <!-- Plot2 control references. -->
   <!ENTITY CONTROL.single
@@ -243,6 +280,9 @@
   <!ENTITY CONTROL.spectrogram
            '&IMG.PLOT_SPECTRO;
             <ref id="SpectrogramLayerControl">Spectrogram Layer Control</ref>'>
+  <!ENTITY CONTROL.healpix
+           '&IMG.PLOT_HEALPIX;
+            <ref id="HealpixLayerControl">Healpix Layer Control</ref>'>
   <!ENTITY FORM.mark '&IMG.FORM_MARK; <ref id="form-mark">Mark</ref>'>
   <!ENTITY FORM.size '&IMG.FORM_SIZE; <ref id="form-size">Size</ref>'>
   <!ENTITY FORM.sizexy '&IMG.FORM_SIZEXY; <ref id="form-sizexy">SizeXY</ref>'>
@@ -258,21 +298,26 @@
   <!ENTITY FORM.line '&IMG.PLOT_LINE; <ref id="form-line">Line</ref>'>
   <!ENTITY FORM.linearfit '&IMG.FORM_LINEARFIT;
                           <ref id="form-linearfit">Linear Fit</ref>'>
+  <!ENTITY FORM.quantile '&IMG.FORM_QUANTILE;
+                          <ref id="form-quantile">Quantile</ref>'>
   <!ENTITY FORM.label '&IMG.PLOT_LABEL; <ref id="form-label">Text Label</ref>'>
   <!ENTITY FORM.contour '&IMG.PLOT_CONTOUR;
                         <ref id="form-contour">Contour</ref>'>
-  <!ENTITY FORM.density '&IMG.FORM_DENSITY;
-                        <ref id="form-density">Density</ref>'>
+  <!ENTITY FORM.grid '&IMG.FORM_GRID;
+                      <ref id="form-grid">Grid</ref>'>
   <!ENTITY FORM.skydensity '&IMG.FORM_SKYDENSITY;
                            <ref id="form-skydensity">SkyDensity</ref>'>
+  <!ENTITY FORM.fill '&IMG.FORM_FILL; <ref id="form-fill">Fill</ref>'>
   <!ENTITY FORM.histogram '&IMG.FORM_HISTOGRAM;
                           <ref id="form-histogram">Histogram</ref>'>
   <!ENTITY FORM.kde '&IMG.FORM_KDE; <ref id="form-kde">KDE</ref>'>
   <!ENTITY FORM.knn '&IMG.FORM_KNN; <ref id="form-knn">KNN</ref>'>
   <!ENTITY FORM.densogram '&IMG.FORM_DENSOGRAM;
                           <ref id="form-densogram">Densogram</ref>'>
-  <!ENTITY FORM.marks2 '&IMG.FORM_MARKS2; <ref id="form-marks2">Marks</ref>'>
-  <!ENTITY FORM.link2 '&IMG.FORM_LINK2; <ref id="form-link2">Link</ref>'>
+  <!ENTITY FORM.gaussian '&IMG.FORM_GAUSSIAN;
+                          <ref id="form-gaussian">Gaussian</ref>'>
+  <!ENTITY FORM.mark2 '&IMG.FORM_MARKS2; <ref id="form-mark2">Mark2</ref>'>
+  <!ENTITY FORM.link2 '&IMG.FORM_LINK2; <ref id="form-link2">Link2</ref>'>
   <!ENTITY GESTURE.DRAG1 '&IMG.DRAG1; Left drag'>
   <!ENTITY GESTURE.DRAG2 '&IMG.DRAG2; Center drag (SHIFT-drag)'>
   <!ENTITY GESTURE.DRAG3 '&IMG.DRAG3; Right drag (CTRL-drag)'>
@@ -298,7 +343,7 @@
 
 <docnumber>253</docnumber>
 
-<docdate>27 November 2015</docdate>
+<docdate>8 March 2017</docdate>
 
 <contactlist>
 <contact>TOPCAT web page:
@@ -307,8 +352,8 @@
          <webref url="mailto:m.b.taylor@bristol.ac.uk"
                  >m.b.taylor@bristol.ac.uk</webref></contact>
 <contact>Mailing list:
-         <webref url="mailto:topcat-user@bristol.ac.uk"
-                 >topcat-user@bristol.ac.uk</webref></contact>
+         <webref url="mailto:topcat-user@jiscmail.ac.uk"
+                 >topcat-user@jiscmail.ac.uk</webref></contact>
 </contactlist>
 
 </docinfo>
@@ -452,16 +497,27 @@ the Starlink Tables Infrastructure Library
 which is documented more fully in 
 <docxref doc="sun252" plaintextref="yes"/>.
 The software is written in pure Java, and should run on any 
-J2SE platform version 1.5 or later.
+J2SE platform version 1.6 or later.
 This makes it highly portable, since it can run on any machine which has
 a suitable Java installation, which is available for MS Windows, Mac OS X and
 most flavours of Unix amongst others.
 Some of the external viewer applications it talks to rely on 
 non-Java code however so one or two facilities, 
 such as displaying spectra, may be absent in some cases.
-TOPCAT is available under the terms of the 
-GNU <webref url="http://www.gnu.org/copyleft/gpl.html"
-            >General Public License</webref>.
+</p>
+
+<p>The TOPCAT application is available under the terms of the 
+GNU <webref url="http://www.gnu.org/licenses/gpl.html"
+            >General Public License</webref>,
+since some of the libraries it uses are also GPL.
+However, all of the original code and many of the libraries it
+uses may alternatively be used
+under more permissive licenses such as the
+GNU <webref url="http://www.gnu.org/licenses/lgpl.html"
+            >Lesser General Public License</webref>,
+see documentation of the
+<webref url="http://www.starlink.ac.uk/stilts">STILTS</webref> package
+for more details.
 </p>
 
 </sect>
@@ -2053,7 +2109,8 @@ columns mean the same thing).
 
 <p>You can perform a concatenation using the 
 <ref id="ConcatWindow">Concatenation Window</ref>;
-obtain this using the <label>Concatenate Tables</label> (&IMG.CONCAT;) button
+obtain this using the <label>Joins|Concatenate Tables</label> (&IMG.CONCAT;)
+menu option
 in the <ref id="ControlWindow">Control Window</ref>.
 </p>
 
@@ -3201,8 +3258,8 @@ be a short log string).
 <p>For example, a class written as follows would define a three-value average:
 <verbatim>
     public class AuxFuncs {
-        public static double average3( double x, double y, double z ) {
-            return ( x + y + z ) / 3.0;
+        public static double average3(double x, double y, double z) {
+            return (x + y + z) / 3.0;
         }
     }
 </verbatim>
@@ -3218,6 +3275,23 @@ but it might involve doing something like the following:
 <li>Starting up TOPCAT with the flags: 
     "<code>topcat -Djel.classes=AuxFuncs -classpath .</code>"</li>
 </ol>
+</p>
+
+<p>Note that (in versions later than TOPCAT 4.3-2) variable-length argument
+lists are supported where the final declared argument is an array, 
+so for instance a method declared like:
+<verbatim>
+       public static double sum(double[] values) {
+           double total = 0;
+           for (int i = 0; i &lt; values.length; i++) {
+               total += values[i];
+           }
+           return total;
+       }
+</verbatim>
+can be invoked like "<code>sum(UMAG,GMAG,RMAG,IMAG,ZMAG)</code>".
+The alternative form "<code>double... values</code>" can be used in
+the declaration with identical effect.
 </p>
 
 </subsect>
@@ -5713,8 +5787,7 @@ Items available from this menu and not the toolbar are:
 <dd><p>Displays the
     <ref id="LinesWindow">old-style Stacked Line Plot window</ref>
     for plotting multiple vertically stacked line plots
-    against a single X coordinate (this functionality is not currently
-    duplicated in one of the new-style windows).
+    against a single X coordinate.
     </p></dd>
 
 <dt>&IMG.DENSITY; Density Map (old)</dt>
@@ -6775,6 +6848,7 @@ More may be introduced in future releases.
     <li>Contours</li>
     <li>Variable size markers</li>
     <li>Kernel density estimates</li>
+    <li>... and many more</li>
     </ul>
     </p></dd>
 
@@ -6846,12 +6920,11 @@ the columns, and you're off.
 <p>Some features from the old-style plots that are <em>not</em>
 currently available in the new-style plots are:
 <ul>
-<li>the stacked line plot</li>
 <li>true RGB density maps (though density shading modes will often do as good
     or a better job)</li>
 <li>fogging in 3D plots</li>
 </ul>
-The intention is to introduce some of all of these in a future release,
+These may be introduced in a future release,
 possibly informed by user demand.
 </p>
 
@@ -7036,6 +7109,30 @@ contains the following actions (repeated in the menus):
     This is not available for the <label>Sky Plot</label>.
     </p></dd>
 
+<dt>&IMG.AUX_LOCK; Lock Aux Range</dt>
+<dd><p>This controls when the Aux data range,
+    sometimes used to colour data points
+    (see the <ref id="ShaderControl">Aux Axis Control</ref>),
+    is updated to match the currently visible data.
+    By default, the range is updated dynamically as the plot changes,
+    for instance when you pan or zoom it,
+    so that the data range covered by the aux colour ramp matches the
+    range of the currently visible data.
+    But if this checkbox is checked, then the range is frozen to the
+    current value.
+    Data-sensitive updates to the aux range will then not be performed
+    until it's unchecked again.
+    </p>
+    <p>It also affects some other dynamic ranging calculations such as
+    <label>Auto-Scale</label> sizes for plot forms
+    <ref id="form-size">Size</ref>,
+    <ref id="form-sizexy">SizeXY</ref>,
+    <ref id="form-vector">Vector</ref>,
+    <ref id="form-skyvector">SkyVector</ref>,
+    <ref id="form-xyellipse">Ellipse</ref> and
+    <ref id="form-skyellipse">SkyEllipse</ref>.
+    </p></dd>
+
 <dt>&IMG.SKETCH; Sketch Frames</dt>
 <dd><p>If selected causes intermediate "sketch" frames to be drawn when
     navigating around very large plots.
@@ -7059,6 +7156,36 @@ contains the following actions (repeated in the menus):
 <dt>&IMG.IMAGE; Export Plot</dt>
 <dd><p>Allows you to save the plot in a variety of graphics formats
     using the <ref id="plot2-export">Plot Export</ref> window.
+    </p></dd>
+</dl>
+</p>
+
+<p>The window <label>menus</label> offer an alternative way to perform
+the actions available from the toolbar described above.
+They also provide some additional options:
+<dl>
+<dt>Layers menu</dt>
+<dd><p>This menu repeats the options available in the toolbar
+    from the Control Panel at the bottom of the window;
+    each one adds a new Layer Control of one of the available
+    types to the stack, or <label>Remove</label>s (&IMG.DELETE;)
+    the currently selected control.
+    </p></dd>
+<dt>Export menu</dt>
+<dd><p>This menu provides the
+    <label>Export plot</label> (&IMG.IMAGE;) option which saves the
+    visible plot in an image format.
+    It also contains two sub-menus that may or may not contain options:
+    <label>Layer Data Import</label> (&IMG.IMPORT;) and
+    <label>Layer Data Save</label> (&IMG.SAVE;).
+    Some plotted layer types generate table data as part of their
+    calculations that can be exported separately.
+    If one of these layers is currently plotted, then options may
+    appear in these menus.
+    The <label>Import</label> options retrieve the table and add it
+    to the list of tables currently loaded in TOPCAT;
+    the <label>Save</label> options can write the data directly to disk
+    using some table format.
     </p></dd>
 </dl>
 </p>
@@ -7195,11 +7322,24 @@ distinguishable.
 
 <p>These table layer controls generally have three tabs:
 <label>Position</label>, <label>Subsets</label> and <label>Form</label>.
-The Position tab is for specifying coordinates, and depends on the
-specific type of the plot and the layer control.
-The <label>Subsets</label> and <label>Form</label> control which
+The <label>Position</label> tab is for specifying coordinates,
+and depends on the specific type of the plot and the layer control.
+The <label>Subsets</label> and <label>Form</label> tabs control which
 row subsets are plotted and how they are displayed,
 and a description of how they are arranged follows below.
+</p>
+
+<figure>
+<caption><px>Position tab of a table data layer control</px></caption>
+<figureimage src="&FIG.GangLayerControl_position;"/>
+</figure>
+
+<p>The <label>Position</label> tab lets you specify a table and
+a basic set of coordinates for the positions to plot.
+The details of how the data point at each of those positions is
+represented, including in some cases
+more coordinate values (e.g. for error bar sizes etc),
+are specified in the other tabs (usually <label>Form</label>).
 </p>
 
 <figure>
@@ -7237,14 +7377,28 @@ all the forms plotted for a given subset, rather than one form at a time.
 </p>
 
 <figure>
-<caption><px>Style configuration in Form tab
-             of a table data layer control</px></caption>
-<figureimage src="&FIG.form-style;"/>
+<caption><px>Form tab of a table data layer control</px></caption>
+<figureimage src="&FIG.GangLayerControl_form;"/>
 </figure>
 
-<p>The <label>Form</label> tab allows you to select style information
-to determine the details of how the plot will look for each layer.
-The details differ greatly between layer control types, but they
+<p>The <label>Form</label> tab lets you control how the data coordinates
+specified in the <label>Position</label> tab will be used to
+generate graphics on the screen.
+On the left is a stack of different Form types that will each be plotted;
+a default item <label>Mark</label> is usually included to start with,
+but you can add more from the &IMG.ADD; <label>Forms</label> menu button.
+Each form in this stack can be turned on or off individually by clicking
+its activation checkbox, dragged up and down using its grab handle,
+or deleted using the &IMG.DELETE; <label>Remove Selected Form</label>
+item from the Forms menu.
+</p>
+
+<p>When you select a form by clicking on it in the stack,
+a configuration sub-panel will appear on the right hand side of this panel.
+This allows you to select style information
+to determine the details of how the plot will look for each layer,
+and sometimes also reports information calculated by the plot.
+The details differ greatly between forms, but they
 generally contain two sub-panels for defining the style details,
 <label>Global Style</label> and <label>Subset Styles</label>:
 <dl>
@@ -7626,7 +7780,7 @@ The following plot layers do this:
 <ul>
 <li><ref id="mode-aux" plaintextref="yes">Aux colour mode</ref></li>
 <li><ref id="mode-weighted" plaintextref="yes">Weighted colour mode</ref></li>
-<li><ref id="form-density" plaintextref="yes">Density form</ref></li>
+<li><ref id="form-grid" plaintextref="yes">Grid form</ref></li>
 <li><ref id="form-skydensity" plaintextref="yes">Sky Density form</ref></li>
 </ul>
 These all colour parts of the plot in a way that is quantitatively
@@ -7658,10 +7812,19 @@ It has the following options:
     </p></dd>
 <dt>Shader Clip</dt>
 <dd><p>Select a sub-range of the full colour map above.
-    By default the whole colour map is used, but if you want the range
-    of colours in the plot to be formed from only a part of the colour
-    band shown in the <label>Shader</label> control,
-    you can move the handles in from the end of this slider.
+    If the <label>Default</label> checkbox is checked, then all or most
+    of the colour ramp from the <label>Shader</label> control is used.
+    If you want to configure the range of colours from the map yourself,
+    uncheck the Default checkbox, and slide the handles in from the end
+    of the slider to choose exactly the range you want.
+    </p>
+    <p>The default range is clipped at one end for colour maps that fade
+    to white, so that all the plotted colours will be distinguisable
+    against a white background.
+    That is generally a good idea for scatter-type plots, but may not be
+    so good for plots where the whole plotting surface is coloured in,
+    like density maps or spectrograms, so in that case you might want to
+    uncheck Default and leave the handles at the extreme ends of the slider.
     </p></dd>
 <dt>Shader Flip</dt>
 <dd><p>Whether the aux scale should map forwards or backwards
@@ -7735,6 +7898,15 @@ for the aux data range by hand,
 and provides a double slider to restrict the range within these limits.
 If either the lower or upper range is left blank,
 it will be determined from the data.
+</p>
+
+<p>The <label>Lock Aux Range</label> checkbox controls whether
+the aux range is automatically updated as the plot is adjusted
+(for instance as you navigate around it with the mouse).
+If locked, the range will stay the same, but otherwise (the default)
+it is dynamically updated for the current view of the plot.
+This checkbox is a duplicate of the &IMG.AUX_LOCK; toggle button on the plot
+window toolbar described in <ref id="StackPlotWindow"/>.
 </p>
 
 <p>Note the font used for labelling the aux axis is currently controlled by 
@@ -7839,9 +8011,11 @@ For a simple scatter plot, this is all that you need.
 However, there are a number of other forms that you can plot as well
 or instead of the simple markers - vectors, error bars, ellipses,
 contours, text labels etc.  You add a new form to the stack by
-clicking on one of the buttons in the toolbar in the tab.
-You can remove a form with the <label>Remove</label> (&IMG.DELETE;)
-button in the same toolbar.  You can also activate/deactivate them
+clicking on the &IMG.ADD; <label>Forms</label> button,
+which gives you a menu of all the available forms for the current layer control.
+You can remove a form by selecting it and selecting
+the <label>Remove</label> (&IMG.DELETE;) button in the same menu.
+You can also activate/deactivate the entries in the stack
 with the checkbox and move them up and down with the drag handle as usual.
 The list of forms that are avaiable depends on the plot type;
 the full list is in <ref id="ShapeForm"/>.
@@ -7940,10 +8114,12 @@ and the panel on the right shows the detailed configuration for the
 currently selected form.
 </p>
 
-<p>The available forms for a pair plot are currently
-<ref id="form-marks2">Marks</ref> (&IMG.FORM_MARKS2;)
+<p>The available forms for a pair plot
+(select them using the &IMG.ADD; <label>Forms</label> button)
+are currently
+<ref id="form-mark2">Mark2</ref> (&IMG.FORM_MARKS2;)
 which draws the points at both ends of the pair, and
-<ref id="form-link2">Link</ref> (&IMG.FORM_LINK2;)
+<ref id="form-link2">Link2</ref> (&IMG.FORM_LINK2;)
 which draws a line linking them.
 You can configure these, and select them on or off, separately.
 The detail panel for these forms are dependent on the form itself
@@ -7962,6 +8138,117 @@ but the detail panels are divided into these parts:
 </dl>
 </p>
 
+</subsubsubsect>
+
+<subsubsubsect id="HealpixLayerControl">
+<subhead><title>Healpix Layer Control</title></subhead>
+
+<p>The <label>Healpix</label> layer control (&IMG.PLOT_HEALPIX;)
+is available from the <ref id="SkyPlotWindow">Sky Plot Window</ref>
+for plotting tables that represent HEALPix maps on the celestial sphere.
+Each row in the table must represent a single healpix tile,
+and a value from that row is used to colour
+the corresponding region of the sky plot.
+The resolution (healpix order) of the input table is supplied
+or may be guessed in order to do the plot,
+but the plot may be drawn at a degraded order (bigger pixels)
+if required.
+</p>
+
+<p>Note this is different from the <ref id="form-skydensity">SkyDensity</ref>
+form, which takes a table containing sky positions,
+and represents that as a density map on the healpix grid by gathering
+the rows up into bins.  The control described here works on a table
+for which that binning has already been done,
+for instance as a prepared sky map data product,
+or by executing a suitable (GROUP BY healpix_index) database query.
+</p>
+
+<figure>
+<caption><px>Sky Plot Window with a Healpix layer</px></caption>
+<figureimage src="&FIG.HealpixLayerControl;"/>
+</figure>
+
+<p>This control has two tabs, <label>Data</label> and <label>Style</label>.
+</p>
+
+<figure>
+<caption><px>Healpix control Data tab</px></caption>
+<figureimage src="&FIG.HealpixLayerControl_data;"/>
+</figure>
+
+<p>The <label>Data</label> tab lets you specify the table and columns
+containing the healpix tile data.  It has the following fields:
+<dl>
+<dt>Table</dt>
+<dd><p>The table supplying the data.
+    </p></dd>
+<dt>Data Sky System</dt>
+<dd><p>The sky coordinate system of the grid
+    on which the pixels in the input table are laid out.
+    </p></dd>
+<dt>HEALPix Data Level</dt>
+<dd><p>HEALPix level of the (implicit or explicit) tile indices.
+    Only values up to 13 are currently supported.
+    This must be the value assumed by the data in the input table.
+    If <label>-1</label> is selected, an attempt is made to determine
+    the correct level from the data; this may or may not be successful.
+    Using the wrong value here will result in a nonsensical plot,
+    or no plot at all.
+    </p></dd>
+<dt>HEALPix index</dt>
+<dd><p>Column in the input table giving HEALPix index value.
+    If this is left blank, then the row index is used,
+    i.e. pixel #0 is assumed to be in the first row etc.
+    This only works if the input table has full sky coverage and the
+    rows are in the correct sequence.
+    </p></dd>
+<dt>Value</dt>
+<dd><p>The column, or other expression, giving the colour to plot
+    for the pixel at each row.
+    </p></dd>
+<dt>Row Subset</dt>
+<dd><p>May be used to restrict the plot to one of the defined
+    <ref id="subsets">row subsets</ref>.
+    </p></dd>
+</dl>
+</p>
+
+<p>To control the colour map used to colour the sky tiles,
+use the <ref id="ShaderControl">Aux</ref> &IMG.COLORS; fixed control.
+</p>
+
+<figure>
+<caption><px>Healpix control Style tab</px></caption>
+<figureimage src="&FIG.HealpixLayerControl_style;"/>
+</figure>
+
+<p>The <label>Style</label> tab lets you configure additional details
+of the plot's appearance.  It has the following fields:
+<dl>
+<dt>Degrade</dt>
+<dd><p>Controls the resolution at which the pixel grid is actually plotted.
+    If the value is zero, then the grid plotted is the same as that of
+    the input data, but if a positive value is supplied then the
+    healpix order will be reduced by that many.  Each increment means
+    that 4 pixels from the previous order will be combined into one.
+    The way that combination is done is controlled by the
+    <label>Combine</label> option.
+    </p></dd>
+<dt>Combine</dt>
+<dd><p>Determines how pixels are combined together when the resolution
+    is <label>Degrade</label>d.
+    Options are currently
+    <label>sum</label>,
+    <label>mean</label>,
+    <label>min</label>,
+    <label>max</label>.
+    </p></dd>
+<dt>Transparency</dt>
+<dd><p>Adjusts the transparency of the filled area.
+    </p></dd>
+</dl>
+</p>
 
 </subsubsubsect>
 
@@ -7974,7 +8261,8 @@ allows you to make a 1-dimensional histogram-like plots
 It is the main control in the
 <ref id="HistogramPlotWindow">Histogram</ref> plot window,
 but is also available  in the <ref id="PlanePlotWindow">Plane</ref>
-plot window, so you can overplot a histogram on a scatter plot,
+and <ref id="TimePlotWindow">Time</ref>
+plot windows, so you can overplot a histogram on scatter or time plots,
 if you can think of some reason to do that.
 The Histogram window starts off with one of these controls in the stack by
 default, but as usual you can add more by using the
@@ -8037,14 +8325,17 @@ The colour is by default determined by the setting in the
 <label>Subsets</label> tab.
 This may be all you need, but if you want to use other histogram-like
 plots such as Kernel Density Estimates, you can add new forms to the stack
-by clicking on one of the buttons in the toolbar in the tab.
-You can remove a form with the <label>Remove</label> (&IMG.DELETE;) button
-in the same toolbar.
-You can also activate/deactivate them with the checkbox
+using items in the popup menu from the &IMG.ADD; <label>Forms</label> button
+above the stack.
+You can remove a form by selecting it and using the
+<label>Remove</label> (&IMG.DELETE;) item in the same menu.
+You can also activate/deactivate entries in the stack with the checkbox
 and move them up and down with the drag handle as usual.
-The available forms are currently the
-&FORM.histogram; and some variants on the idea of a Kernel Density Estimate:
-&FORM.kde;, &FORM.knn; and &FORM.densogram;.
+The available forms are currently
+&FORM.histogram;; some variants on the idea of a Kernel Density Estimate:
+&FORM.kde;, &FORM.knn;, &FORM.densogram;;
+and &FORM.gaussian;, which effectively plots a Gaussian best fit
+to a histogram.
 </p>
 
 <p>The <label>Global Style</label> and
@@ -8074,8 +8365,8 @@ and can be controlled separately for each histogram.
 <subhead><title>Spectrogram Layer Control</title></subhead>
 
 <p><em>This control is experimental.
-As currently implemented it lacks some important features.
-It may be improved or withdrawn in a future version.
+It is missing some important features, and the interface may be
+changed in a future version.
 </em></p>
 
 <p>The <label>Spectrogram Layer Control</label> (&IMG.PLOT_SPECTRO;)
@@ -8090,8 +8381,9 @@ It is only available for the <em>experimental</em>
 <figureimage src="&FIG.SpectrogramLayerControl;"/>
 </figure>
 
-<p>This control has two tabs, <label>Data</label> and <label>Style</label>,
+<p>This control has only one layer-specific tab, <label>Data</label>,
 described below.
+The <label>Zone</label> tab is described in <ref id="plotZones"/>.
 </p>
 
 <figure>
@@ -8131,61 +8423,8 @@ It has the following fields:
 </dl>
 </p>
 
-<figure>
-<caption><px>Spectrogram control Style tab</px></caption>
-<figureimage src="&FIG.SpectrogramLayerControl_style;"/>
-</figure>
-
-<p>The <label>Style</label> allows you to configure the way the spectrogram
-is plotted.  It has the following fields:
-<dl>
-<dt>Spectral Shader</dt>
-<dd><p>Select the colour map from a list of options.
-    </p></dd>
-<dt>Shader Clip</dt>
-<dd><p>Select a sub-range of the full colour map above.
-    By default the whole colour map is used, but if you want the range
-    of colours in the plot to be formed from only a part of the colour
-    band shown in the <label>Shader</label> control,
-    you can move the handles in from the end of this slider.
-    </p></dd>
-<dt>Shader Flip</dt>
-<dd><p>Whether the spectral values should map forwards or backwards
-    into the colour map.
-    </p></dd>
-<dt>Shader Quantise</dt>
-<dd><p>Allows the colour map to be quantised.
-    By default, the colour map is effectively continuous.
-    If you slide the slider to the right,
-    or enter a value in the text field,
-    the map will be split into
- the map will be split into
-    a decreasing number of discrete colours.  This can be used to generate
-    a contour-like effect, and may make it easier to trace the boundaries
-    of regions of interest by eye.
-    </p></dd>
-<dt>Scaling</dt>
-<dd><p>Determines the function used to map the range of spectral data values
-    onto the colour map.
-    Options are <label>linear</label>,
-                <label>logarithmic</label>,
-                <label>square</label> and
-                <label>square root</label>.
-    </p></dd>
-<dt>Spectral Subrange</dt>
-<dd><p>Adjusts the range of the spectral coordinate over which the
-    colour map is applied.  By default the colour map is scaled using
-    limits found from the spectral data values themselves,
-    but you can restrict the range using this slider.
-    </p></dd>
-<dt>Null Colour</dt>
-<dd><p>What colour should be used to represent spectral samples with a null
-    value.
-    If the associated <label>Hide</label> option is selected,
-    then those points will not appear in the plot at all (they will be
-    transparent).
-    </p></dd>
-</dl>
+<p>To control the colour map used to represent the spectral values,
+use the <ref id="ShaderControl">Aux</ref> &IMG.COLORS; fixed control.
 </p>
 
 
@@ -8317,14 +8556,19 @@ Not all are available for every plot type.
 <subsubsubsect id="form-mark">
 <subhead><title>Mark Form</title></subhead>
 
+<p>The <label>Mark</label> form (&IMG.FORM_MARK;)
+simply plots markers with a fixed shape and size.
+</p>
+
+<figure>
+<caption><px>Example Mark plot</px></caption>
+<figureimage src="&FIG.plot2-layer-mark;"/>
+</figure>
+
 <figure>
 <caption><px>Mark form configuration panel</px></caption>
 <figureimage src="&FIG.form_mark;"/>
 </figure>
-
-<p>The <label>Mark</label> form (&IMG.FORM_MARK;)
-simply plots markers with a fixed shape and size.
-</p>
 
 <p>Configuration options are:
 <dl>
@@ -8344,11 +8588,6 @@ simply plots markers with a fixed shape and size.
 
 <subsubsubsect id="form-size">
 <subhead><title>Size Form</title></subhead>
-
-<figure>
-<caption><px>Size form configuration panel</px></caption>
-<figureimage src="&FIG.form_size;"/>
-</figure>
 
 <p>The <label>Size</label> form (&IMG.FORM_SIZE;)
 plots markers of a fixed shape
@@ -8377,6 +8616,16 @@ Other options may be introduced in future.
 For sizes that correspond to actual data values,
 the <ref id="form-error">Error</ref> form may be more appropriate.
 </p>
+
+<figure>
+<caption><px>Example Size plot</px></caption>
+<figureimage src="&FIG.plot2-layer-size;"/>
+</figure>
+
+<figure>
+<caption><px>Size form configuration panel</px></caption>
+<figureimage src="&FIG.form_size;"/>
+</figure>
 
 <p>The configuration options are:
 <dl>
@@ -8419,11 +8668,6 @@ the <ref id="form-error">Error</ref> form may be more appropriate.
 <subsubsubsect id="form-sizexy">
 <subhead><title>SizeXY Form</title></subhead>
 
-<figure>
-<caption><px>SizeXY form configuration panel</px></caption>
-<figureimage src="&FIG.form_sizexy;"/>
-</figure>
-
 <p>The <label>SizeXY</label> form (&IMG.FORM_SIZEXY;)
 plots a shaped marker whose width and height vary independently
 acoording to two supplied data coordinates.
@@ -8452,6 +8696,16 @@ Other options may be introduced in future.
 For sizes that correspond to actual data values,
 the <ref id="form-error">Error</ref> form may be more appropriate.
 </p>
+
+<figure>
+<caption><px>Example SizeXY plot</px></caption>
+<figureimage src="&FIG.plot2-layer-sizexy;"/>
+</figure>
+
+<figure>
+<caption><px>SizeXY form configuration panel</px></caption>
+<figureimage src="&FIG.form_sizexy;"/>
+</figure>
 
 <p>The configuration options are:
 <dl>
@@ -8494,11 +8748,6 @@ the <ref id="form-error">Error</ref> form may be more appropriate.
 <subsubsubsect id="form-vector">
 <subhead><title>Vector Form</title></subhead>
 
-<figure>
-<caption><px>Vector form configuration panel</px></caption>
-<figureimage src="&FIG.form_vector;"/>
-</figure>
-
 <p>The <label>Vector</label> form (&IMG.FORM_VECTOR;)
 plots directed lines from the
 data position given delta values for the coordinates.
@@ -8515,6 +8764,16 @@ them a sensible size (so the largest ones are a few tens of pixels long).
 This scaling can be adjusted or turned off using the
 <label>Scale</label> and <label>Auto Scale</label> options below.
 </p>
+
+<figure>
+<caption><px>Example XYVector plot</px></caption>
+<figureimage src="&FIG.plot2-layer-xyvector;"/>
+</figure>
+
+<figure>
+<caption><px>Vector form configuration panel</px></caption>
+<figureimage src="&FIG.form_vector;"/>
+</figure>
 
 <p>The configuration options are:
 <dl>
@@ -8550,11 +8809,6 @@ This scaling can be adjusted or turned off using the
 <subsubsubsect id="form-skyvector">
 <subhead><title>SkyVector Form</title></subhead>
 
-<figure>
-<caption><px>SkyVector form configuration panel</px></caption>
-<figureimage src="&FIG.form_skyvector;"/>
-</figure>
-
 <p>The <label>SkyVector</label> form (&IMG.FORM_VECTOR;)
 plots directed lines from the data position
 given relative offsets to longitude.cos(latitude) and latitude
@@ -8573,6 +8827,16 @@ them a sensible size (so the largest ones are a few tens of pixels long).
 This scaling can be adjusted or turned off using the
 <label>Scale</label> and <label>Auto Scale</label> options below.
 </p>
+
+<figure>
+<caption><px>Example SkyVector plot</px></caption>
+<figureimage src="&FIG.plot2-layer-skyvector;"/>
+</figure>
+
+<figure>
+<caption><px>SkyVector form configuration panel</px></caption>
+<figureimage src="&FIG.form_skyvector;"/>
+</figure>
 
 <p>The configuration options are:
 <dl>
@@ -8614,11 +8878,6 @@ This scaling can be adjusted or turned off using the
 <subsubsubsect id="form-error">
 <subhead><title>Error Bars Form</title></subhead>
 
-<figure>
-<caption><px>Error Bars form configuration panel</px></caption>
-<figureimage src="&FIG.form_error;"/>
-</figure>
-
 <p>The <label>Error Bars</label> form (&IMG.FORM_ERROR;)
 draws symmetric or asymmetric
 error bars in some or all of the dimensions of a 1-, 2- or 3-dimensional
@@ -8628,6 +8887,16 @@ The shape of the error "bars" is quite configurable, including
 (for rotated ellipses and rectangles,
 see the <ref id="form-xyellipse">XYEllipse</ref> form).
 </p>
+
+<figure>
+<caption><px>Example XYError plot</px></caption>
+<figureimage src="&FIG.plot2-layer-xyerror;"/>
+</figure>
+
+<figure>
+<caption><px>Error Bars form configuration panel</px></caption>
+<figureimage src="&FIG.form_error;"/>
+</figure>
 
 <p>The configuration options are:
 <dl>
@@ -8661,15 +8930,20 @@ see the <ref id="form-xyellipse">XYEllipse</ref> form).
 <subsubsubsect id="form-xyellipse">
 <subhead><title>Ellipse Form</title></subhead>
 
-<figure>
-<caption><px>Ellipse form configuration panel</px></caption>
-<figureimage src="&FIG.form_xyellipse;"/>
-</figure>
-
 <p>The <label>Ellipse</label> form (&IMG.FORM_ELLIPSE;)
 draws an ellipse (or rectangle, triangle, or other similar figure) defined by 
 major and minor radii and an optional rotation angle.
 </p>
+
+<figure>
+<caption><px>Example XYEllipse plot</px></caption>
+<figureimage src="&FIG.plot2-layer-xyellipse;"/>
+</figure>
+
+<figure>
+<caption><px>Ellipse form configuration panel</px></caption>
+<figureimage src="&FIG.form_xyellipse;"/>
+</figure>
 
 <p>The configuration options are:
 <dl>
@@ -8716,16 +8990,21 @@ major and minor radii and an optional rotation angle.
 <subsubsubsect id="form-skyellipse">
 <subhead><title>SkyEllipse Form</title></subhead>
 
-<figure>
-<caption><px>SkyEllipse form configuration panel</px></caption>
-<figureimage src="&FIG.form_skyellipse;"/>
-</figure>
-
 <p>The <label>SkyEllipse</label> (&IMG.FORM_ELLIPSE;)
 draws an ellipse (or rectangle, triangle, or other similar figure)
 on the celestial sphere defined by
 major and minor radii and an optional rotation angle.
 </p>
+
+<figure>
+<caption><px>Example SkyEllipse plot</px></caption>
+<figureimage src="&FIG.plot2-layer-skyellipse;"/>
+</figure>
+
+<figure>
+<caption><px>SkyEllipse form configuration panel</px></caption>
+<figureimage src="&FIG.form_skyellipse;"/>
+</figure>
 
 <p>The configuration options are:
 <dl>
@@ -8770,17 +9049,22 @@ major and minor radii and an optional rotation angle.
 <subsubsubsect id="form-line">
 <subhead><title>Line Form</title></subhead>
 
-<figure>
-<caption><px>Line form configuration panel</px></caption>
-<figureimage src="&FIG.form_line;"/>
-</figure>
-
 <p>The <label>Line</label> form (&IMG.PLOT_LINE;)
 draws a point-to-point line joining
 up the points making up the data set.
 Note that for a large and unordered data set this can lead to a big
 scribble on the screen.
 </p>
+
+<figure>
+<caption><px>Example Line plot</px></caption>
+<figureimage src="&FIG.plot2-layer-line;"/>
+</figure>
+
+<figure>
+<caption><px>Line form configuration panel</px></caption>
+<figureimage src="&FIG.form_line;"/>
+</figure>
 
 <p>The configuration options are:
 <dl>
@@ -8801,16 +9085,21 @@ scribble on the screen.
 <subsubsubsect id="form-linearfit">
 <subhead><title>Linear Fit Form</title></subhead>
 
+<p>The <label>Linear Fit</label> form (&IMG.FORM_LINEARFIT;)
+determines a least-squares best fit of a line to the data points,
+optionally weighted by a given value, and plots the corresponding line.
+</p>
+
+<figure>
+<caption><px>Example LinearFit plot</px></caption>
+<figureimage src="&FIG.plot2-layer-linearfit;"/>
+</figure>
+
 <figure>
 <caption><px>Linear Fit configuration panel</px></caption>
 <figureimage src="&FIG.form_linearfit;"/>
 <!-- Data from VizieR J/A+A/320/79/table4 -->
 </figure>
-
-<p>The <label>Linear Fit</label> form (&IMG.FORM_LINEARFIT;)
-determines a least-squares best fit of a line to the data points,
-optionally weighted by a given value, and plots the corresponding line.
-</p>
 
 <p>The configuration options are:
 <dl>
@@ -8864,17 +9153,128 @@ The reported items are:
 
 </subsubsubsect>
 
+<subsubsubsect id="form-quantile">
+<subhead><title>Quantile Form</title></subhead>
+
+<p>The <label>Quantile</label> form (&IMG.FORM_QUANTILE;)
+plots a line through a given quantile of the values binned within
+each pixel column (or row) of a plot.
+The line is optionally smoothed using a configurable kernel and width,
+to even out noise from the pixel binning.
+Instead of a simple line through a given quantile, it is also
+possible to fill the region between two quantiles.
+</p>
+
+<p>One way to use this is to draw a line estimating a function
+<m>y=f(x)</m> (or <m>x=g(y)</m>) sampled by a noisy set of data points
+in two dimensions.
+</p>
+
+<figure>
+<caption><px>Example Quantile plot</px></caption>
+<figureimage src="&FIG.plot2-layer-quantile;"/>
+</figure>
+
+<figure>
+<caption><px>Quantile configuration panel</px></caption>
+<figureimage src="&FIG.form_quantile;"/>
+</figure>
+
+<p>The configuration options are:
+<dl>
+<dt>Transparency</dt>
+<dd><p>Transparency with which components are plotted,
+    from opaque to invisible.
+    </p></dd>
+<dt>Quantiles</dt>
+<dd><p>Defines the quantile or quantile range of values that should be
+    marked in each pixel column (or row).
+    The slider control goes from 0 (minimum in pixel column/row)
+    to 1 (maximum in pixel column/row), so 0.5 indicates the median.
+    This control is a double-slider, so you can drag out a range
+    of values.  If the values are the same as each other, a single
+    point will be indicated, but if there is a range then the area
+    between the indicated quantiles will be filled.
+    </p>
+    <p>The radio buttons let you toggle between using the slider to
+    set the quantile value(s) or entering them in the text fields.
+    If the two values are identical, you can leave the second text field blank.
+    </p></dd>
+<dt>Thickness</dt>
+<dd><p>Sets the minimum extent of the markers that are plotted in each
+    pixel column (or row) to indicate the designated value range. If the
+    range is zero sized (two bounding quantiles are equal)
+    this will give the actual thickness of the plotted line.
+    If the range is non-zero however, the line may be thicker than this in
+    places according to the quantile positions.
+    </p></dd>
+<dt>Smoothing</dt>
+<dd><p>Configures the smoothing width.
+    This is the characteristic width of the <label>Kernel</label>
+    function to be convolved with the density in one dimension
+    to smooth the quantile function.
+    </p>
+    <p>You can adjust it using the slider (wider smoothing to the right)
+    or enter a value in data coordinates explicitly in the text field.
+    If the smoothed axis is logarithmic, the value is a multiplication factor
+    rather than an additive increment.
+    </p></dd>
+<dt>Kernel</dt>
+<dd><p>The functional form of the smoothing kernel. The functions listed
+    refer to the unscaled shape; all kernels are normalised to give a
+    total area of unity.
+    </p>
+    <p>The available options are:
+    <ul>
+    <li><label>square</label>:
+        Uniform value: f(x)=1, |x|=0..1
+        </li>
+    <li><label>linear</label>:
+        Triangle: f(x)=1-|x|, |x|=0..1
+        </li>
+    <li><label>epanechnikov</label>:
+        Parabola: f(x)=1-x*x, |x|=0..1
+        </li>
+    <li><label>cos</label>:
+        Cosine: f(x)=cos(x*pi/2), |x|=0..1
+        </li>
+    <li><label>cos2</label>:
+        Cosine squared: f(x)=cos^2(x*pi/2), |x|=0..1
+        </li>
+    <li><label>gauss3</label>: Gaussian truncated at 3.0 sigma:
+        f(x)=exp(-x*x/2), |x|=0..3
+        </li>
+    <li><label>gauss6</label>: Gaussian truncated at 6.0 sigma:
+        f(x)=exp(-x*x/2), |x|=0..6
+        </li>
+    </ul>
+    </p></dd>
+<dt>Horizontal</dt>
+<dd><p>Determines whether the trace bins are horizontal or vertical.
+    If true, there is a <em>y</em> value calculated for each pixel column, and
+    if false, there is an <em>x</em> value for each pixel row.
+    </p></dd>
+</dl>
+</p>
+
+</subsubsubsect>
+
 <subsubsubsect id="form-label">
 <subhead><title>Text Label Form</title></subhead>
+
+<p>The <label>Text Label</label> form (&IMG.PLOT_LABEL;)
+draws a text label by each point position.
+</p>
+
+<figure>
+<caption><px>Example Label plot</px></caption>
+<figureimage src="&FIG.plot2-layer-label;"/>
+</figure>
 
 <figure>
 <caption><px>Text Label form configuration panel</px></caption>
 <figureimage src="&FIG.form_label;"/>
 </figure>
-
-<p>The <label>Text Label</label> form (&IMG.PLOT_LABEL;)
-draws a text label by each point position.
-</p>
 
 <p>The configuration options are:
 <dl>
@@ -8925,11 +9325,6 @@ draws a text label by each point position.
 <subsubsubsect id="form-contour">
 <subhead><title>Contour Form</title></subhead>
 
-<figure>
-<caption><px>Contour form configuration panel</px></caption>
-<figureimage src="&FIG.form_contour;"/>
-</figure>
-
 <p>The <label>Contour</label> form (&IMG.PLOT_CONTOUR;)
 plots position density contours.
 These provide another way
@@ -8943,6 +9338,16 @@ to visualise the characteristics of overdense regions in a crowded plot.
 so they don't look very beautiful in exported vector output formats
 (PDF, PostScript).
 </p>
+
+<figure>
+<caption><px>Example Contour plot</px></caption>
+<figureimage src="&FIG.plot2-layer-contour;"/>
+</figure>
+
+<figure>
+<caption><px>Contour form configuration panel</px></caption>
+<figureimage src="&FIG.form_contour;"/>
+</figure>
 
 <p>The configuration options are:
 <dl>
@@ -8971,29 +9376,27 @@ so they don't look very beautiful in exported vector output formats
 
 </subsubsubsect>
 
-<subsubsubsect id="form-density">
-<subhead><title>Density Form</title></subhead>
+<subsubsubsect id="form-grid">
+<subhead><title>Grid Form</title></subhead>
 
-<figure>
-<caption><px>Density form configuration panel</px></caption>
-<figureimage src="&FIG.form_density;"/>
-</figure>
-
-<p>The <label>Density</label> form (&IMG.FORM_DENSITY;)
-plots a density map (2-d histogram) on the pixel grid of the plot surface,
-coarsened by a configurable factor.
-You can optionally use a weighting for the data values,
-and you can configure how the values are combined
-to produce the output bin values. 
+<p>The <label>Grid</label> form (&IMG.FORM_GRID;)
+plots 2-d point data aggregated into rectangular cells on the plotting plane.
+You can optionally use a weighting for the points,
+and you can configure how the values are combined to produce the
+output pixel values (colours).
+You can use this layer type in various ways,
+including as a 2-d histogram or weighted density map,
+or to plot gridded data.
 </p>
 
-<p>This form is somewhat experimental and may be modified in the future.
+<p>The X and Y dimensions of the grid cells (or equivalently histogram bins)
+can be configured in terms of either the data coordinates
+or relative to the plot dimensions.
 </p>
 
 <p>The shading is done using the shared colour map.
 This colour map is used by all currently visible
-<label>Density</label>,
-<ref id="form-skydensity">SkyDensity</ref>,
+<label>Grid</label>,
 <ref id="mode-aux">Aux</ref> and
 <ref id="mode-weighted">Weighted</ref> layers.
 When at least one such layer is being plotted,
@@ -9002,6 +9405,16 @@ is visible
 in the control panel, which allows you to configure the colour map,
 range, ramp display etc.
 </p>
+
+<figure>
+<caption><px>Example Grid plot</px></caption>
+<figureimage src="&FIG.plot2-layer-grid;"/>
+</figure>
+
+<figure>
+<caption><px>Grid form configuration panel</px></caption>
+<figureimage src="&FIG.form_grid;"/>
+</figure>
 
 <p>The configuration options are:
 <dl>
@@ -9013,20 +9426,31 @@ range, ramp display etc.
     <label>Combine</label> control below.
     If it's left blank, the weighting is considered to be unity
     (all values are 1); this makes sense for some combination types
-    (e.g. sum) but not others (e.g. mean).
+    (e.g. <code>sum</code>) but not others (e.g. <code>mean</code>).
     </p></dd>
 
-<dt>Bin Size</dt>
-<dd><p>Determines the dimension of grid bins in pixels.
-    Bins are square in pixel dimensions and this value gives the
-    extent in pixels along each side.
-    Currently, only integer values are allowed.
+<dt>X Bin Size</dt>
+<dt>Y Bin Size</dt>
+<dd><p>A scale for the horizontal/vertical extent of of the rectangular
+    bins into which the data is aggregated.
+    There are two ways to specify this.
+    If the left-hand radio button is selected, the adjacent slider will
+    adjust the bin size, which is also affected by the actual width of
+    the plotting window in pixels.  Slide the slider left to get narrower
+    bins or right to get wider ones.
+    If the right-hand radio button is selected, you can enter a numeric
+    value giving the actual extent in data units of the dimension.
+    If the axis in question is logarithmic, this value is a factor.
     </p></dd>
 
 <dt>Combine</dt>
-<dd><p>Determines how the weight values associated with markers
-    plotted covering a given bin are combined
-    to produce the numeric value used for that bin's colour.
+<dd><p>Determines how the <label>Weight</label> values for the
+    points falling within a given data bin
+    are combined to produce the numeric value used for that bin's colour.
+    For unweighted values (a pure density map) it usually makes sense
+    to use <code>count</code> or <code>sum</code>.
+    However, if there is a non-blank <label>Weight</label> coordinate,
+    one of the other values such as <code>mean</code> may be more revealing.
     </p>
     <p>
     The following options (some are more useful than others)
@@ -9035,10 +9459,10 @@ range, ramp display etc.
     <li><code>sum</code>: the sum of all weights</li>
     <li><code>mean</code>: the mean of all weights</li>
     <li><code>median</code>: the median of all weights;
-        (note, this is expensive to calculate and may be slow)</li>
-    <li><code>variance</code>: the sample variance of all weights</li>
+        (note, this is more expensive to calculate and can be slow)</li>
     <li><code>min</code>: the minimum weight</li>
     <li><code>max</code>: the maximum weight</li>
+    <li><code>stdev</code>: the sample standard deviation of all weights</li>
     <li><code>count</code>: the number of points plotted
         (weight value is ignored, this is like Density mode)</li>
     <li><code>hit</code>: one if any point is plotted, blank otherwise
@@ -9046,11 +9470,19 @@ range, ramp display etc.
     </ul>
     </p></dd>
 
-<dt>Opaque Limit</dt>
-<dd><p>Determines transparency of the points.
-    By default, they are fully opaque, but if you slide the slider to
-    the right, they will become progressively more transparent.
+<dt>Transparency</dt>
+<dd><p>Adjusts the transparency of the filled area.
     </p></dd>
+
+<dt>X Bin Phase</dt>
+<dt>Y Bin Phase</dt>
+<dd><p>Controls where the horizontal/vertical zero point for bins is set.
+    For instance if your X/Y bin size is 1, it controls whether bin boundaries
+    on the X/Y axis are at 0, 1, 2, ... or 0.5, 1.5, 2.5, ... etc.
+    If the slider is at either end of the scale, there will be a bin
+    boundary at X/Y=0 (linear axis) or X/Y=1 (logarithmic axis).
+    </p></dd>
+
 </dl>
 </p>
 
@@ -9058,11 +9490,6 @@ range, ramp display etc.
 
 <subsubsubsect id="form-skydensity">
 <subhead><title>SkyDensity Form</title></subhead>
-
-<figure>
-<caption><px>SkyDensity form configuration panel</px></caption>
-<figureimage src="&FIG.form_skydensity;"/>
-</figure>
 
 <p>The <label>SkyDensity</label> form (&IMG.FORM_SKYDENSITY;)
 plots a density map on the sky using a HEALPix grid
@@ -9079,7 +9506,7 @@ of equal area to cover the celestial sphere.
 <p>The shading is done using the shared colour map.
 This colour map is used by all currently visible
 <label>SkyDensity</label>,
-<ref id="form-density">Density</ref>,
+<ref id="form-grid">Grid</ref>,
 <ref id="mode-aux">Aux</ref> and
 <ref id="mode-weighted">Weighted</ref> layers.
 When at least one such layer is being plotted,
@@ -9088,6 +9515,16 @@ is visible
 in the control panel, which allows you to configure the colour map,
 range, ramp display etc.
 </p>
+
+<figure>
+<caption><px>Example SkyDensity plot</px></caption>
+<figureimage src="&FIG.plot2-layer-skydensity;"/>
+</figure>
+
+<figure>
+<caption><px>SkyDensity form configuration panel</px></caption>
+<figureimage src="&FIG.form_skydensity;"/>
+</figure>
 
 <p>The configuration options are:
 <dl>
@@ -9129,9 +9566,9 @@ range, ramp display etc.
     <li><code>mean</code>: the mean of all weights</li>
     <li><code>median</code>: the median of all weights;
         (note, this is expensive to calculate and may be slow)</li>
-    <li><code>variance</code>: the sample variance of all weights</li>
     <li><code>min</code>: the minimum weight</li>
     <li><code>max</code>: the maximum weight</li>
+    <li><code>stdev</code>: the sample standard deviation of all weights</li>
     <li><code>count</code>: the number of points plotted
         (weight value is ignored, this is like Density mode)</li>
     <li><code>hit</code>: one if any point is plotted, blank otherwise
@@ -9147,10 +9584,95 @@ range, ramp display etc.
 </dl>
 </p>
 
+<p>The <label>Report</label> panel provides information calculated
+by the plot:
+<dl>
+<dt>Tile size/sq.deg</dt>
+<dd><p>Reports the size of each pixel in square degrees.
+    This is simply a function of the actual HEALPix level used for the plot
+    (which is reported at the right of the <label>HEALPix Level</label>
+    control).
+    </p></dd>
+<dt>HEALPix Map</dt>
+<dd><p>This allows you to export the healpix map that you can see in the plot
+    in the form of a table.
+    The table has a row for each plotted healpix pixel, with two columns:
+    one giving the healpix pixel index, and the other giving the pixel value
+    (corresponding to the colour in the plot).
+    The <label>Import</label> (&IMG.IMPORT_FORM_SKYDENSITY;) option
+    loads the data as a new table in the TOPCAT application, and
+    the <label>Save</label> (&IMG.SAVE_FORM_SKYDENSITY;) option
+    lets you save it directly to disk in one of the available table formats.
+    </p></dd>
+</dl>
+</p>
+
+</subsubsubsect>
+
+<subsubsubsect id="form-fill">
+<subhead><title>Fill Form</title></subhead>
+
+<p>If a two-dimensional dataset represents a single-valued function,
+the <label>Fill</label> form (&IMG.FORM_FILL;) will fill the area underneath
+the function's curve with a solid colour.
+Parts of the surface which would only be partially covered
+(because of rapid function variation within the width of a single pixel)
+are represented using appropriate alpha-blending.
+The filled area may alternatively be that above the curve
+or (in some plot types) to its left or right.
+</p>
+
+<p>One example of its use is to reconstruct the appearance of a
+histogram plot from a set of histogram bins.
+For X,Y data which is not single-valued, the result may not be very useful. 
+</p>
+
+<p>This form may be used in the 
+<ref id="PlanePlotWindow">Plane</ref> or
+<ref id="TimePlotWindow">Time</ref> plot windows.
+</p>
+
+<figure>
+<caption><px>Example Fill plot</px></caption>
+<figureimage src="&FIG.plot2-layer-fill;"/>
+</figure>
+
+<figure>
+<caption><px>Fill form configuration panel</px></caption>
+<figureimage src="&FIG.form_fill;"/>
+</figure>
+
+<p>The configuration options are:
+<dl>
+<dt>Transparency</dt>
+<dd><p>Adjusts the transparency of the filled area.
+    </p></dd>
+<dt>Horizontal</dt>
+<dd><p>Determines whether the filling is
+    vertical (suitable for functions of the horizontal variable)
+    or horizontal (suitable for functions of the vertical variable).
+    In the Time plot, the fill is always vertical, so this option is not
+    provided.
+    </p></dd>
+<dt>Positive</dt>
+<dd><p>Determines the directional sense of the filling.
+    If false, the fill is between the data points and negative
+    infinity along the relevant axis
+    (e.g. down from the data points to the bottom of the plot).
+    If true, the fill is in the other direction.
+    </p></dd>
+</dl>
+</p>
+
 </subsubsubsect>
 
 <subsubsubsect id="form-histogram">
 <subhead><title>Histogram Form</title></subhead>
+
+<figure>
+<caption><px>Example Histogram plot</px></caption>
+<figureimage src="&FIG.plot2-layer-histogram;"/>
+</figure>
 
 <figure>
 <caption><px>Histogram form configuration panel</px></caption>
@@ -9161,9 +9683,10 @@ range, ramp display etc.
 plots a histogram generated by binning samples along the X axis.
 </p>
 
-<p>This form may be used in either the
-<ref id="HistogramPlotWindow">Histogram</ref> or
-<ref id="PlanePlotWindow">Plane</ref> plot windows.
+<p>This form may be used in the
+<ref id="HistogramPlotWindow">Histogram</ref>,
+<ref id="PlanePlotWindow">Plane</ref> or
+<ref id="TimePlotWindow">Time</ref> plot windows.
 </p>
 
 <p>These options always appear in the form configuration panel:
@@ -9208,7 +9731,7 @@ for the Histogram window:
     </p></dd>
 <dt>Bin Phase</dt>
 <dd><p>Controls where the horizontal zero point for binning is set.
-    For instance if your bin size is 1, it controls whether bins
+    For instance if your bin size is 1, it controls whether bin
     boundaries are at 0, 1, 2, ..  or 0.5, 1.5, 2.5, ... etc.
     If the slider is at either end of the scale, there will be a bin
     boundary at X=0 (linear X axis) or X=1 (logarithmic X axis).
@@ -9228,6 +9751,10 @@ for the Histogram window:
         The total area of histogram bars is normalised to unity.
         For cumulative plots, this behaves like <label>height</label>.
         </li>
+    <li><label>unit</label>:
+        Histogram bars are scaled by the inverse of the bin width in data units.
+        For cumulative plots, this behaves like <label>none</label>.
+        </li>
     <li><label>maximum</label>:
         The height of the tallest histogram bar is normalised to unity.
         For cumulative plots, this behaves like <label>height</label>.
@@ -9236,6 +9763,9 @@ for the Histogram window:
         The total height of histogram bars is normalised to unity.
         </li>
     </ul>
+    When used in the <ref id="TimePlotWindow">Time plot</ref> only,
+    additional options <label>per_second</label>, <label>per_day</label> etc
+    are available corresponding to the frequency over the named time unit.
     </p></dd>
 </dl>
 </p>
@@ -9245,11 +9775,6 @@ for the Histogram window:
 
 <subsubsubsect id="form-kde">
 <subhead><title>KDE Form</title></subhead>
-
-<figure>
-<caption><px>KDE form configuration panel</px></caption>
-<figureimage src="&FIG.form_kde;"/>
-</figure>
 
 <p>The <label>KDE</label> form (&IMG.FORM_KDE;)
 plots a discrete Kernel Density Estimate giving a smoothed
@@ -9272,10 +9797,21 @@ quantisation will be at the pixel level, hence in most cases not visually
 apparent.
 </p>
 
-<p>This form may be used in either the
-<ref id="HistogramPlotWindow">Histogram</ref> or
-<ref id="PlanePlotWindow">Plane</ref> plot windows.
+<p>This form may be used in the
+<ref id="HistogramPlotWindow">Histogram</ref>,
+<ref id="PlanePlotWindow">Plane</ref> or
+<ref id="TimePlotWindow">Time</ref> plot windows.
 </p>
+
+<figure>
+<caption><px>Example KDE plot</px></caption>
+<figureimage src="&FIG.plot2-layer-kde;"/>
+</figure>
+
+<figure>
+<caption><px>KDE form configuration panel</px></caption>
+<figureimage src="&FIG.form_kde;"/>
+</figure>
 
 <p>These options always appear in the form configuration panel:
 <dl>
@@ -9370,6 +9906,10 @@ for the Histogram window:
         The total area of histogram bars is normalised to unity.
         For cumulative plots, this behaves like <label>height</label>.
         </li>
+    <li><label>unit</label>:
+        Histogram bars are scaled by the inverse of the bin width in data units.
+        For cumulative plots, this behaves like <label>none</label>.
+        </li>
     <li><label>maximum</label>:
         The height of the tallest histogram bar is normalised to unity.
         For cumulative plots, this behaves like <label>height</label>.
@@ -9378,6 +9918,9 @@ for the Histogram window:
         The total height of histogram bars is normalised to unity.
         </li>
     </ul>
+    When used in the <ref id="TimePlotWindow">Time plot</ref> only,
+    additional options <label>per_second</label>, <label>per_day</label> etc
+    are available corresponding to the frequency over the named time unit.
     </p></dd>
 </dl>
 </p>
@@ -9386,11 +9929,6 @@ for the Histogram window:
 
 <subsubsubsect id="form-knn">
 <subhead><title>KNN Form</title></subhead>
-
-<figure>
-<caption><px>KNN form configuration panel</px></caption>
-<figureimage src="&FIG.form_knn;"/>
-</figure>
 
 <p>The <label>KNN</label> form (&IMG.FORM_KNN;)
 plots a discrete Kernel Density Estimate giving a smoothed
@@ -9416,9 +9954,20 @@ apparent.
 </p>
 
 <p>This form may be used in either the
-<ref id="HistogramPlotWindow">Histogram</ref> or
-<ref id="PlanePlotWindow">Plane</ref> plot windows.
+<ref id="HistogramPlotWindow">Histogram</ref>,
+<ref id="PlanePlotWindow">Plane</ref> or
+<ref id="TimePlotWindow">Time</ref> plot windows.
 </p>
+
+<figure>
+<caption><px>Example KNN plot</px></caption>
+<figureimage src="&FIG.plot2-layer-knn;"/>
+</figure>
+
+<figure>
+<caption><px>KNN form configuration panel</px></caption>
+<figureimage src="&FIG.form_knn;"/>
+</figure>
 
 <p>These options always appear in the form configuration panel:
 <dl>
@@ -9534,6 +10083,10 @@ for the Histogram window:
         The total area of histogram bars is normalised to unity.
         For cumulative plots, this behaves like <label>height</label>.
         </li>
+    <li><label>unit</label>:
+        Histogram bars are scaled by the inverse of the bin width in data units.
+        For cumulative plots, this behaves like <label>none</label>.
+        </li>
     <li><label>maximum</label>:
         The height of the tallest histogram bar is normalised to unity.
         For cumulative plots, this behaves like <label>height</label>.
@@ -9542,6 +10095,9 @@ for the Histogram window:
         The total height of histogram bars is normalised to unity.
         </li>
     </ul>
+    When used in the <ref id="TimePlotWindow">Time plot</ref> only,
+    additional options <label>per_second</label>, <label>per_day</label> etc
+    are available corresponding to the frequency over the named time unit.
     </p></dd>
 </dl>
 </p>
@@ -9550,11 +10106,6 @@ for the Histogram window:
 
 <subsubsubsect id="form-densogram">
 <subhead><title>Densogram Form</title></subhead>
-
-<figure>
-<caption><px>Densogram form configuration panel</px></caption>
-<figureimage src="&FIG.form_densogram;"/>
-</figure>
 
 <p>The <label>Densogram</label> form (&IMG.FORM_DENSOGRAM;)
 represents smoothed density of data values along the horizontal axis using
@@ -9571,9 +10122,20 @@ you to use it.
 </p>
 
 <p>This form may be used in either the
-<ref id="HistogramPlotWindow">Histogram</ref> or
-<ref id="PlanePlotWindow">Plane</ref> plot windows.
+<ref id="HistogramPlotWindow">Histogram</ref>,
+<ref id="PlanePlotWindow">Plane</ref> or
+<ref id="TimePlotWindow">Time</ref> plot windows.
 </p>
+
+<figure>
+<caption><px>Example Densogram plot</px></caption>
+<figureimage src="&FIG.plot2-layer-densogram;"/>
+</figure>
+
+<figure>
+<caption><px>Densogram form configuration panel</px></caption>
+<figureimage src="&FIG.form_densogram;"/>
+</figure>
 
 <p>These options always appear in the form configuration panel:
 <dl>
@@ -9591,11 +10153,18 @@ you to use it.
     multiple subsets it may be less confusing to use a relative one.
     </p></dd>
 <dt>Shader Clip</dt>
-<dd><p>Select only a part of the colour map selected above.
-    By default the whole colour map is used, but if you want the range
-    of colours in the plot to be formed from only a part of the colour
-    band shown in the <label>Shader</label> control,
-    you can move the handles in from the end of this slider.
+<dd><p>Select a sub-range of the full colour map above.
+    If the <label>Default</label> checkbox is checked, then all or most
+    of the colour ramp from the <label>Shader</label> control is used.
+    If you want to configure the range of colours from the map yourself,
+    uncheck the Default checkbox, and slide the handles in from the end
+    of the slider to choose exactly the range you want.
+    </p>
+    <p>The default range is clipped at one end for colour maps that fade
+    to white, so that all the plotted colours will be distinguisable
+    against a white background.
+    If you don't want that, you can
+    uncheck Default and leave the handles at the extreme ends of the slider.
     </p></dd>
 <dt>Shader Flip</dt>
 <dd><p>Whether the density scale should map forwards or backwards
@@ -9689,15 +10258,103 @@ for the Histogram window:
 
 </subsubsubsect>
 
-<subsubsubsect id="form-marks2">
-<subhead><title>Pair Marks Form</title></subhead>
+<subsubsubsect id="form-gaussian">
+<subhead><title>Gaussian Form</title></subhead>
+
+<p>The <label>Gaussian</label> form (&IMG.FORM_GAUSSIAN;)
+plots a best fit Gaussian to the histogram of a sample of data.
+In fact, all it does is to calculate the mean and standard deviation
+of the sample, and plot the corresponding Gaussian curve.
+The mean and standard deviation values are reported by the plot
+(see below).
+</p>
 
 <figure>
-<caption><px>Pair Mark form configuration panel</px></caption>
-<figureimage src="&FIG.form_marks2;"/>
+<caption><px>Example Gaussian plot</px></caption>
+<figureimage src="&FIG.plot2-layer-gaussian;"/>
 </figure>
 
-<p>The <label>Pair Mark</label> form (&IMG.FORM_MARKS2;)
+<figure>
+<caption><px>Gaussian fit configuration panel</px></caption>
+<figureimage src="&FIG.form_gaussian;"/>
+</figure>
+
+<p>These options always appear in the form configuration panel:
+<dl>
+<dt>Show Mean</dt>
+<dd><p>If true, this will cause the mean value to be indicated by
+    a vertical line.
+    </p></dd>
+<dt>Thickness</dt>
+<dd><p>Controls line thickness.
+    </p></dd>
+<dt>Dash</dt>
+<dd><p>Controls the dash pattern of the line (solid, dots, dashes etc).
+    </p></dd>
+<dt>Antialiasing</dt>
+<dd><p>If true, lines are antialiased, which makes them look smoother
+    on the screen or bitmapped export images.
+    Has no effect on vector export images (PDF, EPS).
+    </p></dd>
+</dl>
+And these options appear in the form configuration panel for the Plane window,
+or the
+<ref id="ConfigControl_histobins">Bins control</ref> (&IMG.HISTOBARS;)
+for the Histogram window:
+<dl>
+<dt>Normalise</dt>
+<dd><p>Defines how the histogram is scaled vertically to map its height
+    to data coordinates.  The normalisation options match those for
+    the <ref id="form-histogram">histogram</ref> form,
+    so that if the same normalisation and bin size
+    is chosen here, the plotted curve will be a best fit to the
+    shape of the corresponding histogram bars.
+    </p></dd>
+<dt>Bin Size</dt>
+<dd><p>Defines the notional size of the bins of a histogram which
+    the plotted Gaussian should match.  This option is used only to
+    affect the vertical scaling, and only has effect for certain
+    values of the <label>Normalise</label> option.
+    </p></dd>
+</dl>
+</p>
+
+<p>As well as drawing the line onto the plot,
+the calculated fitting coefficients are
+displayed at the bottom of the form configuration panel,
+under the heading <label>Report</label>.
+Note the coefficients are calculated by subset, and
+are only displayed for one subset at a time.
+To see the calculated values, select the subset of interest in
+the <label>Subset</label> selector.
+The reported items are:
+<dl>
+<dt>Mean</dt>
+<dd><p>The mean of the data set.
+    </p></dd>
+<dt>Standard Deviation</dt>
+<dd><p>The standard deviation of the data set.
+    </p></dd>
+<dt>Factor</dt>
+<dd><p>The scaling factor applied to the basic exponential function
+    to yield the actual function plotted in data coordinates.
+    </p></dd>
+<dt>Function</dt>
+<dd><p>The actual function plotted; this includes the numeric values
+    shown by the other report items, and defines exactly what they mean.
+    This expression uses topcat's expression language,
+    and can be used (for instance) directly in the
+    <ref id="FunctionLayerControl">Function</ref> plotter.
+    </p></dd>
+</dl>
+</p>
+
+</subsubsubsect>
+
+<subsubsubsect id="form-mark2">
+<subhead><title>Mark2 Form</title></subhead>
+
+<p>The <label>Mark2</label> form (&IMG.FORM_MARKS2;)
 is available from the
 <ref id="GangLayerControl_pair">pair position layer control</ref>,
 and plots a marker of configurable
@@ -9705,6 +10362,16 @@ shape and size at both points in a position pair.
 The same marker is used for both ends; if you want different points
 you can use two single <ref id="form-mark">Mark</ref> forms.
 </p>
+
+<figure>
+<caption><px>Example Mark2 plot</px></caption>
+<figureimage src="&FIG.plot2-layer-mark2;"/>
+</figure>
+
+<figure>
+<caption><px>Mark2 form configuration panel</px></caption>
+<figureimage src="&FIG.form_mark2;"/>
+</figure>
 
 <p>Configuration options are:
 <dl>
@@ -9723,18 +10390,23 @@ you can use two single <ref id="form-mark">Mark</ref> forms.
 </subsubsubsect>
 
 <subsubsubsect id="form-link2">
-<subhead><title>Pair Link Form</title></subhead>
+<subhead><title>Link2 Form</title></subhead>
 
-<figure>
-<caption><px>Pair Link form configuration panel</px></caption>
-<figureimage src="&FIG.form_link2;"/>
-</figure>
-
-<p>The <label>Pair Link</label> form (&IMG.FORM_LINK2;)
+<p>The <label>Link2</label> form (&IMG.FORM_LINK2;)
 is available from the
 <ref id="GangLayerControl_pair">pair position layer control</ref>,
 and plots a line linking the two points in a position pair.
 </p>
+
+<figure>
+<caption><px>Example Link2 plot</px></caption>
+<figureimage src="&FIG.plot2-layer-link2;"/>
+</figure>
+
+<figure>
+<caption><px>Link2 form configuration panel</px></caption>
+<figureimage src="&FIG.form_link2;"/>
+</figure>
 
 <p>Configuration options are:
 <dl>
@@ -9778,6 +10450,11 @@ subsections.
 <subhead><title>Flat Mode</title></subhead>
 
 <figure>
+<caption><px>Example Flat shading mode plot</px></caption>
+<figureimage src="&FIG.plot2-shading-flat;"/>
+</figure>
+
+<figure>
 <caption><px>Flat shading mode selection</px></caption>
 <figureimage src="&FIG.mode_flat;"/>
 </figure>
@@ -9795,6 +10472,11 @@ This mode works without problem for both bitmapped and vector output.
 
 <subsubsubsect id="mode-translucent">
 <subhead><title>Translucent Mode</title></subhead>
+
+<figure>
+<caption><px>Example Translucent shading mode plot</px></caption>
+<figureimage src="&FIG.plot2-shading-translucent;"/>
+</figure>
 
 <figure>
 <caption><px>Translucent shading mode selection</px></caption>
@@ -9832,6 +10514,11 @@ layers will be completely obscured.
 
 <subsubsubsect id="mode-transparent">
 <subhead><title>Transparent Mode</title></subhead>
+
+<figure>
+<caption><px>Example Transparent shading mode plot</px></caption>
+<figureimage src="&FIG.plot2-shading-transparent;"/>
+</figure>
 
 <figure>
 <caption><px>Transparent shading mode selection</px></caption>
@@ -9872,6 +10559,11 @@ layers will be completely obscured.
 
 <subsubsubsect id="mode-auto">
 <subhead><title>Auto Mode</title></subhead>
+
+<figure>
+<caption><px>Example Auto shading mode plot</px></caption>
+<figureimage src="&FIG.plot2-shading-auto;"/>
+</figure>
 
 <figure>
 <caption><px>Auto shading mode selection</px></caption>
@@ -9918,6 +10610,11 @@ In the case of PostScript, this completely obscures any previous layers.
 <subhead><title>Density Mode</title></subhead>
 
 <figure>
+<caption><px>Example Density shading mode plot</px></caption>
+<figureimage src="&FIG.plot2-shading-density;"/>
+</figure>
+
+<figure>
 <caption><px>Density mode selection</px></caption>
 <figureimage src="&FIG.mode_density;"/>
 </figure>
@@ -9948,11 +10645,18 @@ user-configurable options.  The options are:
     multiple subsets it may be less confusing to use a relative one.
     </p></dd>
 <dt>Shader Clip</dt>
-<dd><p>Select only a part of the colour map selected above.
-    By default the whole colour map is used, but if you want the range
-    of colours in the plot to be formed from only a part of the colour
-    band shown in the <label>Shader</label> control,
-    you can move the handles in from the end of this slider.
+<dd><p>Select a sub-range of the full colour map above.
+    If the <label>Default</label> checkbox is checked, then all or most
+    of the colour ramp from the <label>Shader</label> control is used.
+    If you want to configure the range of colours from the map yourself,
+    uncheck the Default checkbox, and slide the handles in from the end
+    of the slider to choose exactly the range you want.
+    </p>
+    <p>The default range is clipped at one end for colour maps that fade
+    to white, so that all the plotted colours will be distinguisable
+    against a white background.
+    If you don't want that, you can
+    uncheck Default and leave the handles at the extreme ends of the slider.
     </p></dd>
 <dt>Shader Flip</dt>
 <dd><p>Whether the density scale should map forwards or backwards
@@ -10009,6 +10713,11 @@ In the case of PostScript, this completely obscures any previous layers.
 <subhead><title>Aux Mode</title></subhead>
 
 <figure>
+<caption><px>Example Aux shading mode plot</px></caption>
+<figureimage src="&FIG.plot2-shading-aux;"/>
+</figure>
+
+<figure>
 <caption><px>Aux mode selection</px></caption>
 <figureimage src="&FIG.mode_aux;"/>
 </figure>
@@ -10024,7 +10733,7 @@ There is an additional option to draw the points with a fixed transparency.
 This colour map is used by all currently visible
 <label>Aux</label>,
 <ref id="mode-weighted">Weighted</ref>, 
-<ref id="form-density">Density</ref> and
+<ref id="form-grid">Grid</ref> and
 <ref id="form-skydensity">SkyDensity</ref> layers.
 When at least one such layer is being plotted,
 the <ref id="ShaderControl" plaintextref="yes">Aux Axis control</ref>
@@ -10065,6 +10774,11 @@ layers will be completely obscured.
 <subhead><title>Weighted Mode</title></subhead>
 
 <figure>
+<caption><px>Example Weighted shading mode plot</px></caption>
+<figureimage src="&FIG.plot2-shading-weighted;"/>
+</figure>
+
+<figure>
 <caption><px>Weighted mode selection</px></caption>
 <figureimage src="&FIG.mode_weighted;"/>
 </figure>
@@ -10085,7 +10799,7 @@ but allows you to do things that are not possible in either.
 This colour map is used by all currently visible
 <label>Weighted</label>,
 <ref id="mode-aux">Aux</ref>,
-<ref id="form-density">Density</ref> and
+<ref id="form-grid">Grid</ref> and
 <ref id="form-skydensity">SkyDensity</ref> layers.
 When at least one such layer is being plotted,
 the <ref id="ShaderControl" plaintextref="yes">Aux Axis control</ref>
@@ -10120,9 +10834,9 @@ range, ramp display etc.
     <li><code>mean</code>: the mean of all weights</li>
     <li><code>median</code>: the median of all weights;
         (note, this is expensive to calculate and may be slow)</li>
-    <li><code>variance</code>: the sample variance of all weights</li>
     <li><code>min</code>: the minimum weight</li>
     <li><code>max</code>: the maximum weight</li>
+    <li><code>stdev</code>: the sample standard deviation of all weights</li>
     <li><code>count</code>: the number of points plotted
         (weight value is ignored, this is like Density mode)</li>
     <li><code>hit</code>: one if any point is plotted, blank otherwise
@@ -10210,6 +10924,7 @@ note they only apply to histograms proper, not to KDEs:
     <li>&FORM.kde;</li>
     <li>&FORM.knn;</li>
     <li>&FORM.densogram;</li>
+    <li>&FORM.gaussian;</li>
     </ul>
     </li>
 <li>&CONTROL.function;</li>
@@ -10313,6 +11028,7 @@ in the <ref id="PlanePlotWindow">Plane</ref> window
 
 <p>The <label>Histogram</label> tab affects all
 <ref id="form-histogram">Histogram</ref> layers,
+and to some extent the <ref id="form-gaussian">Gaussian</ref> layer,
 and has the following controls:
 <dl>
 
@@ -10326,11 +11042,16 @@ and has the following controls:
     If the right-hand radio button is selected, you can enter a numeric
     value giving the actual width in data units of each bar
     (for a logarithmic X axis this value is a factor).
+    </p>
+    <p>Although <ref id="form-gaussian">Gaussian</ref> layers don't have bars,
+    the value of this control can affect the scaling of plotted gaussian fits
+    for some normalisation options, since the Gaussian plots try to scale
+    themselves to match the height of corresponding histograms.
     </p></dd>
 
 <dt>Bin Phase</dt>
 <dd><p>Controls where the horizontal zero point for binning is set.
-    For instance if your bin size is 1, it controls whether bins
+    For instance if your bin size is 1, it controls whether bin
     boundaries are at 0, 1, 2, ..  or 0.5, 1.5, 2.5, ... etc.
     If the slider is at either end of the scale, there will be a bin
     boundary at X=0 (linear X axis) or X=1 (logarithmic X axis).
@@ -10419,6 +11140,10 @@ and has the following controls:
         The total area of histogram bars is normalised to unity.
         For cumulative plots, this behaves like <label>height</label>.
         </li>
+    <li><label>unit</label>:
+        Histogram bars are scaled by the inverse of the bin width in data units.
+        For cumulative plots, this behaves like <label>none</label>.
+        </li>
     <li><label>maximum</label>:
         The height of the tallest histogram bar is normalised to unity.
         For cumulative plots, this behaves like <label>height</label>.
@@ -10465,14 +11190,24 @@ see the <label>Coords</label> tab of the
     <li>&FORM.linearfit;</li>
     <li>&FORM.label;</li>
     <li>&FORM.contour;</li>
-    <li>&FORM.density;</li>
+    <li>&FORM.grid;</li>
+    <li>&FORM.fill;</li>
+    <li>&FORM.quantile;</li>
     </ul></li>
 <li>&CONTROL.pair;, with the following plot controls:
     <ul>
-    <li>&FORM.marks2;</li>
+    <li>&FORM.mark2;</li>
     <li>&FORM.link2;</li>
     </ul></li>
-<li>&CONTROL.histogram;</li>
+<li>&CONTROL.histogram;, with these form options:
+    <ul>
+    <li>&FORM.histogram;</li>
+    <li>&FORM.kde;</li>
+    <li>&FORM.knn;</li>
+    <li>&FORM.densogram;</li>
+    <li>&FORM.gaussian;</li>
+    </ul>
+    </li>
 <li>&CONTROL.function;</li>
 </ul>
 </p>
@@ -10754,9 +11489,10 @@ values as their default (both Equatorial) and no conversion will be done.
     </ul></li>
 <li>&CONTROL.pair;, with the following plot controls:
     <ul>
-    <li>&FORM.marks2;</li>
+    <li>&FORM.mark2;</li>
     <li>&FORM.link2;</li>
     </ul></li>
+<li>&CONTROL.healpix;</li>
 </ul>
 </p>
 
@@ -11024,7 +11760,7 @@ see the <label>Coords</label> tab of the
     </ul></li>
 <li>&CONTROL.pair;, with the following plot controls:
     <ul>
-    <li>&FORM.marks2;</li>
+    <li>&FORM.mark2;</li>
     <li>&FORM.link2;</li>
     </ul></li>
 </ul>
@@ -11335,7 +12071,7 @@ In many respects this works like the
     </ul></li>
 <li>&CONTROL.pair;, with the following plot controls:
     <ul>
-    <li>&FORM.marks2;</li>
+    <li>&FORM.mark2;</li>
     <li>&FORM.link2;</li>
     </ul></li>
 </ul>
@@ -11530,7 +12266,8 @@ cube wire frame enclosing the data volume.
     </p></dd>
 <dt>Antialiasing</dt>
 <dd><p>Controls whether grid lines will be drawn antialiased
-    (smoothed) or not.  This option does not affect exported plots.
+    (smoothed) or not.  This option does not affect plots exported
+    to vector formats.
     </p></dd>
 </dl>
 </p>
@@ -11572,9 +12309,8 @@ It also affects some other things like the legend.
 <subsubsect id="TimePlotWindow">
 <subhead><title>Time Plot Window</title></subhead>
 
-<p><em>This plot window is experimental.
-As currently implemented it lacks some important features.
-It may be improved or withdrawn in a future version.
+<p><em>This plot window is experimental and lacks some useful features.
+The details of the user interface may be changed in future versions.
 </em></p>
 
 <figure>
@@ -11584,13 +12320,20 @@ It may be improved or withdrawn in a future version.
 
 <p>The <label>Time Plot</label> (&IMG.PLOT2_TIME;)
 is intended for plotting time series data.
+You can find it in the <ref id="controlMenus">Graphics</ref>
+menu of the main Control Window, but since it is currently
+experimental it does not appear in the main toolbar.
 </p>
 
 <p>The horizontal axis represents time, and can be labelled accordingly,
 and the window can display functions of time, scatter plots and spectrograms.
-In future versions it may be able to plot multiple time series plots
-stacked vertically using the same horizontal axis,
-but at present it doesn't do that.
+</p>
+
+<p>Unlike the other plot windows (at time of writing) the Time plot
+can display different data plots in different plot
+<ref id="plotZones" plaintextref="yes">Zones</ref>
+stacked vertically on top of each other, so that different plots
+share a time axis but have their own Y axis.
 </p>
 
 <p>The Time Plot offers the following plot controls:
@@ -11601,6 +12344,18 @@ but at present it doesn't do that.
     <li>&FORM.mark;</li>
     <li>&FORM.error; (vertical bars only)</li>
     <li>&FORM.label;</li>
+    <li>&FORM.fill;</li>
+    <li>&FORM.quantile;</li>
+    <li>&FORM.grid;</li>
+    </ul>
+    </li>
+<li>&CONTROL.histogram; with these form options:
+    <ul>
+    <li>&FORM.histogram;</li>
+    <li>&FORM.kde;</li>
+    <li>&FORM.knn;</li>
+    <li>&FORM.densogram;</li>
+    <li>&FORM.gaussian;</li>
     </ul>
     </li>
 <li>&CONTROL.spectrogram;</li>
@@ -11611,9 +12366,58 @@ but at present it doesn't do that.
 <p>See the <ref id="StackPlotWindow" plaintextref="yes">Window Overview</ref>
 for features common to all plotting windows.
 The following subsections describe
+<ref id="plotZones">zones</ref>,
 <ref id="timeNavigation">navigation</ref> and
 <ref id="TimeAxisControl">axis configuration</ref>.
 </p>
+
+<subsubsubsect id="plotZones">
+<subhead><title>Plot Zones</title></subhead>
+
+<p>Unlike the other plot types, the Time plot can display data in
+multiple panels, known as <label>Zones</label>, stacked vertically.
+All plots therefore share the same time axis, but can have different Y axes.
+</p>
+
+<p>By default, each new plot added is displayed in a new zone stacked
+beneath the existing ones.  By using the <label>Zone</label> tab for
+each plot however, you can control which plots appear in which zones.
+Each zone has a numeric identifier, which by default increments by one
+for each new plot, but if you select the same identifier for several
+plots, they will all appear in the same zone.
+</p>
+
+<figure>
+<caption><px>Zone selection tab</px></caption>
+<figureimage src="&FIG.zone_tab;"/>
+</figure>
+
+<p>Some of the fixed controls
+(<ref id="TimeAxisControl">Axes</ref> &IMG.AXIS_CONFIG; and
+ <ref id="ShaderControl">Aux</ref> &IMG.COLORS;)
+operate on a per-zone basis.
+If multiple zones are visible, then a zone selector is displayed
+above the tabs:
+</p>
+
+<figure>
+<caption><px>Zone selector for Axes Control</px></caption>
+<figureimage src="&FIG.zone_axes;"/>
+</figure>
+
+<p>In this case you should select the zone you want to control
+and adjust the configuration for that zone only.
+The selector shows an icon indicating the position of the zone in question.
+Each zone has to be configured separately.
+In a future release a global zone configuration
+option may be introduced as well.
+</p>
+
+<p>This multi-zone feature is currently available only for the Time plot,
+but it may be added to other plot types at some point in the future.
+</p>
+
+</subsubsubsect>
 
 <subsubsubsect id="timeNavigation">
 <subhead><title>Time Navigation</title></subhead>
@@ -11623,6 +12427,12 @@ Additional configuration options are available in the <label>Navigation</label>
 tab of the <ref id="TimeAxisControl">Axes control</ref>.
 </p>
 
+<p>Horizontal navigation (panning and zooming left and right along the
+shared time axis) affects all the stacked <ref id="plotZones">zones</ref>,
+but vertical navigation (panning and zooming along the Y axis of each zone)
+is done independently for each zone.
+</p>
+
 <p>The navigation actions for this window are:
 <dl>
 <dt>&GESTURE.DRAG1;</dt>
@@ -11630,7 +12440,8 @@ tab of the <ref id="TimeAxisControl">Axes control</ref>.
     On the body of the plot this usually moves it around left/right.
     By default, vertical movement is inhibited since you don't normally
     want it for a time plot.
-    To pan vertically, drag on the left of the Y axis.
+    To pan vertically, drag on the left of the Y axis for the zone
+    you want to affect.
     It is also possible to configure panning on the body of the plot
     to be in both directions using the <label>Pan/Zoom Axes</label>
     in the <label>Navigation</label> axis configuration tab.
@@ -11641,7 +12452,8 @@ tab of the <ref id="TimeAxisControl">Axes control</ref>.
     centered on the horizontal position of the mouse.
     By default, vertical zooming is inhibited since you don't normally
     want it for a time plot.
-    To zoom vertically, drag on the left of the Y axis. 
+    To zoom vertically, drag on the left of the Y axis for the zone
+    you want to affect.
     It is also possible to configure zooming on the body of the plot
     to be in both directions using the <label>Pan/Zoom Axes</label>
     in the <label>Navigation</label> axis configuration tab.
@@ -11655,14 +12467,15 @@ tab of the <ref id="TimeAxisControl">Axes control</ref>.
     using a similar (though not quite the same) mechanism.
     By default, vertical zooming is inhibited since you don't normally
     want it for a time plot.
-    To zoom in/out vertically, drag up/down on the left of the Y axis.
+    To zoom in/out vertically, drag up/down on the left of the Y axis
+    for the zone you want to affect.
     It is also possible to configure zooming on the body of the plot
     to be in both directions using the <label>Pan/Zoom Axes</label>
     in the <label>Navigation</label> axis configuration tab.
     </p></dd>
 <dt>&GESTURE.WHEEL;</dt>
 <dd><p><em>Zoom.</em>
-    Spinning the mouse wheel forwards/backwards will zoom in/out
+    Spinning the mouse wheel forwards/backwards will zoom horizontally in/out
     around the mouse position,
     just like dragging with the right button up-and-right or down-and-left.
     </p></dd>
@@ -11684,7 +12497,12 @@ tab of the <ref id="PlaneAxisControl">Axes control</ref>.
 <subsubsubsect id="TimeAxisControl">
 <subhead><title>Time Axes Control</title></subhead>
 
-<p>The <label>Axes</label> (&IMG.AXIS_CONFIG;) for the
+<p><strong>Note:</strong> the Time Plot has multiple plot
+<ref id="plotZones" plaintextref="yes">Zones</ref>,
+and the axes are configured individually for each zone.
+</p>
+
+<p>The <label>Axes</label> (&IMG.AXIS_CONFIG;) control for the
 time plot window has the following tabs:
 </p>
 
@@ -15772,19 +16590,38 @@ of a metric on that space to count as a match.
     A match is registered if it matches in both of the constituent tests.
     You could use this for instance to match objects which are both close
     on the sky and have similar luminosities.
+    The "distance" measure for <label>Best</label>* matches scales the
+    Sky distance and X distance by their maximum values and adds them in
+    quadrature, so they have equal weight
+    (<m>d=sqrt([r/r<sub>max</sub>]<sup>2</sup>
+              +[dX/dX<sub>max</sub>]<sup>2</sup>)</m>).
+    </p>
+    <p><em>Note that in TOPCAT versions 4.3-5 and earlier
+    a linear unscaled distance combination was used here,
+    which did not give very meaningful Best match results.</em>
     </p></dd>
 
 <dt>Sky + XY</dt>
-<dd><p>Comparison of positions on the celestial sphere with an additional
-    2-d anisotropic Cartesian constraint.
+<dd><p>Comparison of positions on the celestial sphere with two additional
+    numeric constraints.
     This is a combination of the Sky and 2-d Anisotropic Cartesian
     matches above, so the columns you need to supply are
     RA, Dec and two extra, and the errors are 
     angular separation on the sky and the error radii corresponding to
     the extra columns.
-    A match is registered if it matches in both of the constituent tests.
+    A match is registered if it matches in all of the constituent tests.
     You could use this for instance to match objects which are both close
     on the sky and have similar luminosities and redshifts.
+    The "distance" measure for <label>Best</label>* matches scales the
+    Sky, X and Y distances by their maximum values and adds them in
+    quadrature, so they have equal weight
+    (<m>d=sqrt([r/r<sub>max</sub>]<sup>2</sup>
+              +[dX/dX<sub>max</sub>]<sup>2</sup>
+              +[dY/dY<sub>max</sub>]<sup>2</sup>)</m>).
+    </p>
+    <p><em>Note that in TOPCAT versions 4.3-5 and earlier
+    a linear unscaled distance combination was used here,
+    which did not give very meaningful Best match results.</em>
     </p></dd>
 
 <dt>HTM</dt>
@@ -16980,6 +17817,13 @@ with sky position columns.
 <ref id="DalQueryLoadDialog">Single Positional Search Panel</ref> below.
 </p>
 
+<p>The search panel includes a <label>Verbosity</label> selector as well 
+as the normal features: this allows you to choose options for how many columns
+will appear in the output table, from 1 (minimum) to 3 (maximum).
+Some services will take notice of this parameter and return narrower
+or wider tables respectively, and others will ignore it.
+</p>
+
 </subsubsect>
 
 <subsubsect id="SiapTableLoadDialog">
@@ -17414,6 +18258,24 @@ by clicking on the appropriate tab at the top.
             as implemented (at time of writing) by CADC services;
             columns are read only when required
             (experimental, may be withdrawn).
+            </li>
+        <li><label>VOSI11-1step</label>
+            Uses VOSI 1.1-style <code>detail</code>-sensitive requests
+            to the <code>/tables</code> endpoint.
+            <code>detail=max</code> is specified initially to indicate that
+            full metadata up-front metadata load is preferred.
+            </li>
+        <li><label>VOSI11-2step</label>
+            Uses VOSI 1.1-style <code>detail</code>-sensitive requests
+            to the <code>/tables</code> endpoint.
+            <code>detail=min</code> is specified initially to indicate that
+            on-demand column load is preferred.
+            </li>
+        <li><label>VOSI11</label>
+            Uses VOSI 1.1-style <code>detail</code>-sensitive requests
+            to the <code>/tables</code> endpoint.
+            No <code>detail</code> specification is made initially,
+            so the service decides whether up-front loading is done.
             </li>
         </ul>
         You will usually want to stick with the default
@@ -18342,7 +19204,7 @@ the following acknowledgement:
 
 <p>The Concatenation Window allows you to join two tables together
 top-to-bottom.  It can be obtained using the 
-<label>Concatenate Tables</label> button (&IMG.CONCAT;) in the
+<label>Concatenate Tables</label> item (&IMG.CONCAT;) in the
 <ref id="ControlWindow">Control Window</ref> <label>Joins</label> menu.
 </p>
 
@@ -18360,15 +19222,23 @@ This process is discussed in more detail in <ref id="concat"/>.
 </p>
 
 <p>The concatenation window allows you to select the base and appended
-tables, and for each column in the base table to specify which column
-in the appended table corresponds to it.  You may select a blank for
-this, in which case the column in question will have all null entries
-in the resulting table.
-In some cases these column selectors may have a value filled in
+tables, and for each column in the base table to specify what quantity
+in the appended table corresponds to it.
+You can either select a column from the appended table from the
+selection box, or type in an expression in the
+<ref id="jel">expression language</ref> referring to columns
+from the appended table.
+If you leave the field blank, the column in question will have
+all null entries in the resulting table.
+Only suitable columns are available for choosing from these column
+selectors, that is ones matching the data type of the base column.
+</p>
+
+<p>In some cases these column selectors may have a value filled in
 automatically if the program thinks it can guess appropriate ones,
 but you should ensure that it has guessed correctly in this case.
-Only suitable columns are available for choosing from these column
-selectors; in most cases this means numeric ones.
+If the two tables have essentially the same structure,
+the corresponding columns should all get filled in automatically.
 </p>
 
 <p>When you have filled in the fields to your satisfaction, hit
@@ -19528,8 +20398,6 @@ functionality:
     for PDF output</li>
 <li><webref url="http://www.jibble.org/epsgraphics/">EPSGraphics2D</webref>
     (Jibble) for encapsulated postscript output</li>
-<li><webref url="http://www.acme.com/java/software/Acme.JPM.Encoders.GifEncoder.html">GifEncoder</webref>
-    (Acme) for GIF output</li>
 <li><webref url="http://skyservice.pha.jhu.edu/develop/vo/ivoafits/"
             >IVOA FITS Package</webref>
     (Sloan Digital Sky Survey) for simple (non-SoG) display of FITS images</li>
@@ -19615,6 +20483,7 @@ Some of the notable contributers are these:
 <li>Ben Maughan (Bristol)</li>
 <li>Richard McMahon (IoA)</li>
 <li>Guillaume Mella (JMMC)</li>
+<li>Konstantin Metlov (Donetsk)</li>
 <li>Daniel Michalik (Lund)</li>
 <li>David Mills (Bristol)</li>
 <li>Douglas Morgan (Bristol)</li>
@@ -19634,6 +20503,7 @@ Some of the notable contributers are these:
 <li>Aaron Robotham (Bristol)</li>
 <li>Yannick Roehlly (OAMP)</li>
 <li>Mike Read (ROE)</li>
+<li>Henrik Rydberg (Gothenburg drinking water laboratory)</li>
 <li>Juan Carlos Segovia (ESAC)</li>
 <li>Petr &#x0160;koda (AIAS, CZ)</li>
 <li>Mattia Vaccari (Western Cape)</li>
@@ -22878,7 +23748,8 @@ introduced since the last version:
             available for all plot types</li>
         <li><ref id="form-skydensity">SkyDensity form</ref>,
             using HEALPix bins on the celestial sphere, for the Sky plot</li>
-        <li><ref id="form-density">Density form</ref>,
+        <li>Density form
+            <em>(later replaced by Grid form)</em>
             using square N*N screen pixel bins, for the Plane plot</li>
         </ul>
         The details are somewhat experimental and may 
@@ -22948,6 +23819,350 @@ introduced since the last version:
         <li>Rationalise plot report logging.  Some more diagnostic information
             about plots is now logged at the INFO level
             (visible if topcat is run with the <code>-verbose</code> flag).</li>
+        </ul>
+        </p></dd>
+    </dl>
+    </p></dd>
+
+<dt>Version 4.3-3 (10 June 2016)</dt>
+<dd><p>
+    <dl>
+    <dt>Expression Language</dt>
+    <dd><p>The JEL library underlying the expression language parser
+        has been upgraded to v2.1.1 (thanks to Konstantin Metlov),
+        now supporting variable-length argument lists among other things.
+        This allows the following improvements:
+        <ul>
+        <li>New functions that support any number of arguments are provided:
+            <code>array</code>, <code>intArray</code>, <code>stringArray</code>
+            in class <ref id="Arrays">Arrays</ref>;
+            <code>concat</code>, <code>join</code>
+            in class <ref id="Strings">Strings</ref>;
+            <code>sum</code>, <code>mean</code>, <code>variance</code>,
+            <code>stdev</code>, <code>min</code>, <code>max</code>,
+            <code>median</code>, <code>countTrue</code>
+            in new class <ref id="Lists">Lists</ref>;
+            and <code>exec</code>
+            in activation class <ref id="System">System</ref>.</li>
+        <li>Some old lists of similarly-named functions with fixed numbers
+            of arguments have been replaced by single functions that
+            take an arbitrary number of arguments
+            (e.g. <code>array(x1)</code>, <code>array(x1,x2)</code>, ...
+                  <code>array(x1,x2,x3,x4,x5,x6,x7,x8)</code>
+            replaced by <code>array(values...)</code>).</li>
+        <li>The 2-argument <code>min</code>/<code>max</code> functions in class
+            <code>Arithmetic</code> have been renamed
+            <code>minNaN</code>/<code>maxNaN</code> to avoid confusion,
+            but in most cases existing expressions involving min/max
+            will work as before.</li>
+        <li>Some functions that used to require string arguments will now
+            auto-convert numeric types
+            (e.g. <code>exec("do_stuff.py",toString(RA),toString(DEC))</code>
+            can now be written <code>exec("do_stuff.py",RA,DEC)</code>).</li>
+        <li>You can now implement
+            <ref id="jelExtend">user-defined functions</ref> with variable
+            numbers of arguments.</li>
+        <li>Writing large (&gt;=2**31) literal integers used to fail with
+            and inscrutable error message.
+            Now the message tells you to append the
+            "<code>L</code>" character.</li>
+        </ul>
+        </p></dd>
+    <dt>Time plot</dt>
+    <dd><p>The <ref id="TimePlotWindow">Time Plot window</ref>
+        (available from the Control window <label>Graphics</label> menu)
+        has been enhanced so that it can make
+        <ref id="plotZones">multi-zone</ref> plots -
+        multiple plots stacked vertically that share the same horizontal
+        (time) axis but have independent vertical axes.
+        The time plot itself and this multi-zone feature are currently
+        experimental; in future versions they may be improved or changed,
+        and the multi-zone feature may be extended to other plot types.
+        Some other changes have gone along with this:
+        <ul>
+        <li>Plotted points (Mark form) in the time plot now supports
+            <ref id="ShapeMode">shading modes</ref>
+            as for other plot types.</li>
+        <li>The <ref id="SpectrogramLayerControl">spectrogram</ref> layer
+            now uses the (per plot, or more precisely per-zone) Aux colour map
+            rather than a colour map specific to the layer.
+            This means that the colour ramp is now displayed alongside
+            the plot, so you can see quantitatively what colour corresponds
+            to what value.  It also means that to adjust the colour map,
+            you now need to use the <ref id="ShaderControl">Aux</ref>
+            fixed control rather than controls in the spectrogram's
+            <label>Style</label> tab.</li>
+        <li>The plot window tries to guess the time coordinate and fill
+            it in automatically.</li>
+        <li>The Function layer control now works in the experimental
+            Time plot, rather than throwing an error.
+            However, it doesn't work very well, since the time coordinate
+            is in unix seconds rather than something more user-friendly.</li>
+        <li>Fixed a serious bug in ISO-8601 axis labelling in the
+            <ref id="TimePlotWindow">time plot</ref>.
+            In some cases axis labels were being drawn at positions badly
+            different from the correct position.</li>
+        </ul>
+        </p></dd>
+    <dt>Miscellaneous enhancements and changes</dt>
+    <dd><p>
+        <ul>
+        <li>This and subsequent releases target <strong>Java SE 6</strong>,
+            so will no longer
+            run under the (now very ancient) Java 5 runtime.</li>
+        <li>Add <ref id="form-fill">Fill</ref> plotting mode for Plane and Time
+            plots.</li>
+        <li>The TAP window now uses blocking HTTP requests rather than
+            repeated polls
+            to wait for asynchronous TAP job completion from
+            services that declare themselves UWS 1.1 compliant.</li>
+        <li>Improve sky plot border painting.</li>
+        <li>Clean up noisy Cubehelix colour map.</li>
+        <li>New function <code>countTrue</code> in class
+            <ref id="Arrays">Arrays</ref>.</li>
+        <li>VERBose selector added to
+            <ref id="ConeSearchDialog">Cone Search</ref> dialogue.</li>
+        <li>UType matching is now case-insensitive when identifying likely
+            columns in Activation window.</li>
+        <li>Replace Opaque Limit with Transparency config option for plane and
+            sky density plots.</li>
+        <li>Update list of VizieR mirrors.</li>
+        <li>Changed implementation of GIF exporter for plots,
+            from Acme to ImageIO.  Shouldn't be any noticable difference.</li>
+        </ul>
+        </p></dd>
+    <dt>Bug fixes</dt>
+    <dd><p>
+        <ul>
+        <li>Fix the sky join syntax example in the TAP window Hints panel,
+            which was incorrect (comma and parenthesis misplaced).</li>
+        <li>Fix bug in cumulative histogram calculation.</li>
+        <li>Fix read failure for FITS files with non-blank TDIM for
+            zero-length columns.</li>
+        <li>Fix bugs that led to timezone-dependent results when
+            reading ISO-8601 or decimal year time columns.</li>
+        <li>Fix numeric field truncation bug in LaTeX table output.</li>
+        <li>Fix bug in which expression metadata was sometimes not revealed
+            in Columns Window display following addition of a new synthetic
+            column (regression bug since v4.0b).</li>
+        <li>Don't use white as one of the auto-selected plotting colours,
+            since it's likely to be invisible
+            (this was a regression bug introduced at v4.3-2).</li>
+        </ul>
+        </p></dd>
+    </dl>
+    </p></dd>
+
+<dt>Version 4.3-4 (13 September 2016)</dt>
+<dd><p>
+    <dl>
+    <dt>Visualisation and HEALPix</dt>
+    <dd><p>
+        <ul>
+        <li>Add options
+            (from layer control Report panel or plot window Export menu)
+            to export the HEALPix density map calculated by a
+            <ref id="form-skydensity">SkyDensity</ref> plot;
+            either save it to disk or import it as a new table.</li>
+        <li>New <ref id="HealpixLayerControl">Healpix layer control</ref>
+            in the sky plot lets you plot tables that represent healpix maps
+            (e.g. as exported from <code>SkyDensity</code> plot).</li>
+        <li>Add some HEALPix-related functions to the             
+            <ref id="Tilings">Tilings</ref> class:
+            conversions from pixel index to sky position and
+            conversions between ring and nested schemes.</li>
+        <li>Colour ramp <label>Clip</label> control
+            (e.g. for the <ref id="ShaderControl">Aux Axis</ref>)
+            now has a new <label>Default</label> checkbox.
+            When checked, a default clip is applied, which avoids very
+            light colours, and when unchecked you can use the double-slider
+            over the whole range.
+            Previously, the double-slider range was pre-clipped, so very light
+            colours were not available.</li>
+        <li>Improve performance of some plot types.  In weighted shading mode
+            you can now adjust the colour map without appreciable delay.
+            SkyDensity plots are somewhat improved.</li>
+        </ul>
+        </p></dd>
+    <dt>TAP/VO enhancements</dt>
+    <dd><p>
+        <ul>
+        <li>The <ref id="TapTableLoadDialog">TAP window</ref> now honours the
+            (TAP 1.1) <code>column_index</code> column if it is present
+            in the <code>TAP_SCHEMA.columns</code> table.
+            This means that columns can be displayed in a predefined,
+            rather than random, order in the column metadata display tab
+            if the service supports that.</li>
+        <li>The TAP window also now acquires and displays
+            non-standard, as well as standard, table and column metadata
+            items if provided by the TAP service.
+            These come from non-standard columns in the
+            <code>TAP_SCHEMA</code><code>.tables</code>
+            and <code>.columns</code> tables,
+            or from attributes in custom namespaces in the TableSet document,
+            depending on metadata acquisition policy.
+            Services can use this if they wish to report things like
+            table row counts or column data limits.</li>
+        <li>Add VOSI 1.1-style <code>detail</code>-sensitive
+            <code>/tables</code> endpoint query options to the
+            <label>TAP|Metadata Acquisition</label>
+            menu in the TAP window.</li>
+        </ul>
+        </p></dd>
+    <dt>Bug fixes and minor enhancements</dt>
+    <dd><p>
+        <ul>
+        <li>The <ref id="inGbin">GBIN</ref> input handler
+            can now pick up more metadata from the classpath.
+            For suitable tables, metadata included in datamodel classes
+            if present can be interrogated to provide table 
+            and column descriptions and UCDs.
+            There are still some deficiencies of this functionality 
+            (no column order, utypes and units missing, 
+            large file "temp.xml" written to current directory)
+            dependent on issues in the upstream Gaia libraries and ICD.</li>
+        <li>Fix bug that caused read failures for large (&gt;0.5Gb) FITS files 
+            outside of the current directory on 32-bit JVMs.
+            This was a regression bug since v4.2-2.</li>
+        <li>Fix long-standing bug that failed to release file descriptors 
+            when opening FITS tables (could cause an error if very many
+            FITS files were opened).</li>
+        <li>Improve the <ref id="ConcatWindow">Concatenation Window</ref>.
+            You can now use algebraic expressions for the
+            appended table columns,
+            and changes to the appended table no longer reset the window
+            state.</li>
+        <li>Fix minor border-painting bug in sky plot window
+            (sky outline painted on GUI components).</li>
+        <li>Combiner option <code>stdev</code> replaces <code>variance</code>
+            in density, sky density and weighted plot layers.</li>
+        </ul>
+        </p></dd>
+    </dl>
+    </p></dd>
+
+<dt>Version 4.3-5 (23 September 2016)</dt>
+<dd><p>
+    <ul>
+    <li>Add <label>Lock Aux Range</label> action to plot window toolbars
+        and <ref id="ShaderControl">Aux Axis Control</ref>
+        <label>Range</label> tab.
+        This lets you prevent the display from updating the Aux colour ramp
+        range during navigation.
+        It also affects some dynamic Auto-Scale range calculations
+        in a similar way.</li>
+    <li>Fix aux ranging bug in some plot types
+        (SkyDensity, Healpix, Density, Weighted)
+        that used an aux data range too small to show colour variations
+        when Aux scaling was logarithmic
+        and negative data values were present.</li>
+    <li>Add Registry menu to TAP load window, allowing list of RegTAP
+        registries to be updated (as for other VO windows).</li>
+    <li>Improved performance (better memory use, faster) of some plot types
+        (SkyDensity, Healpix, Density, Weighted).</li>
+    </ul>
+    </p></dd>
+
+<dt>Version 4.4 (8 March 2017)</dt>
+<dd><p>
+    <dl>
+    <dt>Visualisation improvements</dt>
+    <dd><p>
+        <ul>
+        <li>The GUI has changed in the <label>Form</label> tab
+            of plot window
+            <ref id="tableDataControl">Data Layer Control</ref> panels.
+            To add (and remove) forms there is now a
+            &IMG.ADD; <label>Forms</label>
+            button that pops up a menu rather than the toolbar with form icons
+            that used to be there.
+            This change was necessitated because there were getting to be
+            too many icons to fit in the default width of the toolbar.
+            But it's probably an improvement anyway since you can now
+            see the name of each available form as well as its icon.</li>
+        <li>Improved the documentation of plot
+            <ref id="ShapeForm">Forms</ref> and
+            <ref id="ShapeMode">Shading Modes</ref>
+            in the user document -
+            each option now has a screenshot showing it in action.</li>
+        <li>The colour selector widget now comes with a new
+            <label>Free colour chooser</label> &IMG.COLOR_WHEEL; button,
+            giving you various ways to select any RGB colour you like.</li>
+        <li>New <ref id="form-grid">Grid</ref> plot form,
+            to plot a 2-d weighted histogram.
+            This replaces the <em>Density</em> form,
+            which has been withdrawn
+            (Grid can do all the same things and more,
+            except specify bin size in screen pixels).</li>
+        <li>New <ref id="form-quantile">Quantile</ref> plot form,
+            which can (e.g.) plot median lines through noisy data.</li>
+        <li>New <ref id="form-gaussian">Gaussian</ref> plot form
+            for Gaussian fits to histograms.</li>
+        <li>New normalisation (scaling) option <label>unit</label> for
+            histogram, KDE, and KNN layers.</li>
+        <li>New normalisation (scaling) options <label>per_day</label> etc
+            for histogram, KDE and KNN layers in the Time plot window only.</li>
+        <li>The <ref id="HistogramLayerControl">Histogram</ref> control
+            is now available from the
+            <ref id="TimePlotWindow">Time</ref> as well as the Plane
+            plot window, so you can now plot histograms with a temporal
+            horizontal axis.</li>
+        <li>Various tweaks to the details of how plots are positioned on
+            the screen or in output graphics files.</li>
+        </ul>
+        </p></dd>
+    <dt>Miscellaneous enhancements</dt>
+    <dd><p>
+        <ul>
+        <li>Fixed the match score (distance measure) for the
+            <label>Sky+X</label> and <label>Sky+XY</label>
+            <ref id="matchCriteria">matching algorithms</ref>.
+            Previously, the score was a linear sum of the unscaled distances
+            for the constituent matchers, which meant a <em>Best</em> match
+            was pretty meaningless.
+            Now, it adds scaled distances in quadrature,
+            so Best matching should give you a somewhat sensible result.</li>
+        <li>The <label>Sky with Errors</label>
+            and <label>N-dimensional Cartesian with Errors</label>
+            <ref id="matchCriteria">matching algorithms</ref>
+            now report output separations as scaled (dimensionless)
+            values rather than in physical units.
+            This means the results are more comparable,
+            so <em>Best</em> match results will make more sense.</li>
+        <li>The <ref id="Maths">Maths</ref> function
+            <code>hypot</code> now takes an arbitrary number of arguments
+            (instead of exactly two).</li>
+        <li>Added STScI service to default list of RegTAP registry
+            endpoints.</li>
+        <li>Minor improvements to the logic in the
+            <ref id="ConcatWindow">Concatenation Window</ref> that tries to
+            match up columns between the two tables.</li>
+        <li>Update JCDF library to v1.2-2 (2017-01-01 leap second).</li>
+        </ul>
+        </p></dd>
+    <dt>Bug fixes</dt>
+    <dd><p>
+        <ul>
+        <li>Fix KDE/KNN plotting bug that could get scaling badly wrong
+            for normalised cumulative plots.</li>
+        <li>Fix nasty <ref id="ConcatWindow">Concatenation Window</ref> bug;
+            the current subset and sort order of the Appended table
+            were not properly taken account of in the output.
+            This was a regression bug introduced at v4.3-4.</li>
+        <li>Fix a regression bug (since v4.3-2) in the
+            <ref id="FrameControl">Frame</ref> layer control;
+            values entered were being ignored for image export or
+            display or both.</li>
+        <li>Fixed a bug that could show Error information for the wrong job
+            in the TAP Running Jobs tab.</li>
+        <li>Fix TAP window bug that prevented job status from being updated
+            in Running Jobs tab.</li>
+        <li>Fix small bug in Plane/Time plot windows;
+            horizontal axis label was sometimes off the bottom of the plot
+            by a few pixels.</li>
+        <li>Fix subpixel offset of colour ramp frame in PDF/PostScript graphics
+            output.</li>
+        <li>Remove spurious padding from EPS graphics output.</li>
         </ul>
         </p></dd>
     </dl>

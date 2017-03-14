@@ -7,6 +7,7 @@ package uk.ac.starlink.ttools.func;
 
 import java.io.IOException;
 import java.lang.reflect.Array;
+import uk.ac.starlink.table.Tables;
 import uk.ac.starlink.ttools.filter.QuantCalc;
 
 /**
@@ -17,11 +18,19 @@ import uk.ac.starlink.ttools.filter.QuantCalc;
  * as array-valued.  FITS and VOTable tables can have columns which contain
  * array values, but other formats such as CSV cannot.
  *
+ * <p>If you want to calculate aggregating functions like sum, min, max etc
+ * on multiple values which are not part of an array,
+ * it's easier to use the functions from the <code>Lists</code> class.
+ *
+ * <p>Note that none of these functions will calculate statistical functions
+ * over a whole column of a table.
+ *
  * <p>The functions fall into a number of categories:
  * <ul>
  * <li>Aggregating operations, which map an array value to a scalar, including
  *     <code>size</code>,
  *     <code>count</code>,
+ *     <code>countTrue</code>,
  *     <code>maximum</code>,
  *     <code>minimum</code>,
  *     <code>sum</code>,
@@ -40,11 +49,11 @@ import uk.ac.starlink.ttools.filter.QuantCalc;
  *     <code>reciprocal</code>,
  *     <code>condition</code>.
  *     </li>
- * <li>A set of functions named <code>array</code> with various
- *     numbers of arguments, which let you assemble an array value from a list
- *     of scalar numbers.  This can be used for instance to get the mean of
- *     a set of three magnitudes by using an expression like
- *     "<code>mean(array(jmag, hmag, kmag))</code>".
+ * <li>The function <code>array</code>,
+ *     which lets you assemble an array value from a list of scalar numbers.
+ *     This can be used with the aggregating functions here,
+ *     but it's generally easier to use the corresponding functions from
+ *     the <code>Lists</code> class.
  *     </li>
  * </ul>
  *
@@ -272,8 +281,7 @@ public class Arrays {
             int n = Array.getLength( array );
             int count = 0;
             for ( int i = 0; i < n; i++ ) {
-                double d = Array.getDouble( array, i );
-                if ( ! Double.isNaN( d ) ) {
+                if ( ! Tables.isBlank( Array.get( array, i ) ) ) {
                     count++;
                 }
             }
@@ -282,6 +290,22 @@ public class Arrays {
         catch ( RuntimeException e ) {
             return 0;
         }
+    }
+
+    /**
+     * Returns the number of true elements in an array of boolean values.
+     *
+     * @param  array  array of true/false values
+     * @return  number of true values in <code>array</code>
+     */
+    public static int countTrue( boolean[] array ) {
+        int count = 0;
+        for ( boolean b : array ) {
+             if ( b ) {
+                 count++;
+             }
+        }
+        return count;
     }
 
     /**
@@ -544,115 +568,33 @@ public class Arrays {
     }
 
     /**
-     * Returns a numeric array built from a given element.
+     * Returns a floating point numeric array built from the given arguments.
      *
-     * @param   x1   array element 1
-     * @return  1-element array
+     * @param   values   one or more array elements
+     * @return  array
      */
-    public static double[] array( double x1 ) {
-        return new double[] { x1, };
+    public static double[] array( double... values ) {
+        return values;
     }
 
     /**
-     * Returns a numeric array built from given elements.
+     * Returns an integer numeric array built from the given arguments.
      *
-     * @param   x1   array element 1
-     * @param   x2   array element 2
-     * @return  2-element array
+     * @param   values   one or more array elements
+     * @return  array
      */
-    public static double[] array( double x1, double x2 ) {
-        return new double[] { x1, x2, };
+    public static int[] intArray( int... values ) {
+        return values;
     }
 
     /**
-     * Returns a numeric array built from given elements.
+     * Returns a String array built from the given arguments.
      *
-     * @param   x1   array element 1
-     * @param   x2   array element 2
-     * @param   x3   array element 3
-     * @return  3-element array
+     * @param   values   one or more array elements
+     * @return  array
      */
-    public static double[] array( double x1, double x2, double x3 ) {
-        return new double[] { x1, x2, x3, };
-    }
-
-    /**
-     * Returns a numeric array built from given elements.
-     *
-     * @param   x1   array element 1
-     * @param   x2   array element 2
-     * @param   x3   array element 3
-     * @param   x4   array element 4
-     * @return  4-element array
-     */
-    public static double[] array( double x1, double x2, double x3, double x4 ) {
-        return new double[] { x1, x2, x3, x4, };
-    }
-
-    /**
-     * Returns a numeric array built from given elements.
-     *
-     * @param   x1   array element 1
-     * @param   x2   array element 2
-     * @param   x3   array element 3
-     * @param   x4   array element 4
-     * @param   x5   array element 5
-     * @return  5-element array
-     */
-    public static double[] array( double x1, double x2, double x3, double x4,
-                                  double x5 ) {
-        return new double[] { x1, x2, x3, x4, x5, };
-    }
-
-    /**
-     * Returns a numeric array built from given elements.
-     *
-     * @param   x1   array element 1
-     * @param   x2   array element 2
-     * @param   x3   array element 3
-     * @param   x4   array element 4
-     * @param   x5   array element 5
-     * @param   x6   array element 6
-     * @return  6-element array
-     */
-    public static double[] array( double x1, double x2, double x3, double x4,
-                                  double x5, double x6 ) {
-        return new double[] { x1, x2, x3, x4, x5, x6, };
-    }
-
-    /**
-     * Returns a numeric array built from given elements.
-     *
-     * @param   x1   array element 1
-     * @param   x2   array element 2
-     * @param   x3   array element 3
-     * @param   x4   array element 4
-     * @param   x5   array element 5
-     * @param   x6   array element 6
-     * @param   x7   array element 7
-     * @return  7-element array
-     */
-    public static double[] array( double x1, double x2, double x3, double x4,
-                                  double x5, double x6, double x7 ) {
-        return new double[] { x1, x2, x3, x4, x5, x6, x7, };
-    }
-
-    /**
-     * Returns a numeric array built from given elements.
-     *
-     * @param   x1   array element 1
-     * @param   x2   array element 2
-     * @param   x3   array element 3
-     * @param   x4   array element 4
-     * @param   x5   array element 5
-     * @param   x6   array element 6
-     * @param   x7   array element 7
-     * @param   x8   array element 8
-     * @return  8-element array
-     */
-    public static double[] array( double x1, double x2, double x3, double x4,
-                                  double x5, double x6, double x7, double x8 ) {
-        return new double[] { x1, x2, x3, x4, x5, x6, x7, x8, };
+    public static String[] stringArray( String... values ) {
+        return values;
     }
 
     /**

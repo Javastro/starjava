@@ -8,7 +8,6 @@ import java.util.Map;
 import java.util.Set;
 import uk.ac.starlink.ttools.plot.Range;
 import uk.ac.starlink.ttools.plot2.data.DataStore;
-import uk.ac.starlink.ttools.plot2.data.TupleSequence;
 
 /**
  * Represents a ranged value that can differ according to the content
@@ -81,17 +80,20 @@ public class AuxScale {
      * @param   scales  scales to calculate ranges for
      * @param   layers   plot layers
      * @param   surface   approximate plot surface
+     * @param   knownPlans  array of available plan objects; may be empty
      * @param   dataStore  data repository
      * @return   map with a range entry for each of the <code>scales</code>
      */
     public static Map<AuxScale,Range>
              calculateAuxRanges( AuxScale[] scales, PlotLayer[] layers,
-                                 Surface surface, DataStore dataStore ) {
+                                 Surface surface, Object[] knownPlans,
+                                 DataStore dataStore ) {
         Map<AuxScale,Range> rangeMap = new HashMap<AuxScale,Range>();
         for ( int is = 0; is < scales.length; is++ ) {
             AuxScale scale = scales[ is ];
             rangeMap.put( scale,
-                          calculateRange( scale, layers, surface, dataStore ) );
+                          calculateRange( scale, layers, surface, knownPlans,
+                                          dataStore ) );
         }
         return rangeMap;
     }
@@ -103,20 +105,20 @@ public class AuxScale {
      * @param   scale  scale to calculate ranges for
      * @param   layers   plot layers
      * @param   surface  approximate plot surface
+     * @param   knownPlans  array of available plan objects; may be empty
      * @param   dataStore   data repository
      * @return   range for <code>scale</code>
      */
     private static Range calculateRange( AuxScale scale, PlotLayer[] layers,
-                                         Surface surface,
+                                         Surface surface, Object[] knownPlans,
                                          DataStore dataStore ) {
         Range range = new Range();
         for ( int il = 0; il < layers.length; il++ ) {
             PlotLayer layer = layers[ il ];
             AuxReader rdr = layer.getAuxRangers().get( scale );
             if ( rdr != null ) {
-                TupleSequence tseq =
-                    dataStore.getTupleSequence( layer.getDataSpec() );
-                rdr.adjustAuxRange( surface, tseq, range );
+                rdr.adjustAuxRange( surface, layer.getDataSpec(), dataStore,
+                                    knownPlans, range );
             }
         }
         return range;

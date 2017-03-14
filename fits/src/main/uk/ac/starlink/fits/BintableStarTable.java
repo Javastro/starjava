@@ -1,5 +1,6 @@
 package uk.ac.starlink.fits;
 
+import java.io.Closeable;
 import java.io.IOException;
 import java.math.BigDecimal;
 import java.math.BigInteger;
@@ -25,9 +26,16 @@ import uk.ac.starlink.table.ValueInfo;
  * access is provided by the underlying data access.
  * A factory method is provided to create an appropriate instance.
  *
+ * <p>Some instances of this class hang on to file descriptors.
+ * If you are in danger of running out of that resource before
+ * insstances are garbage collected, you can call the {@link #close}
+ * method to release them.  Attempting to read data following
+ * such a call may result in an exception.
+ *
  * @author   Mark Taylor
  */
-public abstract class BintableStarTable extends AbstractStarTable {
+public abstract class BintableStarTable extends AbstractStarTable
+                                        implements Closeable {
 
     private final int ncol_;
     private final long nrow_;
@@ -283,7 +291,14 @@ public abstract class BintableStarTable extends AbstractStarTable {
             /* Do additional column info configuration as directed
              * by the reader. */
             cinfo.setContentClass( reader.getContentClass() );
-            cinfo.setShape( reader.getShape() );
+
+            /* Don't try to set the shape for zero-element readers;
+             * ValueInfo doesn't allow zero values in the dimensions array.
+             * You could argue this is not correct behaviour,
+             * but I'd be surprised if it inconveniences anybody. */
+            if ( reader.getLength() > 0 ) {
+                cinfo.setShape( reader.getShape() );
+            }
             cinfo.setElementSize( reader.getElementSize() );
             if ( reader.isUnsignedByte() ) {
                 cinfo.setAuxDatum( new DescribedValue( Tables.UBYTE_FLAG_INFO,
@@ -420,6 +435,8 @@ public abstract class BintableStarTable extends AbstractStarTable {
             public BasicInput createInput( boolean isSeq ) {
                 throw new UnsupportedOperationException( "Metadata only" );
             }
+            public void close() {
+            }
         };
         BintableStarTable meta =
             new SequentialBintableStarTable( hdr, dummyFact );
@@ -519,6 +536,10 @@ public abstract class BintableStarTable extends AbstractStarTable {
                 }
             };
         }
+
+        public void close() throws IOException {
+            inputFact_.close();
+        }
     }
 
     /**
@@ -600,6 +621,11 @@ public abstract class BintableStarTable extends AbstractStarTable {
                     input.close();
                 }
             };
+        }
+
+        public void close() throws IOException {
+            randomInput_.close();
+            inputFact_.close();
         }
     }
 }

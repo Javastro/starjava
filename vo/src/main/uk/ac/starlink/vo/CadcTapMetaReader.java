@@ -1,7 +1,6 @@
 package uk.ac.starlink.vo;
 
 import java.io.IOException;
-import java.net.MalformedURLException;
 import java.net.URL;
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -36,9 +35,9 @@ public class CadcTapMetaReader implements TapMetaReader {
     /**
      * Constructs a default instance.
      *
-     * @param    tablesetUrl  URL of TAPVizieR service followed by /tables
+     * @param    tablesetUrl  URL for CADC-like tableset service
      */
-    public CadcTapMetaReader( String tablesetUrl ) {
+    public CadcTapMetaReader( URL tablesetUrl ) {
         this( tablesetUrl, Config.POPULATE_SCHEMAS, ContentCoding.GZIP );
     }
 
@@ -46,18 +45,13 @@ public class CadcTapMetaReader implements TapMetaReader {
      * Constructs an instance with a configurable metadata object population
      * policy.
      *
-     * @param    tablesetUrl  URL of TAPVizieR service followed by /tables
+     * @param    tablesetUrl  URL for CADC-like tableset service
      * @param   config  population configuration
      * @param    coding   configures HTTP content-coding
      */
-    public CadcTapMetaReader( String tablesetUrl, Config config,
+    public CadcTapMetaReader( URL tablesetUrl, Config config,
                               ContentCoding coding ) {
-        try {
-            url_ = new URL( tablesetUrl );
-        }
-        catch ( MalformedURLException e ) {
-            throw new IllegalArgumentException( "Not a URL: " + tablesetUrl );
-        }
+        url_ = tablesetUrl;
         config_ = config;
         coding_ = coding;
         schemaMap_ = new HashMap<String,String>();
@@ -65,8 +59,8 @@ public class CadcTapMetaReader implements TapMetaReader {
 
     public SchemaMeta[] readSchemas() throws IOException {
         SchemaMeta[] schemas = populateHandler( "", config_.schemaDetail_ )
-                              .getSchemas();
-        TapSchemaTapMetaReader.sortSchemas( schemas );
+                              .getSchemas( false );
+        TapMetaPolicy.sortSchemas( schemas );
         int nTable = 0;
         int nHasCols = 0;
         int nHasFkeys = 0;
@@ -75,7 +69,7 @@ public class CadcTapMetaReader implements TapMetaReader {
             String sname = schema.getName();
             TableMeta[] tables = schema.getTables();
             if ( tables != null ) {
-                TapSchemaTapMetaReader.sortTables( tables );
+                TapMetaPolicy.sortTables( tables );
                 for ( TableMeta table : tables ) {
                     nTable++;
                     schemaMap_.put( table.getName(), sname );
@@ -116,11 +110,11 @@ public class CadcTapMetaReader implements TapMetaReader {
         String sname = schema.getName();
         SchemaMeta[] schemas = 
              populateHandler( "/" + sname, config_.tableDetail_ )
-            .getSchemas();
+            .getSchemas( false );
         int ns = schemas.length;
         if ( ns == 1 ) {
             TableMeta[] tables = schemas[ 0 ].getTables();
-            TapSchemaTapMetaReader.sortTables( tables );
+            TapMetaPolicy.sortTables( tables );
             for ( TableMeta table : tables ) {
                 schemaMap_.put( table.getName(), sname );
             }
@@ -196,7 +190,7 @@ public class CadcTapMetaReader implements TapMetaReader {
             TableSetSaxHandler tsHandler = populateHandler( subPath, "" );
             List<TableMeta> tlist = new ArrayList<TableMeta>();
             tlist.addAll( Arrays.asList( tsHandler.getNakedTables() ) );
-            for ( SchemaMeta schema : tsHandler.getSchemas() ) {
+            for ( SchemaMeta schema : tsHandler.getSchemas( false ) ) {
                 TableMeta[] tables = schema.getTables();
                 if ( tables != null ) {
                     tlist.addAll( Arrays.asList( tables ) );

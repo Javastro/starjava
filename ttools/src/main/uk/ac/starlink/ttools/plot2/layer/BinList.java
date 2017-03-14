@@ -1,5 +1,7 @@
 package uk.ac.starlink.ttools.plot2.layer;
 
+import java.util.Iterator;
+
 /**
  * Represents a bounded list of bins.
  * Each bin is given a fixed integer label, from zero to a specified maximum.
@@ -77,11 +79,36 @@ public interface BinList {
         double getBinValue( long index );
 
         /**
-         * Returns the range of bin values currently present in all the
-         * occupied bins.
+         * Returns the number of bins actually populated.
+         * This is the number of values that will be returned by
+         * {@link #indexIterator}.
          *
-         * @return   2-element array giving (min,max) of all bin values
+         * @return  number of non-empty bins
          */
-        double[] getValueBounds();
+        long getBinCount();
+
+        /**
+         * Returns an iterator over the indices of the
+         * populated bins int this result.
+         *
+         * @return  iterator over distinct indices of all the non-empty bins;
+         *          none of the values will be larger than the BinList's size
+         */
+        Iterator<Long> indexIterator();
+
+        /**
+         * Returns a Result instance with behaviour the same as this one,
+         * but with implementation optimised for long-term storage.
+         * If you're only going to iterate over this object's values once,
+         * don't call this method, since it will probably iterate over
+         * the values anyway if it does anything at all.
+         * But if you're going to keep the result around for potentially
+         * multiple uses, retaining the output of this method, rather than
+         * the original object, may be more efficient on memory.
+         *
+         * @return  compacted result with the same content as this;
+         *          may return this object
+         */
+        Result compact();
     }
 }

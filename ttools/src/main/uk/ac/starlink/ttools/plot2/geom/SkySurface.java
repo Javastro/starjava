@@ -10,6 +10,8 @@ import java.awt.Point;
 import java.awt.Rectangle;
 import java.awt.RenderingHints;
 import java.awt.Shape;
+import java.awt.geom.AffineTransform;
+import java.awt.geom.Area;
 import java.awt.geom.GeneralPath;
 import java.awt.geom.Point2D;
 import java.awt.geom.Rectangle2D;
@@ -59,6 +61,7 @@ public class SkySurface implements Surface {
     private final int gYoff_;
     private final double gZoom_;
     private final boolean skyFillsBounds_;
+    private final boolean isContinuous_;
     private static final Logger logger_ =
         Logger.getLogger( "uk.ac.starlink.ttools.plot2" );
 
@@ -104,6 +107,7 @@ public class SkySurface implements Surface {
         zoom_ = zoom;
         xoff_ = xoff;
         yoff_ = yoff;
+        isContinuous_ = projection.isContinuous();
         unrotmat_ = Matrices.invert( rotmat_ );
 
         /* Work out the pixel offsets and scaling factors to transform
@@ -155,17 +159,12 @@ public class SkySurface implements Surface {
 
     public void paintBackground( Graphics g ) {
         Graphics2D g2 = (Graphics2D) g.create();
-        g2.setRenderingHint( RenderingHints.KEY_ANTIALIASING,
-                             antialias_ ? RenderingHints.VALUE_ANTIALIAS_ON
-                                        : RenderingHints.VALUE_ANTIALIAS_OFF );
         final Shape gShape;
         if ( skyFillsBounds_ ) {
             gShape = new Rectangle( getPlotBounds() );
-            ((Rectangle) gShape).width--;
-            ((Rectangle) gShape).height--;
         }
         else {
-            g2.setClip( new Rectangle( getPlotBounds() ) );
+            g2.clip( new Rectangle( getPlotBounds() ) );
             g2.translate( gXoff_, gYoff_ );
             g2.scale( gZoom_, -gZoom_ );
             g2.setStroke( new BasicStroke( (float) ( 1.0 / gZoom_ ) ) );
@@ -173,8 +172,6 @@ public class SkySurface implements Surface {
         }
         g2.setColor( Color.WHITE );
         g2.fill( gShape );
-        g2.setColor( Color.GRAY );
-        g2.draw( gShape );
         g2.dispose();
     }
 
@@ -209,6 +206,18 @@ public class SkySurface implements Surface {
                 }
                 g2.draw( path );
             }
+        }
+        if ( skyFillsBounds_ ) {
+            g2.draw( getPlotBounds() );
+        }
+        else {
+            Graphics2D g2a = (Graphics2D) g.create();
+            g2a.clip( new Rectangle( getPlotBounds() ) );
+            g2a.translate( gXoff_, gYoff_ );
+            g2a.scale( gZoom_, -gZoom_ );
+            g2a.setStroke( new BasicStroke( (float) ( 1.0 / gZoom_ ) ) );
+            g2a.draw( projection_.getProjectionShape() );
+            g2a.dispose();
         }
         if ( axlabelColor_ != null ) {
             g2.setColor( axlabelColor_ );
@@ -299,12 +308,17 @@ public class SkySurface implements Surface {
                                          double[] dpos1, boolean visibleOnly,
                                          Point2D.Double gpos1 ) {
 
-        /* Because sky plots do not in general have continuous coordinates
-         * (wrap around) implementing this method is not trivial. */
-
         /* Get the graphics position of the offset point the
          * straightforward way. */
         boolean aStatus = dataToGraphics( dpos1, visibleOnly, gpos1 );
+
+        /* For some projections, this is sufficient. */
+        if ( isContinuous_ ) {
+            return aStatus;
+        }
+
+        /* However, in general there may be discontinuities (wrap around),
+         * in which case we need to jump through some hoops. */
         double ax = gpos1.x;
         double ay = gpos1.y;
 
@@ -332,7 +346,11 @@ public class SkySurface implements Surface {
         if ( aStatus && bStatus ) {
             double ad = Math.hypot( ax - gpos0.x, ay - gpos0.y );
             double bd = Math.hypot( bx - gpos0.x, by - gpos0.y );
-            forward = ad <= bd;
+
+            /* Use the normal transformation unless it's significantly further
+             * away than the other one; we're only looking to pick up
+             * catastrophic mismappings here. */
+            forward = ad < 2 * bd;
         }
         else if ( aStatus && ! bStatus ) {
             forward = true;
@@ -447,6 +465,62 @@ public class SkySurface implements Surface {
         }
         return sexagesimal_ ? formatPositionSex( lonRad, latRad, pixRad )
                             : formatPositionDec( lonRad, latRad, pixRad );
+    }
+
+    /**
+     * Returns the approximate solid angle covered by a screen pixel
+     * in steradians.
+     * It tries to return a representative value for the visible area.
+     *
+     * @return   approximate linear size of a screen pixel in radians
+     */
+    public double pixelAreaSteradians() {
+        Point2D screenCenter = new Point2D.Double( ( gxlo_ + gxhi_ ) * 0.5,
+                                                   ( gylo_ + gyhi_ ) * 0.5 );
+        double size = pixelAreaSteradians( screenCenter );
+        return Double.isNaN( size ) ? pixelAreaSteradians( getSkyCenter() )
+                                    : size;
+    }
+
+    /**
+     * Returns the solid angle covered by a given graphics pixel
+     * in steradians.
+     *
+     * @param   gpos  position of graphics pixel center
+     * @return  approximate linear size of pixel in radians,
+     *          or NaN if pixel is not (all) on the sky
+     */
+    public double pixelAreaSteradians( Point2D gpos ) {
+        double gx = gpos.getX();
+        double gy = gpos.getY();
+        double delta = 1;
+        double d2 = delta * 0.5;
+        return 0.5
+             * screenDistanceRadians( new Point2D.Double( gx - d2, gy - d2 ),
+                                      new Point2D.Double( gx + d2, gy + d2 ) )
+             * screenDistanceRadians( new Point2D.Double( gx - d2, gy + d2 ),
+                                      new Point2D.Double( gx + d2, gy - d2 ) );
+    }
+
+    /**
+     * Returns the distance along a great circle in radians between two
+     * graphics positions.  The evaluation should be well-conditioned
+     * for small or large angles.  The given coordinates do not need
+     * to be within the graphics bounds, but if they are outside the
+     * celestial sphere, NaN will be returned.
+     *
+     * @param   gp1  first position
+     * @param   gp2  second position
+     * @return  separation between positions in radians,
+     *          or NaN if one of the positions is not on the sky
+     */
+    public double screenDistanceRadians( Point2D gp1, Point2D gp2 ) {
+        double[] dp1 = graphicsToData( gp1, null );
+        double[] dp2 = graphicsToData( gp2, null );
+        return dp1 == null || dp2 == null
+             ? Double.NaN
+             : Math.atan2( Matrices.mod( Matrices.cross( dp1, dp2 ) ),
+                           Matrices.dot( dp1, dp2 ) );
     }
 
     /**
@@ -684,6 +758,19 @@ public class SkySurface implements Surface {
      */
     public Point getSkyCenter() {
         return new Point( gXoff_, gYoff_ );
+    }
+
+    /**
+     * Returns a shape that gives the boundary of the sky projection
+     * in graphics coordinates.
+     *
+     * @return   sky boundary shape
+     */
+    public Shape getSkyShape() {
+        Area shape = new Area( projection_.getProjectionShape() );
+        shape.transform( new AffineTransform( gZoom_, 0, 0, -gZoom_,
+                                               gXoff_, gYoff_ ) );
+        return shape;
     }
 
     @Override

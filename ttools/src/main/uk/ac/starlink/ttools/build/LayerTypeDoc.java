@@ -8,6 +8,7 @@ import java.util.Iterator;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.logging.Logger;
 import uk.ac.starlink.task.Parameter;
 import uk.ac.starlink.task.Task;
 import uk.ac.starlink.ttools.Formatter;
@@ -43,6 +44,9 @@ public class LayerTypeDoc {
 
     private final boolean basicXml_;
     private final String suffix_;
+    private final Map<String,String> examplesMap_;
+    private final static Logger logger_ =
+        Logger.getLogger( "uk.ac.starlink.ttools.build" );
 
     /**
      * Constructor.
@@ -52,6 +56,7 @@ public class LayerTypeDoc {
     public LayerTypeDoc( boolean basicXml ) {
         basicXml_ = basicXml;
         suffix_ = AbstractPlot2Task.EXAMPLE_LAYER_SUFFIX;
+        examplesMap_ = Plot2Example.getExamplesXml();
     }
 
     /**
@@ -114,7 +119,8 @@ public class LayerTypeDoc {
                       + "=" + lname );
         if ( hasStyle ) {
             Parameter[] styleParams =
-                LayerTypeParameter.getConfigParams( styleKeys, suffix_, false );
+                LayerTypeParameter
+               .getLayerConfigParams( styleKeys, suffix_, false );
             paramList.addAll( Arrays.asList( styleParams ) );
             usageWords.addAll( LayerTypeParameter.usageWords( styleParams ) );
         }
@@ -253,6 +259,26 @@ public class LayerTypeDoc {
                 .append( "</p>\n" );
         }
 
+        /* Add example. */
+        String exname = "layer-" + lname;
+        String exXml = examplesMap_.get( exname );
+        if ( exXml != null ) {
+            sbuf.append( "<p>\n" )
+                .append( "<strong>Example:</strong>\n" )
+                .append( "</p>\n" )
+                .append( "<figure>\n" )
+                .append( "<figureimage src='&FIG.plot2-" )
+                .append( exname )
+                .append( ";'/>\n" )
+                .append( "</figure>\n" )
+                .append( "<p>" )
+                .append( exXml )
+                .append( "</p>\n" );
+        }
+        else {
+            logger_.severe( "No example figure for layer type " + lname );
+        }
+
         /* Add detailed per-parameter usage list. */
         Collections.sort( paramList, Parameter.BY_NAME );
         if ( paramList.size() > 0 ) {
@@ -290,7 +316,7 @@ public class LayerTypeDoc {
      * Returns a map (keyed by name) of all the LayerTypes used by a given
      * list of tasks.
      *
-     * @param   known task list
+     * @param  tasks   known task list
      * @return   known layer types
      */
     public static Map<String,LayerType>

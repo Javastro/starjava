@@ -1,6 +1,8 @@
 package uk.ac.starlink.topcat.plot2;
 
 import java.awt.Component;
+import uk.ac.starlink.ttools.plot2.GangerFactory;
+import uk.ac.starlink.ttools.plot2.SingleGanger;
 import uk.ac.starlink.ttools.plot2.PlotType;
 import uk.ac.starlink.ttools.plot2.geom.PlaneAspect;
 import uk.ac.starlink.ttools.plot2.geom.PlanePlotType;
@@ -34,8 +36,8 @@ public class PlanePlotWindow
     private static class PlanePlotTypeGui
             implements PlotTypeGui<PlaneSurfaceFactory.Profile,PlaneAspect> {
         public AxisController<PlaneSurfaceFactory.Profile,PlaneAspect>
-                createAxisController( ControlStack stack ) {
-            return new PlaneAxisController( stack );
+                createAxisController() {
+            return new PlaneAxisController();
         }
         public PositionCoordPanel createPositionCoordPanel( int npos ) {
             return SimplePositionCoordPanel
@@ -43,6 +45,15 @@ public class PlanePlotWindow
         }
         public boolean hasPositions() {
             return true;
+        }
+        public GangerFactory getGangerFactory() {
+            return SingleGanger.FACTORY;
+        }
+        public ZoneFactory createZoneFactory() {
+            return ZoneFactories.FIXED;
+        } 
+        public String getNavigatorHelpId() {
+            return "planeNavigation";
         }
     }
 }

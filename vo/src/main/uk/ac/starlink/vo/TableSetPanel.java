@@ -15,6 +15,7 @@ import java.util.Collections;
 import java.util.Enumeration;
 import java.util.HashMap;
 import java.util.HashSet;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -27,7 +28,6 @@ import javax.swing.ImageIcon;
 import javax.swing.JCheckBox;
 import javax.swing.JComponent;
 import javax.swing.JLabel;
-import javax.swing.JMenu;
 import javax.swing.JPanel;
 import javax.swing.JProgressBar;
 import javax.swing.JScrollPane;
@@ -78,8 +78,6 @@ public class TableSetPanel extends JPanel {
     private final JTable foreignTable_;
     private final ArrayTableModel colTableModel_;
     private final ArrayTableModel foreignTableModel_;
-    private final MetaColumnModel colColModel_;
-    private final MetaColumnModel foreignColModel_;
     private final ResourceMetaPanel servicePanel_;
     private final SchemaMetaPanel schemaPanel_;
     private final TableMetaPanel tablePanel_;
@@ -95,6 +93,8 @@ public class TableSetPanel extends JPanel {
     private TapServiceKit serviceKit_;
     private SchemaMeta[] schemas_;
     private ColumnMeta[] selectedColumns_;
+    private static final ArrayTableColumn[] colMetaColumns_ =
+        createColumnMetaColumns();
 
     /**
      * Name of bound property for table selection.
@@ -189,13 +189,10 @@ public class TableSetPanel extends JPanel {
         useNameButt_.addActionListener( findParamListener );
         useDescripButt_.addActionListener( findParamListener );
 
-        colTableModel_ = new ArrayTableModel( createColumnMetaColumns(),
+        colTableModel_ = new ArrayTableModel( colMetaColumns_,
                                               new ColumnMeta[ 0 ] );
         colTable_ = new JTable( colTableModel_ );
         colTable_.setColumnSelectionAllowed( false );
-        colColModel_ =
-            new MetaColumnModel( colTable_.getColumnModel(), colTableModel_ );
-        colTable_.setColumnModel( colColModel_ );
         new ArrayTableSorter( colTableModel_ )
            .install( colTable_.getTableHeader() );
         ListSelectionModel colSelModel = colTable_.getSelectionModel();
@@ -213,10 +210,6 @@ public class TableSetPanel extends JPanel {
         foreignTable_ = new JTable( foreignTableModel_ );
         foreignTable_.setColumnSelectionAllowed( false );
         foreignTable_.setRowSelectionAllowed( false );
-        foreignColModel_ =
-            new MetaColumnModel( foreignTable_.getColumnModel(),
-                                 foreignTableModel_ );
-        foreignTable_.setColumnModel( foreignColModel_ );
         new ArrayTableSorter( foreignTableModel_ )
            .install( foreignTable_.getTableHeader() );
 
@@ -272,16 +265,6 @@ public class TableSetPanel extends JPanel {
     }
 
     /**
-     * Returns a new menu for controlling which columns are visible in
-     * the column display table.
-     *
-     * @param  name  menu name
-     */
-    public JMenu makeColumnDisplayMenu( String name ) {
-        return colColModel_.makeCheckBoxMenu( name );
-    }
-
-    /**
      * Installs an object that knows how to acquire TAP service metadata.
      * If the supplied kit is non-null, calling this method
      * initiates asynchronous reads of metadata, which will be displayed
@@ -301,7 +284,8 @@ public class TableSetPanel extends JPanel {
         }
         else {
             final String ivoid = serviceKit.getIvoid();
-            servicePanel_.setId( serviceKit.getServiceUrl(), ivoid );
+            servicePanel_.setId( serviceKit.getEndpointSet().getIdentity(),
+                                 ivoid );
             serviceKit.acquireResource(
                            new ResultHandler<Map<String,String>>() {
                 public boolean isActive() {
@@ -443,16 +427,17 @@ public class TableSetPanel extends JPanel {
 
     /**
      * Sets whether an examples document is known to be available
-     * in the standard location (&lt;serviceUrl&gt;/examples).
+     * at the examples endpoint.
      *
      * @param   hasExamples  true iff examples are known to exist
      */
     public void setHasExamples( boolean hasExamples ) {
-        String exampleUrl = hasExamples && serviceKit_ != null
-                          ? serviceKit_.getServiceUrl() + "/examples"
-                          : null;
-        servicePanel_.setExamplesUrl( exampleUrl );
-        hintPanel_.setExamplesUrl( exampleUrl );
+        URL exampleUrl = hasExamples && serviceKit_ != null
+                       ? serviceKit_.getEndpointSet().getExamplesEndpoint()
+                       : null;
+        String exurl = exampleUrl == null ? null : exampleUrl.toString();
+        servicePanel_.setExamplesUrl( exurl );
+        hintPanel_.setExamplesUrl( exurl );
     }
 
     /**
@@ -727,6 +712,51 @@ public class TableSetPanel extends JPanel {
      */
     private void displayColumns( TableMeta table, ColumnMeta[] cols ) {
         assert table == getSelectedTable();
+        final String[] extras;
+        if ( cols != null && cols.length > 0 ) {
+
+            /* Determine what non-standard columns should appear in the
+             * column display JTable; this depends on the content of the
+             * "extras" maps in the relevant ColumnMeta objects. */
+            Map<String,List<Object>> extrasMap =
+                new LinkedHashMap<String,List<Object>>();
+            for ( ColumnMeta col : cols ) {
+                for ( Map.Entry<String,Object> entry :
+                      col.getExtras().entrySet() ) {
+                    String key = entry.getKey();
+                    Object value = entry.getValue();
+                    if ( ! extrasMap.containsKey( key ) ) {
+                        extrasMap.put( key, new ArrayList<Object>() );
+                    }
+                    extrasMap.get( key ).add( value );
+                }
+            }
+            extras = extrasMap.keySet().toArray( new String[ 0 ] );
+            List<ArrayTableColumn> colList = new ArrayList<ArrayTableColumn>();
+            colList.addAll( Arrays.asList( colMetaColumns_ ) );
+            for ( Map.Entry<String,List<Object>> entry :
+                  extrasMap.entrySet() ) {
+                colList.add( ExtraColumn.createInstance( entry.getKey(),
+                                                         entry.getValue() ) );
+            }
+
+            /* If the set of columns is different than that currently
+             * displayed, update the JTable's ColumnModel.
+             * But don't do it if it's not necessary, since it will wipe
+             * out things like display column ordering, which it's nice
+             * to keep if possible. */
+            if ( ! new HashSet( Arrays.asList( colTableModel_.getColumns() ) )
+                  .equals( new HashSet( colList ) ) ) {
+                colTableModel_
+                   .setColumns( colList.toArray( new ArrayTableColumn[ 0 ] ) );
+            }
+        }
+        else {
+            extras = new String[ 0 ];
+        }
+        tablePanel_.setColumnExtras( extras );
+
+        /* Update the data for the columns table. */
         colTableModel_.setItems( cols );
         detailTabber_.setIconAt( itabCol_, activeIcon( cols != null &&
                                                        cols.length > 0 ) );
@@ -1393,6 +1423,92 @@ public class TableSetPanel extends JPanel {
     }
 
     /**
+     * ArrayTableColumn for extracting "extra" non-standard column metadata.
+     * Implements equals/hashCode.
+     */
+    private static class ExtraColumn extends ArrayTableColumn {
+        private final String key_;
+        private final Class clazz_;
+
+        /**
+         * Constructor.
+         *
+         * @param  key   name of metadata key in ColumnMeta extras map
+         * @param  clazz   class of object returned by getValue method
+         */
+        ExtraColumn( String key, Class clazz ) {
+            super( key, clazz );
+            key_ = key;
+            clazz_ = clazz;
+        }
+
+        public Object getValue( Object item ) {
+            Object value = getCol( item ).getExtras().get( key_ );
+            if ( value == null ) {
+                return null;
+            }
+            else if ( clazz_.isInstance( value ) ) {
+                return value;
+            }
+            else if ( String.class.equals( clazz_ ) ) {
+                return value.toString();
+            }
+            else {
+                return null;
+            }
+        }
+
+        @Override
+        public int hashCode() {
+            int code = 772261;
+            code = 23 * code + key_.hashCode();
+            code = 23 * code + clazz_.hashCode();
+            return code;
+        }
+
+        @Override
+        public boolean equals( Object o ) {
+            if ( o instanceof ExtraColumn ) {
+                ExtraColumn other = (ExtraColumn) o;
+                return this.key_.equals( other.key_ )
+                    && this.clazz_.equals( other.clazz_ );
+            }
+            else {
+                return false;
+            }
+        }
+
+        /**
+         * Creates an instance of this class that can display a given
+         * list of objects.  The content type is determined by the
+         * actual data types of the known values.  Don't try too hard;
+         * if they don't all have identical classes it just gets String
+         * values for them all.  But this is good enough for most cases,
+         * and getting the type right is beneficial because it allows
+         * sorting by value to work properly.
+         *
+         * @param    name   column name
+         * @param    values  values that will be used
+         */
+        static ExtraColumn createInstance( String name, List<Object> values ) {
+            Class clazz = null;
+            for ( Object obj : values ) {
+                if ( obj != null ) {
+                    Class c = obj.getClass();
+                    if ( clazz == null ) {
+                        clazz = c;
+                    }
+                    else if ( ! clazz.equals( c ) ) {
+                        return new ExtraColumn( name, String.class );
+                    }
+                }
+            }
+            return new ExtraColumn( name,
+                                    clazz == null ? String.class : clazz );
+        }
+    }
+
+    /**
      * MetaPanel subclass for displaying table metadata.
      */
     private static class TableMetaPanel extends MetaPanel {
@@ -1400,6 +1516,8 @@ public class TableSetPanel extends JPanel {
         private final JTextComponent ncolField_;
         private final JTextComponent nfkField_;
         private final JTextComponent descripField_;
+        private final JTextComponent tableExtrasField_;
+        private final JTextComponent colExtrasField_;
         private TableMeta table_;
 
         /**
@@ -1410,6 +1528,8 @@ public class TableSetPanel extends JPanel {
             ncolField_ = addLineField( "Columns" );
             nfkField_ = addLineField( "Foreign Keys" );
             descripField_ = addMultiLineField( "Description" );
+            tableExtrasField_ = addHtmlField( "Non-Standard Table Metadata" );
+            colExtrasField_ = addHtmlField( "Non-Standard Column Metadata" );
         }
 
         /**
@@ -1424,6 +1544,9 @@ public class TableSetPanel extends JPanel {
                               table == null ? null : table.getName() );
                 setFieldText( descripField_,
                               table == null ? null : table.getDescription() );
+                setFieldText( tableExtrasField_,
+                              table == null ? null
+                                            : mapToHtml( table.getExtras() ) );
                 setColumns( table == null ? null : table.getColumns() );
                 setForeignKeys( table == null ? null : table.getForeignKeys() );
             }
@@ -1437,6 +1560,23 @@ public class TableSetPanel extends JPanel {
          */
         public void setColumns( ColumnMeta[] cols ) {
             setFieldText( ncolField_, arrayLength( cols ) );
+        }
+
+        /**
+         * Informs this panel of non-standard items of column metadata
+         * available for the currently displayed table.
+         *
+         * @param  names of non-standard per-column metadata items
+         */
+        public void setColumnExtras( String[] extras ) {
+            StringBuffer sbuf = new StringBuffer();
+            if ( extras != null ) {
+                for ( String extra : extras ) {
+                    sbuf.append( extra )
+                        .append( "<br />\n" );
+                }
+            }
+            setFieldText( colExtrasField_, sbuf.toString() );
         }
 
         /**
@@ -1530,12 +1670,11 @@ public class TableSetPanel extends JPanel {
         /**
          * Sets basic identity information for this service.
          *
-         * @param  serviceUrl   TAP service URL, may be null
+         * @param  serviceLabel   TAP service label, may be null
          * @param  ivoid  ivorn for TAP service registry resource, may be null
          */
-        public void setId( URL serviceUrl, String ivoid ) {
-            setFieldText( servurlField_,
-                          serviceUrl == null ? null : serviceUrl.toString() );
+        public void setId( String serviceLabel, String ivoid ) {
+            setFieldText( servurlField_, serviceLabel );
             setFieldText( ivoidField_, ivoid );
         }
 

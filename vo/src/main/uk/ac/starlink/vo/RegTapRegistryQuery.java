@@ -1,6 +1,7 @@
 package uk.ac.starlink.vo;
 
 import java.io.IOException;
+import java.net.MalformedURLException;
 import java.net.URL;
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -30,7 +31,7 @@ import uk.ac.starlink.util.ContentCoding;
  */
 public class RegTapRegistryQuery implements RegistryQuery {
 
-    private final URL tapUrl_;
+    private final EndpointSet endpointSet_;
     private final String adql_;
     private final ContentCoding coding_;
 
@@ -54,7 +55,15 @@ public class RegTapRegistryQuery implements RegistryQuery {
     public static final String AIP_REG = "http://gavo.aip.de/tap";
 
     /** TAP endpoint for registry hosted at ObsPM, synced with GAVO. */
-    public static final String PARIS_REG = "http://voparis-cdpp.obspm.fr/tap";
+    public static final String PARIS_REG = "http://voparis-rr.obspm.fr/tap";
+
+    /** TAP endpoint for Euro-VO registry, currently hosted at ESAC. */
+    public static final String EUROVO_REG =
+        "http://registry.euro-vo.org/regtap/tap";
+
+    /** TAP endpoint for STScI/VAO registry. */
+    public static final String STSCI_REG =
+        "http://vao.stsci.edu/RegTAP/TapService.aspx";
 
     /** TAP endpoint for INAF registry (not sure if this is permanent). */
     public static final String INAF_REG =
@@ -63,6 +72,7 @@ public class RegTapRegistryQuery implements RegistryQuery {
     /** List of known registry TAP endpoints. */
     public static final String[] REGISTRIES = new String[] {
         GAVO_REG,
+        STSCI_REG,
         ARI_REG,
         AIP_REG,
         PARIS_REG,
@@ -104,15 +114,16 @@ public class RegTapRegistryQuery implements RegistryQuery {
      * with some knowledge of the internals of this class, for instance
      * what columns are available.
      *
-     * @param  tapurl  TAP endpoint for service hosting relational registry
+     * @param  tapEndpointSet  TAP endpoints for service hosting
+     *                         relational registry
      * @param  standardId  required value of RR <code>standard_id</code> field,
      *                     or null if not resricted by service
      * @param   adqlWhere  text to be ANDed with existing ADQL WHERE clause,
      *                     or null for no further restriction
      */
-    public RegTapRegistryQuery( String tapurl, String standardId,
+    public RegTapRegistryQuery( EndpointSet tapEndpointSet, String standardId,
                                 String adqlWhere ) {
-        tapUrl_ = Ri1RegistryQuery.toUrl( tapurl );
+        endpointSet_ = tapEndpointSet;
         coding_ = ContentCoding.GZIP;
 
         /* SELECT clause.  The columns are required both to support the
@@ -194,7 +205,12 @@ public class RegTapRegistryQuery implements RegistryQuery {
     }
 
     public URL getRegistry() {
-        return tapUrl_;
+        try {
+            return new URL( endpointSet_.getIdentity() );
+        }
+        catch ( MalformedURLException e ) {
+            return null;
+        }
     }
 
     public String getText() {
@@ -203,7 +219,7 @@ public class RegTapRegistryQuery implements RegistryQuery {
 
     public RegResource[] getQueryResources() throws IOException {
         logger_.info( adql_ );
-        TapQuery query = new TapQuery( tapUrl_, adql_, null );
+        TapQuery query = new TapQuery( endpointSet_, adql_, null );
         QuerySink sink = new QuerySink();
         boolean overflow;
         try {
@@ -315,10 +331,12 @@ public class RegTapRegistryQuery implements RegistryQuery {
      * Queries a given registry for searchable registries suitable for
      * use with this class.
      *
-     * @param  regUrl  TAP endpoint for bootstrap relational registry
+     * @param  regtapEndpointSet  TAP endpoints for bootstrap
+     *                            relational registry
      * @return   list of TAP endpoints for found relational registries
      */
-    public static String[] getSearchableRegistries( String regUrl )
+    public static String[]
+            getSearchableRegistries( EndpointSet regtapEndpointSet )
             throws IOException {
 
         /* Copied from RegTAP 1.0 examples. */
@@ -333,8 +351,7 @@ public class RegTapRegistryQuery implements RegistryQuery {
             .append( " AND 1=ivo_nocasematch(detail_value, " )
             .append(                        "'ivo://ivoa.net/std/regtap#1.0')" )
             .toString();
-        TapQuery query =
-            new TapQuery( Ri1RegistryQuery.toUrl( regUrl ), adql, null );
+        TapQuery query = new TapQuery( regtapEndpointSet, adql, null );
         logger_.info( adql );
         StarTable table = query.executeSync( StoragePolicy.PREFER_MEMORY,
                                              ContentCoding.NONE );

@@ -6,8 +6,6 @@ import java.io.File;
 import java.io.FileOutputStream;
 import java.io.IOException;
 import java.io.OutputStream;
-import java.util.Map;
-import java.util.logging.Logger;
 import javax.swing.Box;
 import javax.swing.Icon;
 import javax.swing.JCheckBox;
@@ -18,18 +16,7 @@ import javax.swing.JLabel;
 import javax.swing.JOptionPane;
 import uk.ac.starlink.topcat.LineBox;
 import uk.ac.starlink.ttools.plot.GraphicExporter;
-import uk.ac.starlink.ttools.plot.Range;
-import uk.ac.starlink.ttools.plot2.AuxScale;
-import uk.ac.starlink.ttools.plot2.Drawing;
-import uk.ac.starlink.ttools.plot2.LayerOpt;
-import uk.ac.starlink.ttools.plot2.PlotLayer;
-import uk.ac.starlink.ttools.plot2.PlotPlacement;
 import uk.ac.starlink.ttools.plot2.PlotUtil;
-import uk.ac.starlink.ttools.plot2.Surface;
-import uk.ac.starlink.ttools.plot2.data.DataStore;
-import uk.ac.starlink.ttools.plot2.paper.Compositor;
-import uk.ac.starlink.ttools.plot2.paper.PaperType;
-import uk.ac.starlink.ttools.plot2.paper.PaperTypeSelector;
 import uk.ac.starlink.util.gui.CustomComboBoxRenderer;
 import uk.ac.starlink.util.gui.ErrorDialog;
 import uk.ac.starlink.util.gui.ShrinkWrapper;
@@ -47,8 +34,6 @@ public class PlotExporter {
     private final JComboBox formatSelector_;
     private final JCheckBox bitmapButton_;
     private static final GraphicExporter[] EXPORTERS = createExporters();
-    private static final Logger logger_ =
-        Logger.getLogger( "uk.ac.starlink.ttools.plot2" );
     private static PlotExporter instance_;
 
     /**
@@ -79,21 +64,13 @@ public class PlotExporter {
     }
 
     /**
-     * Offers the user a GUI to save a plot defined by given parameters
+     * Offers the user a GUI to export a supplied plot icon
      * in a user-chosen format.
      *
      * @param  parent   parent component for dialogue window
-     * @param  placer   plot placement
-     * @param  layers   plot layers
-     * @param  auxRanges   layer-requested range data
-     * @param  dataStore  data storage ojbect
-     * @param  ptsel   paper type selector
-     * @param  compositor  compositor for compositing transparent pixels
+     * @param  ifact    supplies the icon to export
      */
-    public void exportPlot( Component parent, PlotPlacement placer,
-                            PlotLayer[] layers, Map<AuxScale,Range> auxRanges,
-                            DataStore dataStore, PaperTypeSelector ptsel,
-                            Compositor compositor ) {
+    public void exportPlot( Component parent, IconFactory ifact ) {
         while ( saveChooser_.showDialog( parent, "Export Plot" )
                 == JFileChooser.APPROVE_OPTION ) {
             File file = saveChooser_.getSelectedFile();
@@ -105,12 +82,7 @@ public class PlotExporter {
                                    "Save failure", JOptionPane.ERROR_MESSAGE );
             }
             else {
-                LayerOpt[] opts = PaperTypeSelector.getOpts( layers );
-                PaperType paperType = bitmapButton_.isSelected()
-                          ? ptsel.getPixelPaperType( opts, compositor, null )
-                          : ptsel.getVectorPaperType( opts );
-                Icon icon = createPlotIcon( placer, layers, auxRanges,
-                                            dataStore, paperType );
+                Icon icon = ifact.getExportIcon( bitmapButton_.isSelected() );
                 try {
                     attemptSave( icon, file, exporter );
                     return;
@@ -193,38 +165,6 @@ public class PlotExporter {
     }
 
     /**
-     * Return the icon which will paint a plot.
-     *
-     * @param  placer   plot placement
-     * @param  layers   plot layers
-     * @param  auxRanges   layer-requested range data
-     * @param  dataStore  data storage ojbect
-     * @param  paperType  paper type
-     */
-    private static Icon createPlotIcon( PlotPlacement placer,
-                                        PlotLayer[] layers,
-                                        Map<AuxScale,Range> auxRanges,
-                                        DataStore dataStore,
-                                        PaperType paperType ) {
-        Surface surface = placer.getSurface();
-        int nl = layers.length;
-        logger_.info( "Layers: " + nl + ", Paper: " + paperType );
-        Drawing[] drawings = new Drawing[ nl ];
-        Object[] plans = new Object[ nl ];
-        long t1 = System.currentTimeMillis();
-        for ( int il = 0; il < nl; il++ ) {
-            drawings[ il ] =
-                layers[ il ].createDrawing( surface, auxRanges, paperType );
-            plans[ il ] = drawings[ il ].calculatePlan( plans, dataStore );
-        }
-        PlotUtil.logTime( logger_, "Plans", t1 );
-        Icon dataIcon =
-             paperType.createDataIcon( surface, drawings, plans, dataStore,
-                                       false );
-        return placer.createPlotIcon( dataIcon );
-    }
-
-    /**
      * Returns the default list of available graphics output format handlers.
      *
      * @return   exporter list
@@ -233,5 +173,20 @@ public class PlotExporter {
         return PlotUtil.arrayConcat(
             new GraphicExporter[] { null },
             GraphicExporter.getKnownExporters( PlotUtil.LATEX_PDF_EXPORTER ) );
+    }
+
+    /**
+     * Defines an object that can supply an icon for exporting.
+     */
+    public interface IconFactory {
+
+        /**
+         * Returns an icon for export.
+         *
+         * @param  forceBitmap   true to force bitmap output of vector graphics,
+         *                       false to use default behaviour
+         * @return  icon
+         */
+        Icon getExportIcon( boolean forceBitmap );
     }
 }

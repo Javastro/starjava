@@ -22,7 +22,7 @@ import uk.ac.starlink.ttools.plot2.Tick;
  * @author   Mark Taylor
  * @since    17 Jul 2013
  */
-public class TimeSurface implements Surface {
+public class TimeSurface implements Surface, PlanarSurface {
 
     private final int gxlo_;
     private final int gxhi_;
@@ -41,6 +41,7 @@ public class TimeSurface implements Surface {
     private final Captioner captioner_;
     private final boolean grid_;
     private final TimeFormat tformat_;
+    private final boolean tannotate_;
     private final Axis tAxis_;
     private final Axis yAxis_;
 
@@ -66,6 +67,7 @@ public class TimeSurface implements Surface {
      * @param  captioner  text renderer for axis labels etc
      * @param  grid   whether to draw grid lines
      * @param  tformat  time labelling format
+     * @param  tannotate  whether to annotate time axis
      */
     public TimeSurface( int gxlo, int gxhi, int gylo, int gyhi,
                         double dtlo, double dthi, double dylo, double dyhi,
@@ -73,7 +75,7 @@ public class TimeSurface implements Surface {
                         Tick[] tticks, Tick[] yticks,
                         String tlabel, String ylabel,
                         Captioner captioner, boolean grid,
-                        TimeFormat tformat ) {
+                        TimeFormat tformat, boolean tannotate ) {
         gxlo_ = gxlo;
         gxhi_ = gxhi;
         gylo_ = gylo;
@@ -91,6 +93,7 @@ public class TimeSurface implements Surface {
         captioner_ = captioner;
         grid_ = grid;
         tformat_ = tformat;
+        tannotate_ = tannotate;
         tAxis_ = Axis.createAxis( gxlo_, gxhi_, dtlo_, dthi_, false, false );
         yAxis_ = Axis.createAxis( gylo_, gyhi_, dylo_, dyhi_, ylog_,
                                   yflip_ ^ INVERT_Y );
@@ -187,6 +190,26 @@ public class TimeSurface implements Surface {
         return captioner_;
     }
 
+    public boolean[] getLogFlags() {
+        return new boolean[] { false, ylog_ };
+    }
+
+    public boolean[] getFlipFlags() {
+        return new boolean[] { false, yflip_ };
+    }
+
+    public boolean[] getTimeFlags() {
+        return new boolean[] { true, false };
+    }
+
+    public double[][] getDataLimits() {
+        return new double[][] { { dtlo_, dthi_ }, { dylo_, dyhi_ } };
+    }
+
+    public Axis[] getAxes() {
+        return new Axis[] { tAxis_, yAxis_ };
+    }
+
     /**
      * Returns a plot aspect representing a view of this surface zoomed
      * in some or all dimensions around the given central position.
@@ -260,15 +283,8 @@ public class TimeSurface implements Surface {
         Point gp2 = new Point( frame.x + frame.width, frame.y + frame.height );
         double[] dpos1 = graphicsToData( gp1, null );
         double[] dpos2 = graphicsToData( gp2, null );
-        double dt1 = dpos1[ 0 ];
-        double dy1 = dpos1[ 1 ];
-        double dt2 = dpos2[ 0 ];
-        double dy2 = dpos2[ 1 ];
-        double[] tlimits = dt1 <= dt2 ? new double[] { dt1, dt2 }
-                                      : new double[] { dt2, dt1 };
-        double[] ylimits = dy1 <= dy2 ? new double[] { dy1, dy2 }
-                                      : new double[] { dy2, dy1 };
-        return new TimeAspect( tlimits, ylimits );
+        return new TimeAspect( PlotUtil.orderPair( dpos1[ 0 ], dpos2[ 0 ] ),
+                               PlotUtil.orderPair( dpos1[ 1 ], dpos2[ 1 ] ) );
     }
 
     /**
@@ -279,7 +295,8 @@ public class TimeSurface implements Surface {
     private AxisAnnotation createAxisAnnotation() {
         return new PlaneAxisAnnotation( gxlo_, gxhi_, gylo_, gyhi_,
                                         tAxis_, yAxis_, tticks_, yticks_,
-                                        tlabel_, ylabel_, captioner_ );
+                                        tlabel_, ylabel_, captioner_,
+                                        tannotate_, true );
     }
 
     @Override
@@ -302,6 +319,7 @@ public class TimeSurface implements Surface {
         code = 23 * code + captioner_.hashCode();
         code = 23 * code + ( grid_ ? 11 : 13 );
         code = 23 * code + tformat_.hashCode();
+        code = 23 * code + ( tannotate_ ? 17 : 23 );
         return code;
     }
 
@@ -325,7 +343,8 @@ public class TimeSurface implements Surface {
                 && PlotUtil.equals( this.ylabel_, other.ylabel_ )
                 && this.captioner_.equals( other.captioner_ )
                 && this.grid_ == other.grid_
-                && this.tformat_.equals( other.tformat_ );
+                && this.tformat_.equals( other.tformat_ )
+                && this.tannotate_ == other.tannotate_;
         }
         else {
             return false;
@@ -351,6 +370,7 @@ public class TimeSurface implements Surface {
      * @param  ycrowd   crowding factor for tick marks on Y axis;
      *                  1 is normal
      * @param  minor   whether to paint minor tick marks on axes
+     * @param  tannotate  whether to annotate time axis
      * @return  new plot surface
      */
     public static TimeSurface createSurface( Rectangle plotBounds,
@@ -360,7 +380,8 @@ public class TimeSurface implements Surface {
                                              Captioner captioner, boolean grid,
                                              TimeFormat tformat,
                                              double tcrowd, double ycrowd,
-                                             boolean minor ) {
+                                             boolean minor,
+                                             boolean tannotate ) {
         int gxlo = plotBounds.x;
         int gxhi = plotBounds.x + plotBounds.width;
         int gylo = plotBounds.y;
@@ -379,6 +400,6 @@ public class TimeSurface implements Surface {
                                   plotBounds.height, ycrowd );
         return new TimeSurface( gxlo, gxhi, gylo, gyhi, dtlo, dthi, dylo, dyhi,
                                 ylog, yflip, tticks, yticks, tlabel, ylabel,
-                                captioner, grid, tformat );
+                                captioner, grid, tformat, tannotate );
     }
 }

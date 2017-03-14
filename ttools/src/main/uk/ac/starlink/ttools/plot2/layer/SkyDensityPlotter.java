@@ -4,13 +4,18 @@ import java.awt.Graphics;
 import java.awt.Point;
 import java.awt.Rectangle;
 import java.awt.geom.Point2D;
-import java.awt.image.IndexColorModel;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import javax.swing.Icon;
+import uk.ac.starlink.table.ColumnData;
+import uk.ac.starlink.table.ColumnInfo;
+import uk.ac.starlink.table.ColumnStarTable;
+import uk.ac.starlink.table.DefaultValueInfo;
+import uk.ac.starlink.table.StarTable;
+import uk.ac.starlink.table.ValueInfo;
 import uk.ac.starlink.ttools.gui.ResourceIcon;
 import uk.ac.starlink.ttools.func.Tilings;
 import uk.ac.starlink.ttools.plot.Matrices;
@@ -25,7 +30,6 @@ import uk.ac.starlink.ttools.plot2.Decal;
 import uk.ac.starlink.ttools.plot2.Drawing;
 import uk.ac.starlink.ttools.plot2.LayerOpt;
 import uk.ac.starlink.ttools.plot2.PlotLayer;
-import uk.ac.starlink.ttools.plot2.PlotUtil;
 import uk.ac.starlink.ttools.plot2.Plotter;
 import uk.ac.starlink.ttools.plot2.ReportKey;
 import uk.ac.starlink.ttools.plot2.ReportMap;
@@ -45,6 +49,7 @@ import uk.ac.starlink.ttools.plot2.data.DataSpec;
 import uk.ac.starlink.ttools.plot2.data.DataStore;
 import uk.ac.starlink.ttools.plot2.data.FloatingCoord;
 import uk.ac.starlink.ttools.plot2.data.TupleSequence;
+import uk.ac.starlink.ttools.plot2.geom.Rotation;
 import uk.ac.starlink.ttools.plot2.geom.SkyDataGeom;
 import uk.ac.starlink.ttools.plot2.geom.SkySurface;
 import uk.ac.starlink.ttools.plot2.paper.Paper;
@@ -69,19 +74,24 @@ public class SkyDensityPlotter
 
     /** Report key for HEALPix tile area in square degrees. */
     public static final ReportKey<Double> TILESIZE_REPKEY =
-        new ReportKey<Double>( new ReportMeta( "tile_sqdeg",
-                                               "HEALPix tile size"
-                                             + " in square degrees" ),
-                               Double.class, true );
+        ReportKey.createDoubleKey( new ReportMeta( "tile_sqdeg",
+                                                   "Tile size/sq.deg" ),
+                                   true );
 
     private static final ReportKey<Integer> ABSLEVEL_REPKEY =
-        new ReportKey<Integer>( new ReportMeta( "abs_level",
-                                                "Absolute HEALPix Level" ),
-                                Integer.class, false );
+        ReportKey
+       .createIntegerKey( new ReportMeta( "abs_level",
+                                          "Absolute HEALPix Level" ),
+                                    false );
     private static final ReportKey<Integer> RELLEVEL_REPKEY =
-        new ReportKey<Integer>( new ReportMeta( "rel_level",
-                                                "Relative HEALPix Level" ),
-                                Integer.class, false );
+        ReportKey
+       .createIntegerKey( new ReportMeta( "rel_level",
+                                          "Relative HEALPix Level" ),
+                          false );
+    private static final ReportKey<StarTable> HPXTABLE_REPKEY =
+        ReportKey.createTableKey( new ReportMeta( "hpx_map", "HEALPix Map" ),
+                                  true );
+
     private static final AuxScale SCALE = AuxScale.COLOR;
     private static final FloatingCoord WEIGHT_COORD =
         FloatingCoord.WEIGHT_COORD;
@@ -108,7 +118,8 @@ public class SkyDensityPlotter
                 "</p>",
             } )
         , -3, 29, -8, "Abs", "Rel", ABSLEVEL_REPKEY, RELLEVEL_REPKEY );
-    private static final ConfigKey<Double> OPAQUE_KEY = StyleKeys.AUX_OPAQUE;
+    private static final ConfigKey<Double> TRANSPARENCY_KEY =
+        StyleKeys.TRANSPARENCY;
 
     /**
      * Constructor.
@@ -144,7 +155,7 @@ public class SkyDensityPlotter
     }
 
     public boolean hasReports() {
-        return false;
+        return true;
     }
 
     public String getPlotterDescription() {
@@ -182,7 +193,7 @@ public class SkyDensityPlotter
             keyList.addAll( Arrays.asList( RAMP_KEYS.getKeys() ) );
         }
         if ( transparent_ ) {
-            keyList.add( OPAQUE_KEY );
+            keyList.add( TRANSPARENCY_KEY );
         }
         return keyList.toArray( new ConfigKey[ 0 ] );
     }
@@ -191,7 +202,7 @@ public class SkyDensityPlotter
         RampKeySet.Ramp ramp = RAMP_KEYS.createValue( config );
         int level = config.get( LEVEL_KEY );
         Scaling scaling = ramp.getScaling();
-        float scaleAlpha = (float) ( 1.0 / config.get( OPAQUE_KEY ) );
+        float scaleAlpha = 1f - config.get( TRANSPARENCY_KEY ).floatValue();
         Shader shader = Shaders.fade( ramp.getShader(), scaleAlpha );
         Combiner combiner = weightCoord_ == null
                           ? Combiner.COUNT
@@ -214,7 +225,7 @@ public class SkyDensityPlotter
      * @param  surface
      * @return  approximately corresponding HEALPix level
      */
-    private static int getPixelLevel( SkySurface surface ) {
+    public static int getPixelLevel( SkySurface surface ) {
 
         /* Identify the graphics pixel at the center of the sky projection.
          * It may be off the currently visible part of the screen;
@@ -343,14 +354,16 @@ public class SkyDensityPlotter
             icWeight_ = weightCoord_ == null
                       ? -1
                       : coordGrp_.getExtraCoordIndex( 0, geom );
+            assert weightCoord_ == null ||
+                   weightCoord_ == dataSpec.getCoord( icWeight_ );
         }
 
         public Drawing createDrawing( Surface surface,
                                       Map<AuxScale,Range> auxRanges,
                                       PaperType paperType ) {
-            return new SkyDensityDrawing( (SkySurface) surface,
-                                          auxRanges.get( SCALE ),
-                                          paperType );
+            SkySurface ssurf = (SkySurface) surface;
+            return new SkyDensityDrawing( ssurf, createTileRenderer( ssurf ),
+                                          auxRanges.get( SCALE ), paperType );
         }
 
         public Map<AuxScale,AuxReader> getAuxRangers() {
@@ -359,17 +372,47 @@ public class SkyDensityPlotter
                 public int getCoordIndex() {
                     return icWeight_;
                 }
-                public void adjustAuxRange( Surface surface, TupleSequence tseq,
+                public void adjustAuxRange( Surface surface, DataSpec dataSpec,
+                                            DataStore dataStore,
+                                            Object[] knownPlans,
                                             Range range ) {
-                    double[] bounds =
-                        readBins( (SkySurface) surface, true, tseq )
-                       .getResult()
-                       .getValueBounds();
-                    range.submit( bounds[ 0 ] );
-                    range.submit( bounds[ 1 ] );
+                    SkySurface ssurf = (SkySurface) surface;
+                    int level = getLevel( ssurf );
+
+                    /* If we have a cached plan, use that for the ranging.
+                     * This will be faster than rebinning the data for
+                     * large datasets (no data scan required), but it's
+                     * not all that efficient, so will probably be slower
+                     * for small datasets.
+                     * This is a possible target for future optimisation. */
+                    SkyDensityPlan splan =
+                        getSkyPlan( knownPlans, level, dataSpec );
+                    if ( splan != null ) {
+                        splan.extendVisibleRange( range, ssurf );
+                    }
+                    else {
+                        BinList.Result binResult =
+                            readBins( ssurf, dataSpec, dataStore )
+                           .getResult();
+                        createTileRenderer( ssurf )
+                       .extendAuxRange( range, binResult );
+                    }
                 }
             } );
             return map;
+        }
+
+        /**
+         * Returns a tile renderer that can plot healpix tiles on a given
+         * sky surface for this layer.
+         *
+         * @param  surface  sky surface
+         * @return  tile renderer
+         */
+        private SkyTileRenderer createTileRenderer( SkySurface surface ) {
+            return SkyTileRenderer
+                  .createRenderer( surface, Rotation.IDENTITY,
+                                   getLevel( surface ) );
         }
 
         /**
@@ -402,14 +445,13 @@ public class SkyDensityPlotter
          * suitable for plotting this layer on a given surface.
          *
          * @param   surface   target plot surface
-         * @param   visibleOnly   true to use only points in the plot bounds,
-         *                        false to use them all
-         * @param   tseq   row iterator
+         * @param   dataSpec   data specification
+         * @param   dataStore  data storage
          * @return   populated bin list
          * @slow
          */
-        private BinList readBins( SkySurface surface, boolean visibleOnly,
-                                  TupleSequence tseq ) {
+        private BinList readBins( SkySurface surface, DataSpec dataSpec,
+                                  DataStore dataStore ) {
             SkyPixer skyPixer = createSkyPixer( surface );
             BinList binList = null;
             long npix = skyPixer.getPixelCount();
@@ -421,23 +463,14 @@ public class SkyDensityPlotter
                 binList = combiner.createHashBinList( npix );
             }
             assert binList != null;
-            DataSpec dataSpec = getDataSpec();
+            TupleSequence tseq = dataStore.getTupleSequence( dataSpec );
             int icPos = coordGrp_.getPosCoordIndex( 0, geom_ );
-            int icWeight = weightCoord_ == null
-                         ? -1
-                         : coordGrp_.getExtraCoordIndex( 0, geom_ );
-            assert weightCoord_ == null ||
-                   weightCoord_ == dataSpec.getCoord( icWeight );
-    
             double[] v3 = new double[ 3 ];
-            Point2D.Double gp = new Point2D.Double();
 
             /* Unweighted. */
-            if ( icWeight < 0 || dataSpec.isCoordBlank( icWeight ) ) {
+            if ( icWeight_ < 0 || dataSpec.isCoordBlank( icWeight_ ) ) {
                 while ( tseq.next() ) {
-                    if ( geom_.readDataPos( tseq, icPos, v3 ) &&
-                        ( ! visibleOnly ||
-                          surface.dataToGraphics( v3, true, gp ) ) ) {
+                    if ( geom_.readDataPos( tseq, icPos, v3 ) ) {
                         binList.submitToBin( skyPixer.getIndex( v3 ), 1 );
                     }
                 }
@@ -446,11 +479,9 @@ public class SkyDensityPlotter
             /* Weighted. */
             else {
                 while ( tseq.next() ) {
-                    if ( geom_.readDataPos( tseq, icPos, v3 ) &&
-                         ( ! visibleOnly ||
-                           surface.dataToGraphics( v3, true, gp ) ) ) {
+                    if ( geom_.readDataPos( tseq, icPos, v3 ) ) {
                         double w = weightCoord_
-                                  .readDoubleCoord( tseq, icWeight );
+                                  .readDoubleCoord( tseq, icWeight_ );
                         if ( ! Double.isNaN( w ) ) {
                             binList.submitToBin( skyPixer.getIndex( v3 ), w );
                         }
@@ -461,11 +492,36 @@ public class SkyDensityPlotter
         }
 
         /**
+         * Identifies and returns a plan object that can be used for
+         * this layer from a list of precalculated plans.
+         * If none of the supplied plans is suitable, null is returned.
+         *
+         * @param  knownPlans  available pre-calculated plans
+         * @param  level   HEALPix level giving desired sky pixel resolution
+         * @param  dataSpec  specification for plotted weith data
+         * @return   suitable SkyDensityPlan from supplied list, or null
+         */
+        private SkyDensityPlan getSkyPlan( Object[] knownPlans, int level,
+                                           DataSpec dataSpec ) {
+            Combiner combiner = dstyle_.combiner_;
+            for ( Object plan : knownPlans ) {
+                if ( plan instanceof SkyDensityPlan ) {
+                    SkyDensityPlan skyPlan = (SkyDensityPlan) plan;
+                    if ( skyPlan.matches( level, combiner, dataSpec, geom_ ) ) {
+                        return skyPlan;
+                    }
+                }
+            }
+            return null;
+        }
+
+        /**
          * Drawing implementation for the sky density map.
          */
         private class SkyDensityDrawing implements Drawing {
 
             private final SkySurface surface_;
+            private final SkyTileRenderer renderer_;
             private final Range auxRange_;
             private final PaperType paperType_;
             private final int level_;
@@ -475,12 +531,14 @@ public class SkyDensityPlotter
              * Constructor.
              *
              * @param   surface  plot surface
+             * @param   renderer  can plot healpix tiles
              * @param   auxRange  range defining colour scaling
              * @param   paperType  paper type
              */
-            SkyDensityDrawing( SkySurface surface, Range auxRange,
-                               PaperType paperType ) {
+            SkyDensityDrawing( SkySurface surface, SkyTileRenderer renderer,
+                               Range auxRange, PaperType paperType ) {
                 surface_ = surface;
+                renderer_ = renderer;
                 auxRange_ = auxRange;
                 paperType_ = paperType;
                 level_ = getLevel( surface );
@@ -499,29 +557,30 @@ public class SkyDensityPlotter
                                                        DataStore dataStore ) {
                 DataSpec dataSpec = getDataSpec();
                 Combiner combiner = dstyle_.combiner_;
-                for ( Object plan : knownPlans ) {
-                    if ( plan instanceof SkyDensityPlan ) {
-                        SkyDensityPlan skyPlan = (SkyDensityPlan) plan;
-                        if ( skyPlan.matches( level_, combiner,
-                                              dataSpec, geom_ ) ) {
-                            return skyPlan;
-                        }
-                    }
+                SkyDensityPlan knownPlan =
+                    getSkyPlan( knownPlans, level_, dataSpec );
+                if ( knownPlan != null ) {
+                    return knownPlan;
                 }
-                BinList.Result binResult =
-                    readBins( surface_, false,
-                              dataStore.getTupleSequence( dataSpec ) )
-                   .getResult();
-                return new SkyDensityPlan( level_, combiner, binResult,
-                                           dataSpec, geom_ );
+                else {
+                    BinList.Result binResult =
+                        readBins( surface_, dataSpec, dataStore )
+                       .getResult().compact();
+                    return new SkyDensityPlan( level_, combiner, binResult,
+                                               dataSpec, geom_ );
+                }
             }
 
             public void paintData( Object plan, Paper paper,
                                    DataStore dataStore ) {
-                final SkyDensityPlan dplan = (SkyDensityPlan) plan;
+                final BinList.Result binResult =
+                    ((SkyDensityPlan) plan).binResult_;
+                final Scaler scaler =
+                    Scaling.createRangeScaler( dstyle_.scaling_, auxRange_ );
+                final Shader shader = dstyle_.shader_;
                 paperType_.placeDecal( paper, new Decal() {
                     public void paintDecal( Graphics g ) {
-                        paintBins( g, dplan.binResult_ );
+                        renderer_.renderBins( g, binResult, shader, scaler );
                     }
                     public boolean isOpaque() {
                         return dstyle_.isOpaque();
@@ -539,69 +598,70 @@ public class SkyDensityPlotter
                     map.put( ABSLEVEL_REPKEY, new Integer( absLevel ) );
                     map.put( RELLEVEL_REPKEY, new Integer( relLevel ) );
                     map.put( TILESIZE_REPKEY, new Double( tileSize ) );
+                    map.put( HPXTABLE_REPKEY, createExportTable( splan ) );
                 }
                 return map;
             }
+        }
 
-            /**
-             * Given a prepared data structure, paints the results it
-             * represents onto a graphics context appropriate for this drawing.
-             *
-             * @param  g  graphics context
-             * @param  binResult   histogram containing sky pixel values
-             */
-            private void paintBins( Graphics g, BinList.Result binResult ) {
-                Rectangle bounds = surface_.getPlotBounds();
-
-                /* Work out how to scale binlist values to turn into
-                 * entries in a colour map.  The first entry in the colour map
-                 * (index zero) corresponds to transparency. */
-                Scaler scaler =
-                    Scaling.createRangeScaler( dstyle_.scaling_, auxRange_ );
-                IndexColorModel colorModel =
-                    PixelImage.createColorModel( dstyle_.shader_, true );
-                int ncolor = colorModel.getMapSize() - 1;
-
-                /* Prepare a screen pixel grid. */
-                int nx = bounds.width;
-                int ny = bounds.height;
-                Gridder gridder = new Gridder( nx, ny );
-                int npix = gridder.getLength();
-                int[] pixels = new int[ npix ];
-
-                /* Iterate over screen pixel grid pulling samples from the
-                 * sky pixel grid for each screen pixel.  Note this is only
-                 * a good strategy if the screen oversamples the sky grid
-                 * (i.e. if screen pixels are smaller than the sky pixels). */
-                Point2D.Double point = new Point2D.Double();
-                double x0 = bounds.x + 0.5;
-                double y0 = bounds.y + 0.5;
-                SkyPixer skyPixer = createSkyPixer( surface_ );
-                for ( int ip = 0; ip < npix; ip++ ) {
-                    point.x = x0 + gridder.getX( ip );
-                    point.y = y0 + gridder.getY( ip );
-                    double[] dpos = surface_.graphicsToData( point, null );
-
-                    /* Positions on the sky always have a value >= 1.
-                     * Positions outside the sky coord range are untouched,
-                     * so have a value of 0 (transparent). */
-                    if ( dpos != null ) {
-                        double dval =
-                            binResult.getBinValue( skyPixer.getIndex( dpos ) );
-                        if ( ! Double.isNaN( dval ) ) {
-                            pixels[ ip ] =
-                                Math.min( 1 + (int) ( scaler.scaleValue( dval )
-                                                      * ncolor ),
-                                          ncolor - 1 );
-                        }
-                    }
-                }
-
-                /* Copy the pixel grid to the graphics context using the
-                 * requested colour map. */
-                new PixelImage( bounds.getSize(), pixels, colorModel )
-                   .paintPixels( g, bounds.getLocation() );
+        /**
+         * Returns a StarTable containing the HEALPix bin information
+         * based on a given plan.  Calling this method is not expensive.
+         *
+         * @param   splan  plan representing plotted density map
+         * @return   table suitable for export
+         */
+        private StarTable createExportTable( SkyDensityPlan splan ) {
+            int level = splan.level_;
+            if ( level > 13 ) {
+                return null;
             }
+            SkyPixer skyPixer = new SkyPixer( level );
+            DataSpec dataSpec = splan.dataSpec_;
+            Combiner combiner = splan.combiner_;
+            BinList.Result binResult = splan.binResult_;
+
+            /* Construct a column containing HEALPix bin indices.
+             * In fact this is a bit superfluous, since the bin indices
+             * are just the same as the row numbers. */
+            String indexDescrip = "HEALPix index, level " + level + ", "
+                                + ( skyPixer.isNested() ? "Nested" : "Ring" )
+                                + " scheme";
+            ColumnInfo indexInfo =
+                new ColumnInfo( "hpx" + level, Integer.class, indexDescrip );
+            ColumnData indexCol = new ColumnData( indexInfo ) {
+                public Object readValue( long irow ) {
+                    return new Integer( (int) irow );
+                }
+            };
+
+            /* Construct a column containing bin contents, given that the
+             * bin index is row number. */
+            ValueInfo weightInfo;
+            if ( icWeight_ < 0 || dataSpec.isCoordBlank( icWeight_ ) ) {
+                weightInfo = null;
+            }
+            else {
+                ValueInfo[] winfos = dataSpec.getUserCoordInfos( icWeight_ );
+                weightInfo = winfos != null && winfos.length == 1
+                           ? winfos[ 0 ]
+                           : null;
+            }
+            if ( weightInfo == null ) {
+                weightInfo = new DefaultValueInfo( "data", Double.class );
+            }
+            ValueInfo dataInfo = combiner.createCombinedInfo( weightInfo );
+            ColumnData dataCol =
+                BinResultColumnData.createInstance( dataInfo, binResult );
+
+            /* Combine these into a table and return. */
+            final long nrow = skyPixer.getPixelCount();
+            assert (int) nrow == nrow;
+            ColumnStarTable table =
+                ColumnStarTable.makeTableWithRows( (int) nrow );
+            table.addColumn( indexCol );
+            table.addColumn( dataCol );
+            return table;
         }
     }
 
@@ -654,6 +714,41 @@ public class SkyDensityPlotter
                  && combiner_.equals( combiner )
                  && dataSpec_.equals( dataSpec )
                  && geom_.equals( geom );
+        }
+
+        /**
+         * Adjusts a supplied Range object to reflect the pixel value range
+         * represented by this plan over
+         * only that part of the sky visible in a given sky surface.
+         * This may not be very fast, but it scales with the number of
+         * pixels on the surface rather than the number of data rows,
+         * so it's not too slow either.
+         * However in some cases (bin-count&lt;&lt;pixel-count)
+         * it could definitely be done more efficiently.
+         *
+         * @param  range     range to submit values to
+         * @param  surface   viewing surface
+         */
+        public void extendVisibleRange( Range range, SkySurface surface ) {
+            Rectangle bounds = surface.getPlotBounds();
+            int nx = bounds.width;
+            int ny = bounds.height;
+            Gridder gridder = new Gridder( nx, ny );
+            int npix = gridder.getLength();
+            Point2D.Double point = new Point2D.Double();
+            double x0 = bounds.x + 0.5;
+            double y0 = bounds.y + 0.5;
+            SkyPixer skyPixer = new SkyPixer( level_ );
+            for ( int ip = 0; ip < npix; ip++ ) {
+                point.x = x0 + gridder.getX( ip );
+                point.y = y0 + gridder.getY( ip );
+                double[] dpos = surface.graphicsToData( point, null );
+                if ( dpos != null ) {
+                    double dval =
+                        binResult_.getBinValue( skyPixer.getIndex( dpos ) );
+                    range.submit( dval );
+                }
+            }
         }
     }
 }

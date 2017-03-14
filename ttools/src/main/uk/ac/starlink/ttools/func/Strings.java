@@ -29,63 +29,50 @@ public class Strings {
     }
 
     /**
-     * Concatenates two strings.  
-     * In most cases the same effect can be achieved by
-     * writing <code>s1+s2</code>, but blank values can sometimes appear as
-     * the string "<code>null</code>" if you do it like that.
+     * Concatenates multiple values into a string.
+     * In some cases the same effect can be achieved by
+     * writing <code>s1+s2+...</code>, but this method makes sure that
+     * values are converted to strings, with the blank value invisible.
      *
      * @example  <code>concat("blue", "moon") = "bluemoon"</code>
+     * @example  <code>concat("1", 2, 3, "4") = "1234"</code>
+     * @example  <code>concat("Astro", null, "Physics") = "AstroPhysics"</code>
      *
-     * @param s1  first string
-     * @param s2  second string
-     * @return  <code>s1</code> followed by <code>s2</code>
+     * @param  strings  one or more strings
+     * @return  concatenation of input strings, without separators
      */
-    public static String concat( String s1, String s2 ) {
-        return ( s1 == null ? "" : s1 ) 
-             + ( s2 == null ? "" : s2 );
+    public static String concat( Object... strings ) {
+        StringBuffer sbuf = new StringBuffer();
+        for ( Object s : strings ) {
+            if ( s != null ) {
+                sbuf.append( s );
+            }
+        }
+        return sbuf.toString();
     }
 
     /**
-     * Concatenates three strings.  
-     * In most cases the same effect can be achieved by
-     * writing <code>s1+s2+s3</code>, but blank values can sometimes appear as
-     * the string "<code>null</code>" if you do it like that.
+     * Joins multiple values into a string, with a given
+     * separator between each pair.
      *
-     * @example  <code>concat("a", "b", "c") = "abc"</code>
+     * @example  <code>join("&lt;-&gt;", "alpha", "beta", "gamma")
+     *                 = "alpha&lt;-&gt;beta&lt;-&gt;gamma"</code>
+     * @example  <code>join(" ", 1, "brown", "mouse")
+     *                 = "1 brown mouse"</code>
      *
-     * @param s1  first string
-     * @param s2  second string
-     * @param s3  third string
-     * @return  <code>s1</code> followed by <code>s2</code> 
-     *          followed by <code>s3</code>
+     * @param  separator  string to insert between adjacent words
+     * @param  words   one or more values to join
+     * @return  input values joined together with <code>separator</code>
      */
-    public static String concat( String s1, String s2, String s3 ) {
-        return ( s1 == null ? "" : s1 ) 
-             + ( s2 == null ? "" : s2 )
-             + ( s3 == null ? "" : s3 );
-    }
-
-    /**
-     * Concatenates four strings.  
-     * In most cases the same effect can be achieved by
-     * writing <code>s1+s2+s3+s4</code>, 
-     * but blank values can sometimes appear as
-     * the string "<code>null</code>" if you do it like that.
-     *
-     * @example  <code>concat("a", "b", "c", "d") = "abcd"</code>
-     *
-     * @param s1  first string
-     * @param s2  second string
-     * @param s3  third string
-     * @param s4  fourth string
-     * @return  <code>s1</code> followed by <code>s2</code> 
-     *          followed by <code>s3</code> followed by <code>s4</code>
-     */
-    public static String concat( String s1, String s2, String s3, String s4 ) {
-        return ( s1 == null ? "" : s1 ) 
-             + ( s2 == null ? "" : s2 )
-             + ( s3 == null ? "" : s3 )
-             + ( s4 == null ? "" : s4 );
+    public static String join( String separator, Object... words ) {
+        StringBuffer sbuf = new StringBuffer();
+        for ( int i = 0; i < words.length; i++ ) {
+            if ( i > 0 ) {
+                sbuf.append( separator );
+            }
+            sbuf.append( words[ i ] );
+        }
+        return sbuf.toString();
     }
 
     /**
@@ -373,12 +360,12 @@ public class Strings {
     }
 
     /**
-     * Returns an uppercased version of a string.
+     * Returns an lowercased version of a string.
      *
      * @example  <code>toLowerCase("Universe") = "universe"</code>
      *
      * @param  str  input string
-     * @return   uppercased version of <code>str</code>
+     * @return   lowercased version of <code>str</code>
      */
     public static String toLowerCase( String str ) {
         return str == null ? null : str.toLowerCase();

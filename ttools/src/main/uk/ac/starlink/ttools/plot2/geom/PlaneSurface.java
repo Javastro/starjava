@@ -23,7 +23,7 @@ import uk.ac.starlink.ttools.plot2.Ticker;
  * @author   Mark Taylor
  * @since    19 Feb 2013
  */
-public class PlaneSurface implements Surface {
+public class PlaneSurface implements Surface, PlanarSurface {
 
     private final double dxlo_;
     private final double dxhi_;
@@ -194,40 +194,22 @@ public class PlaneSurface implements Surface {
         }
     }
 
-    /**
-     * Returns the limits in data coordinates of the plot region.
-     *
-     * @return  2x2 array <code>{{xlo, xhi}, {ylo, yhi}}</code>
-     */
     public double[][] getDataLimits() {
         return new double[][] { { dxlo_, dxhi_ }, { dylo_, dyhi_ } };
     }
 
-    /**
-     * Indicates the scaling along the two axes.
-     *
-     * @return  2-element array giving X,Y scaling flags:
-     *          false for linear, true for logarithmic
-     */
     public boolean[] getLogFlags() {
         return new boolean[] { xlog_, ylog_ };
     }
 
-    /**
-     * Indicates which axes are reversed.
-     *
-     * @return  2-element array giving X,Y flip flags;
-     *          true to invert normal plot direction
-     */
     public boolean[] getFlipFlags() {
         return new boolean[] { xflip_, yflip_ };
     }
 
-    /**
-     * Returns the axis objects used by this surface.
-     *
-     * @return  2-element array giving X,Y axis implementations
-     */
+    public boolean[] getTimeFlags() {
+        return new boolean[] { false, false };
+    }
+
     public Axis[] getAxes() {
         return new Axis[] { xAxis_, yAxis_ };
     }
@@ -303,15 +285,8 @@ public class PlaneSurface implements Surface {
         Point gp2 = new Point( frame.x + frame.width, frame.y + frame.height );
         double[] dpos1 = graphicsToData( gp1, null );
         double[] dpos2 = graphicsToData( gp2, null );
-        double dx1 = dpos1[ 0 ];
-        double dy1 = dpos1[ 1 ];
-        double dx2 = dpos2[ 0 ];
-        double dy2 = dpos2[ 1 ];
-        double[] xlimits = dx1 <= dx2 ? new double[] { dx1, dx2 }
-                                      : new double[] { dx2, dx1 };
-        double[] ylimits = dy1 <= dy2 ? new double[] { dy1, dy2 }
-                                      : new double[] { dy2, dy1 };
-        return new PlaneAspect( xlimits, ylimits );
+        return new PlaneAspect( PlotUtil.orderPair( dpos1[ 0 ], dpos2[ 0 ] ),
+                                PlotUtil.orderPair( dpos1[ 1 ], dpos2[ 1 ] ) );
     }
 
     /**
@@ -322,7 +297,8 @@ public class PlaneSurface implements Surface {
     private AxisAnnotation createAxisAnnotation() {
         return new PlaneAxisAnnotation( gxlo_, gxhi_, gylo_, gyhi_,
                                         xAxis_, yAxis_, xticks_, yticks_,
-                                        xlabel_, ylabel_, captioner_ );
+                                        xlabel_, ylabel_, captioner_,
+                                        true, true );
     }
 
     @Override

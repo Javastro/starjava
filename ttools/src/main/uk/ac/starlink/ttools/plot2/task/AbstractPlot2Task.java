@@ -2,9 +2,11 @@ package uk.ac.starlink.ttools.plot2.task;
 
 import java.awt.BorderLayout;
 import java.awt.Color;
+import java.awt.Component;
 import java.awt.Dimension;
-import java.awt.Insets;
+import java.awt.Graphics;
 import java.awt.Rectangle;
+import java.awt.Shape;
 import java.io.IOException;
 import java.lang.reflect.InvocationTargetException;
 import java.util.ArrayList;
@@ -14,6 +16,7 @@ import java.util.HashMap;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.concurrent.ArrayBlockingQueue;
 import java.util.concurrent.Callable;
 import java.util.concurrent.ExecutorService;
@@ -54,9 +57,14 @@ import uk.ac.starlink.ttools.plot2.AuxScale;
 import uk.ac.starlink.ttools.plot2.Captioner;
 import uk.ac.starlink.ttools.plot2.DataGeom;
 import uk.ac.starlink.ttools.plot2.Decoration;
+import uk.ac.starlink.ttools.plot2.Gang;
+import uk.ac.starlink.ttools.plot2.Ganger;
+import uk.ac.starlink.ttools.plot2.GangerFactory;
 import uk.ac.starlink.ttools.plot2.LayerOpt;
 import uk.ac.starlink.ttools.plot2.LegendEntry;
 import uk.ac.starlink.ttools.plot2.LegendIcon;
+import uk.ac.starlink.ttools.plot2.Navigator;
+import uk.ac.starlink.ttools.plot2.Padding;
 import uk.ac.starlink.ttools.plot2.PlotLayer;
 import uk.ac.starlink.ttools.plot2.PlotPlacement;
 import uk.ac.starlink.ttools.plot2.PlotType;
@@ -64,9 +72,11 @@ import uk.ac.starlink.ttools.plot2.PlotUtil;
 import uk.ac.starlink.ttools.plot2.Plotter;
 import uk.ac.starlink.ttools.plot2.ShadeAxis;
 import uk.ac.starlink.ttools.plot2.ShadeAxisFactory;
+import uk.ac.starlink.ttools.plot2.SingleGanger;
 import uk.ac.starlink.ttools.plot2.SubCloud;
 import uk.ac.starlink.ttools.plot2.Surface;
 import uk.ac.starlink.ttools.plot2.SurfaceFactory;
+import uk.ac.starlink.ttools.plot2.ZoneContent;
 import uk.ac.starlink.ttools.plot2.config.ConfigException;
 import uk.ac.starlink.ttools.plot2.config.ConfigKey;
 import uk.ac.starlink.ttools.plot2.config.ConfigMap;
@@ -109,21 +119,17 @@ import uk.ac.starlink.ttools.task.TableProducer;
 public abstract class AbstractPlot2Task implements Task, DynamicTask {
 
     private final boolean allowAnimate_;
+    private final GangerFactory gangerFact_;
     private final IntegerParameter xpixParam_;
     private final IntegerParameter ypixParam_;
-    private final InsetsParameter insetsParam_;
+    private final PaddingParameter paddingParam_;
     private final PaintModeParameter painterParam_;
     private final DataStoreParameter dstoreParam_;
     private final StringMultiParameter seqParam_;
     private final BooleanParameter legendParam_;
     private final BooleanParameter legborderParam_;
     private final BooleanParameter legopaqueParam_;
-    private final DoubleArrayParameter legposParam_;
     private final StringMultiParameter legseqParam_;
-    private final StringParameter titleParam_;
-    private final StringParameter auxlabelParam_;
-    private final DoubleParameter auxcrowdParam_;
-    private final BooleanParameter auxvisibleParam_;
     private final BooleanParameter bitmapParam_;
     private final Parameter<Compositor> compositorParam_;
     private final InputTableParameter animateParam_;
@@ -132,9 +138,12 @@ public abstract class AbstractPlot2Task implements Task, DynamicTask {
     private final Parameter[] basicParams_;
 
     public static final String LAYER_PREFIX = "layer";
+    public static final String ZONE_PREFIX = "zone";
     private static final String TABLE_PREFIX = "in";
     private static final String FILTER_PREFIX = "icmd";
     public static final String EXAMPLE_LAYER_SUFFIX = "N";
+    public static final String EXAMPLE_ZONE_SUFFIX = "Z";
+    public static final String DOC_ZONE_SUFFIX = "";
     private static final GraphicExporter[] EXPORTERS =
         GraphicExporter.getKnownExporters( PlotUtil.LATEX_PDF_EXPORTER );
     private static final Logger logger_ =
@@ -144,12 +153,15 @@ public abstract class AbstractPlot2Task implements Task, DynamicTask {
      * Constructor with explicit animation capability.
      *
      * @param  allowAnimate  true iff animation options should be provided
+     * @param  gangerFact    controls how plots can be grouped
      */
-    protected AbstractPlot2Task( boolean allowAnimate ) {
+    protected AbstractPlot2Task( boolean allowAnimate,
+                                 GangerFactory gangerFact ) {
         allowAnimate_ = allowAnimate;
+        gangerFact_ = gangerFact;
         List<Parameter> plist = new ArrayList<Parameter>();
 
-        insetsParam_ = new InsetsParameter( "insets" );
+        paddingParam_ = new PaddingParameter( "insets" );
 
         xpixParam_ = new IntegerParameter( "xpix" );
         xpixParam_.setPrompt( "Total horizontal size in pixels" );
@@ -157,7 +169,7 @@ public abstract class AbstractPlot2Task implements Task, DynamicTask {
             "<p>Size of the output image in the X direction in pixels.",
             "This includes space for any axis labels, padding",
             "and other decoration outside the plot area itself.",
-            "See also <code>" + insetsParam_.getName() + "</code>.",
+            "See also <code>" + paddingParam_.getName() + "</code>.",
             "</p>",
         } );
         xpixParam_.setIntDefault( 500 );
@@ -170,15 +182,15 @@ public abstract class AbstractPlot2Task implements Task, DynamicTask {
             "<p>Size of the output image in the Y direction in pixels.",
             "This includes space for any axis labels, padding",
             "and other decoration outside the plot area itself.",
-            "See also <code>" + insetsParam_.getName() + "</code>.",
+            "See also <code>" + paddingParam_.getName() + "</code>.",
             "</p>",
         } );
         ypixParam_.setIntDefault( 400 );
         ypixParam_.setMinimum( 1 );
         plist.add( ypixParam_ );
 
-        insetsParam_.setPrompt( "Space outside plotting area" );
-        insetsParam_.setDescription( new String[] {
+        paddingParam_.setPrompt( "Space outside plotting area" );
+        paddingParam_.setDescription( new String[] {
             "<p>Defines the amount of space in pixels around the",
             "actual plotting area.",
             "This space is used for axis labels, and other decorations",
@@ -188,12 +200,16 @@ public abstract class AbstractPlot2Task implements Task, DynamicTask {
             "is determined by this parameter along with", 
             "<code>" + xpixParam_ + "</code> and",
             "<code>" + ypixParam_ + "</code>.",
-            "If no value is set (the default), the insets will be determined",
-            "automatically according to how much space is required for",
-            "labels etc.",
+            "</p>",
+            "<p>The value of this parameter is 4 comma separated integers:",
+            "<code>&lt;top&gt;,&lt;left&gt;,&lt;bottom&gt;,&lt;right&gt;"
+                + "</code>.",
+            "Any or all of these values may be left blank,",
+            "in which case the corresponding margin will be calculated",
+            "automatically according to how much space is required.",
             "</p>",
         } );
-        plist.add( insetsParam_ );
+        plist.add( paddingParam_ );
 
         painterParam_ = createPaintModeParameter();
         plist.add( painterParam_ );
@@ -283,23 +299,6 @@ public abstract class AbstractPlot2Task implements Task, DynamicTask {
         legopaqueParam_.setBooleanDefault( true );
         plist.add( legopaqueParam_ );
 
-        legposParam_ = new DoubleArrayParameter( "legpos", 2 );
-        legposParam_.setUsage( "<xfrac>,<yfrac>" );
-        legposParam_.setPrompt( "X,Y fractional internal legend position" );
-        legposParam_.setDescription( new String[] {
-            "<p>Determines the position of the legend on the plot,",
-            "if present.",
-            "The value is a comma-separated pair of values giving the",
-            "X and Y positions of the legend within the plotting bounds,",
-            "so for instance \"<code>0.5,0.5</code>\" will put the legend",
-            "right in the middle of the plot.",
-            "If no value is supplied, the legend will appear outside",
-            "the plot boundary.",
-            "</p>",
-        } );
-        legposParam_.setNullPermitted( true );
-        plist.add( legposParam_ );
-
         legseqParam_ = new StringMultiParameter( "legseq", ',' );
         legseqParam_.setUsage( "<suffix>[,...]" );
         legseqParam_.setPrompt( "Order in which to add layers to legend" );
@@ -326,86 +325,52 @@ public abstract class AbstractPlot2Task implements Task, DynamicTask {
         legseqParam_.setNullPermitted( true );
         plist.add( legseqParam_ );
 
-        titleParam_ = new StringParameter( "title" );
-        titleParam_.setPrompt( "Title for plot" );
-        titleParam_.setDescription( new String[] {
-            "<p>Text of a title to be displayed at the top of the plot.",
-            "If null, the default, no title is shown",
-            "and there's more space for the graphics.",
-            "</p>",
-        } );
-        titleParam_.setNullPermitted( true );
-        plist.add( titleParam_ );
+        plist.add( createLegendPositionParameter( DOC_ZONE_SUFFIX ) );
+        plist.add( createTitleParameter( DOC_ZONE_SUFFIX ) );
 
-        plist.addAll( getKeyParams( StyleKeys.AUX_RAMP.getKeys() ) );
-        plist.add( new ConfigParameter( StyleKeys.SHADE_LOW ) );
-        plist.add( new ConfigParameter( StyleKeys.SHADE_HIGH ) );
+        plist.addAll( getZoneKeyParams( StyleKeys.AUX_RAMP .getKeys() ) );
+        plist.addAll( getZoneKeyParams( new ConfigKey[] {
+            StyleKeys.SHADE_LOW,
+            StyleKeys.SHADE_HIGH,
+        } ) );
 
-        auxlabelParam_ = new StringParameter( "auxlabel" );
-        auxlabelParam_.setUsage( "<text>" );
-        auxlabelParam_.setPrompt( "Label for aux axis" );
-        auxlabelParam_.setDescription( new String[] {
-            "<p>Sets the label used to annotate the aux axis,",
-            "if it is visible.",
-            "</p>",
-        } );
-        auxlabelParam_.setNullPermitted( true );
-        plist.add( auxlabelParam_ );
-
-        auxcrowdParam_ = new DoubleParameter( "auxcrowd" );
-        auxcrowdParam_.setUsage( "<factor>" );
-        auxcrowdParam_.setPrompt( "Tick crowding on aux axis" );
-        auxcrowdParam_.setDescription( new String[] {
-            "<p>Determines how closely the tick marks are spaced",
-            "on the Aux axis, if visible.",
-            "The default value is 1, meaning normal crowding.",
-            "Larger values result in more ticks,",
-            "and smaller values fewer ticks.",
-            "Tick marks will not however be spaced so closely that",
-            "the labels overlap each other,",
-            "so to get very closely spaced marks you may need to",
-            "reduce the font size as well.",
-            "</p>",
-        } );
-        auxcrowdParam_.setDoubleDefault( 1 );
-        plist.add( auxcrowdParam_ );
-
-        auxvisibleParam_ = new BooleanParameter( "auxvisible" );
-        auxvisibleParam_.setPrompt( "Display aux colour ramp?" );
-        auxvisibleParam_.setDescription( new String[] {
-            "<p>Determines whether the aux axis colour ramp",
-            "is displayed alongside the plot.",
-            "</p>",
-            "<p>If not supplied (the default),",
-            "the aux axis will be visible when aux shading is used",
-            "in any of the plotted layers.",
-            "</p>",
-        } );
-        auxvisibleParam_.setNullPermitted( true );
-        plist.add( auxvisibleParam_ );
+        plist.add( createAuxLabelParameter( DOC_ZONE_SUFFIX ) );
+        plist.add( createAuxCrowdParameter( DOC_ZONE_SUFFIX ) );
+        plist.add( createAuxWidthParameter( DOC_ZONE_SUFFIX ) );
+        plist.add( createAuxVisibleParameter( DOC_ZONE_SUFFIX ) );
 
         bitmapParam_ = new BooleanParameter( "forcebitmap" );
         bitmapParam_.setPrompt( "Force non-vector graphics output?" );
         bitmapParam_.setDescription( new String[] {
-            "<p>This option only has an effect when writing output",
-            "to vector graphics formats (PDF and PostScript).",
-            "If set <code>true</code>, the data contents of the plot",
-            "are drawn as a pixel map embedded into the output",
-            "file rather than plotting each point in the output.",
-            "This may make the output less beautiful",
-            "(round markers will no longer be perfectly round),",
-            "but it may result in a much smaller file",
-            "if there are very many data points. Plot annotations such as",
-            "axis labels will not be affected - they are still drawn as",
-            "vector text.",
-            "Note that in some cases",
+            "<p>Affects whether rendering of the data contents of a plot",
+            "(though not axis labels etc) is always done to",
+            "an intermediate bitmap rather than, where possible,",
+            "being painted using graphics primitives.",
+            "This is a rather arcane setting that may nevertheless",
+            "have noticeable effects on the appearance and",
+            "size of an output graphics file, as well as plotting time.",
+            "For some types of plot",
             "(e.g. <code>" + ShapeFamilyLayerType.SHADING_PREFIX
                            + EXAMPLE_LAYER_SUFFIX + "="
                            + ShapeMode.AUTO.getModeName() + "</code>",
             "or    <code>" + ShapeFamilyLayerType.SHADING_PREFIX
                            + EXAMPLE_LAYER_SUFFIX + "="
                            + ShapeMode.DENSITY.getModeName() + "</code>)",
-            "this kind of pixellisation will happen in any case.",
+            "it will have no effect, since this kind of rendering",
+            "happens in any case.",
+            "</p>",
+            "<p>When writing to vector graphics formats (PDF and PostScript),",
+            "setting it true will force the data contents to be bitmapped.",
+            "This may make the output less beautiful",
+            "(round markers will no longer be perfectly round),",
+            "but it may result in a much smaller file",
+            "if there are very many data points.",
+            "</p>",
+            "<p>When writing to bitmapped output formats",
+            "(PNG, GIF, JPEG, ...),",
+            "it fixes shapes to be the same as seen on the screen",
+            "rather than be rendered at the mercy of the graphics system,",
+            "which sometimes introduces small distortions.",
             "</p>",
         } );
         bitmapParam_.setBooleanDefault( false );
@@ -466,9 +431,11 @@ public abstract class AbstractPlot2Task implements Task, DynamicTask {
 
     /**
      * Constructor with default animation capability.
+     *
+     * @param  gangerFact    controls how plots can be grouped
      */
-    protected AbstractPlot2Task() {
-        this( true );
+    protected AbstractPlot2Task( GangerFactory gangerFact ) {
+        this( true, gangerFact );
     }
 
     /**
@@ -483,7 +450,7 @@ public abstract class AbstractPlot2Task implements Task, DynamicTask {
             throws TaskException;
 
     /**
-     * Returns a config parameter for a given config key that may be
+     * May provide a default value for a given config parameter that is
      * sensitive to the content of the execution environment.
      * This is here to provide a hook for subclasses to set up defaults
      * for some config parameters on the basis of what layers are present.
@@ -492,11 +459,12 @@ public abstract class AbstractPlot2Task implements Task, DynamicTask {
      * @param   key  config key for which a parameter is required
      * @param   suffixes  ordered list of the plot layer suffixes
      *          in use for the plot being performed
-     * @return   parameter to get the value of <code>key</code>
+     * @return  default for parameter getting value for <code>key</code>,
+     *          or null if none is obvious
      */
-    protected abstract <T> ConfigParameter
-            createConfigParameter( Environment env, ConfigKey<T> key,
-                                   String[] suffixes )
+    protected abstract <T> String getConfigParamDefault( Environment env,
+                                                         ConfigKey<T> key,
+                                                         String[] suffixes )
             throws TaskException;
 
     /**
@@ -542,9 +510,10 @@ public abstract class AbstractPlot2Task implements Task, DynamicTask {
                      * which will draw the requested plot on demand,
                      * including resizing when appropriate. */
                     if ( isSwing ) {
+                        PlotCaching caching = PlotCaching.createFullyCached();
                         final JComponent panel =
                             executor.createPlotComponent( dataStore,
-                                                          true, true );
+                                                          true, caching );
                         SwingUtilities.invokeLater( new Runnable() {
                             public void run() {
                                 ((SwingPainter) painter).postComponent( panel );
@@ -717,6 +686,7 @@ public abstract class AbstractPlot2Task implements Task, DynamicTask {
         long nrow = animateTable.getRowCount(); 
         RowSequence aseq = animateTable.getRowSequence();
         final JComponent holder = new JPanel( new BorderLayout() );
+        PlotCaching caching = PlotCaching.createFullyCached();
         DataStore dataStore = null;
 
         /* The swing animation is not parallelised, but should be.
@@ -739,7 +709,7 @@ public abstract class AbstractPlot2Task implements Task, DynamicTask {
                 PlotExecutor executor = createPlotExecutor( frameEnv, context );
                 dataStore = executor.createDataStore( dataStore );
                 final JComponent panel =
-                    executor.createPlotComponent( dataStore, true, true );
+                    executor.createPlotComponent( dataStore, true, caching );
                 final boolean init = irow == 0;
 
                 /* It's necessary to use invokeAndWait here, since the
@@ -841,6 +811,19 @@ public abstract class AbstractPlot2Task implements Task, DynamicTask {
     }
 
     /**
+     * Prepares a plot for this task as specified by a given environment,
+     * but does not run any of the actual plotting code.
+     * If this utility method completes without error, there is a good chance
+     * that the specified plot will also run without error.
+     *
+     * @param  env  populated environment
+     * @throws   TaskException   in case of error
+     */
+    public void testEnv( Environment env ) throws TaskException {
+        createPlotExecutor( env, getPlotContext( env ) );
+    }
+
+    /**
      * Returns a graphical component that displays an interactive view of
      * the plot described by a value-bearing execution environment.
      * This utility method is not used for executing the task defined by
@@ -856,8 +839,10 @@ public abstract class AbstractPlot2Task implements Task, DynamicTask {
         dstoreParam_.setDefaultCaching( caching );
         PlotExecutor executor =
             createPlotExecutor( env, getPlotContext( env ) );
+        PlotCaching plotCaching = caching ? PlotCaching.createFullyCached()
+                                          : PlotCaching.createUncached();
         return executor.createPlotComponent( executor.createDataStore( null ),
-                                             true, caching );
+                                             true, plotCaching );
     }
 
     public Parameter[] getContextParameters( Environment env )
@@ -1007,7 +992,7 @@ public abstract class AbstractPlot2Task implements Task, DynamicTask {
             finderList.add( new ParameterFinder<Parameter>() {
                 public Parameter createParameter( String sfix ) {
                     return ConfigParameter
-                          .createSuffixedParameter( key, sfix, true );
+                          .createLayerSuffixedParameter( key, sfix, true );
                 }
             } );
         }
@@ -1041,7 +1026,7 @@ public abstract class AbstractPlot2Task implements Task, DynamicTask {
                 finderList.add( new ParameterFinder<Parameter>() {
                     public Parameter createParameter( String sfix ) {
                         return ConfigParameter
-                              .createSuffixedParameter( key, sfix, true );
+                              .createLayerSuffixedParameter( key, sfix, true );
                     }
                 } ); 
             }
@@ -1102,16 +1087,17 @@ public abstract class AbstractPlot2Task implements Task, DynamicTask {
 
         /* What kind of plot? */
         PlotType plotType = context.getPlotType();
-        final PaperTypeSelector ptsel = plotType.getPaperTypeSelector();
+        final SurfaceFactory surfFact = plotType.getSurfaceFactory();
+        final PaperTypeSelector ptSel = plotType.getPaperTypeSelector();
 
         /* Set up generic configuration. */
         final int xpix = xpixParam_.intValue( env );
         final int ypix = ypixParam_.intValue( env );
-        final Insets insets = insetsParam_.insetsValue( env );
         final boolean forceBitmap = bitmapParam_.booleanValue( env );
-        final boolean surfaceAuxRange = false;
         final DataStoreFactory storeFact = dstoreParam_.objectValue( env );
         final Compositor compositor = compositorParam_.objectValue( env );
+        Padding padding = paddingParam_.objectValue( env );
+        final Ganger ganger = gangerFact_.createGanger( padding );
 
         /* Gather the defined plot layers from the environment. */
         Map<String,PlotLayer> layerMap = createLayerMap( env, context );
@@ -1129,39 +1115,6 @@ public abstract class AbstractPlot2Task implements Task, DynamicTask {
         /* Get an ordered list of layers to plot. */
         final PlotLayer[] layers = getLayerSequence( layerMap, layerSeq );
 
-        /* Prepare to draw aux axis. */
-        final ShadeAxisFactory shadeFact =
-            createShadeAxisFactory( env, layers );
-
-        /* Prepare to acquire parameters based on config keys.
-         * This can use subclass functionality to default axis names
-         * from data coodinate parameter values. */
-        final String[] suffixes = layerSeq;
-        ConfigParameterFactory surfCpFact = new ConfigParameterFactory() {
-            public <T> ConfigParameter<T> getParameter( Environment env,
-                                                        ConfigKey<T> key )
-                    throws TaskException {
-                return createConfigParameter( env, key, suffixes );
-            }
-        };
-
-        /* Get surface factory. */
-        final SurfaceFactory<?,?> surfFact = plotType.getSurfaceFactory();
-
-        /* Get the surface configuration. */
-        List<ConfigKey> keyList = new ArrayList<ConfigKey>();
-        keyList.addAll( Arrays.asList( surfFact.getProfileKeys() ) );
-        keyList.addAll( Arrays.asList( surfFact.getAspectKeys() ) );
-        keyList.addAll( Arrays.asList( surfFact.getNavigatorKeys() ) );
-        keyList.add( StyleKeys.SHADE_LOW );
-        keyList.add( StyleKeys.SHADE_HIGH );
-        ConfigKey[] surfKeys = keyList.toArray( new ConfigKey[ 0 ] );
-        final ConfigMap surfConfig =
-            createConfigMap( env, surfKeys, surfCpFact );
-        final Range shadeFixRange =
-            new Range( surfConfig.get( StyleKeys.SHADE_LOW ),
-                       surfConfig.get( StyleKeys.SHADE_HIGH ) );
-
         /* Assemble the list of DataSpecs required for the plot. */
         int nl = layers.length;
         final DataSpec[] dataSpecs = new DataSpec[ nl ];
@@ -1171,12 +1124,99 @@ public abstract class AbstractPlot2Task implements Task, DynamicTask {
                             : layers[ il ].getDataSpec();
         }
 
-        /* Get the legend. */
-        final Icon legend = createLegend( env, layerMap, legendSeq );
-        final float[] legpos = legend == null
-                             ? null
-                             : legposParam_.floatsValue( env );
-        final String title = titleParam_.stringValue( env );
+        /* Prepare lists of config keys. */
+        ConfigKey[] profileKeys = surfFact.getProfileKeys();
+        ConfigKey[] aspectKeys = surfFact.getAspectKeys();
+        ConfigKey[] shadeKeys = { StyleKeys.SHADE_LOW, StyleKeys.SHADE_HIGH };
+
+        /* Prepare to get the navigator, but don't do it yet since we won't
+         * need one if the display is not interactive. */
+        final ConfigMap navConfig =
+            createBasicConfigMap( env, surfFact.getNavigatorKeys() );
+
+        /* Get information about which zones are defined. */
+        Map<String,String[]> zoneSuffixMap = getZoneSuffixMap( env, layerSeq );
+        String[] zoneSuffixes =
+            zoneSuffixMap.keySet().toArray( new String[ 0 ] );
+
+        /* Prepare parallel arrays of per-zone information for the plotting. */
+        final int nz = zoneSuffixes.length;
+        final ZoneContent[] contents = new ZoneContent[ nz ];
+        final Object[] profiles = PlotUtil.createProfileArray( surfFact, nz );
+        final ConfigMap[] aspectConfigs = new ConfigMap[ nz ];
+        final ShadeAxisFactory[] shadeFacts = new ShadeAxisFactory[ nz ];
+        final Range[] shadeFixRanges = new Range[ nz ];
+        for ( int iz = 0; iz < nz; iz++ ) {
+            String zoneSuffix = zoneSuffixes[ iz ];
+
+            /* Work out which layers will participate in the current zone. */
+            String[] zoneLayerSuffixes = zoneSuffixMap.get( zoneSuffix );
+            int nzl = zoneLayerSuffixes.length;
+            PlotLayer[] zoneLayers = new PlotLayer[ nzl ];
+            for ( int il  = 0; il < nzl; il++ ) {
+                zoneLayers[ il ] = layerMap.get( zoneLayerSuffixes[ il ] );
+            }
+
+            /* Get legend for the current zone. */
+            List<String> zoneLegendList = new ArrayList<String>();
+            for ( String l : legendSeq ) {
+                if ( Arrays.asList( zoneLayerSuffixes ).contains( l ) ) {
+                    zoneLegendList.add( l );
+                }
+            }
+            Icon legend =
+                createLegend( env, layerMap,
+                              zoneLegendList.toArray( new String[ 0 ] ) );
+
+            /* Get profile for the current zone. */
+            ConfigMap profileConfig =
+                createZoneConfigMap( env, profileKeys,
+                                     zoneSuffix, zoneLayerSuffixes );
+            Object profile = surfFact.createProfile( profileConfig );
+
+            /* Prepare to calculate aspect for the current zone. */
+            ConfigMap aspectConfig =
+                createZoneSuffixedConfigMap( env, aspectKeys, zoneSuffix );
+
+            /* Prepare to specify the shade axis for the current zone. */
+            ConfigMap shadeConfig =
+                createZoneSuffixedConfigMap( env, shadeKeys, zoneSuffix );
+            Range shadeFixRange =
+                new Range( shadeConfig.get( StyleKeys.SHADE_LOW ),
+                           shadeConfig.get( StyleKeys.SHADE_HIGH ) );
+            ShadeAxisFactory shadeFact =
+                createShadeAxisFactory( env, zoneLayers, zoneSuffix );
+
+            /* Get the legend position for the current zone. */
+            final float[] legPos;
+            if ( legend == null ) {
+                legPos = null;
+            }
+            else {
+                legPos = new ParameterFinder<DoubleArrayParameter>() {
+                    public DoubleArrayParameter createParameter( String sfix ) {
+                        return createLegendPositionParameter( sfix );
+                    }
+                }.getParameter( env, zoneSuffix )
+                 .floatsValue( env );
+            }
+
+            /* Get the plot title for the current zone. */
+            String title = new ParameterFinder<Parameter<String>>() {
+                public Parameter<String> createParameter( String sfix ) {
+                    return createTitleParameter( sfix );
+                }
+            }.getParameter( env, zoneSuffix )
+             .stringValue( env );
+
+            /* Populate per-zone arrays. */
+            contents[ iz ] =
+                new ZoneContent( zoneLayers, legend, legPos, title );
+            profiles[ iz ] = profile;
+            aspectConfigs[ iz ] = aspectConfig;
+            shadeFacts[ iz ] = shadeFact;
+            shadeFixRanges[ iz ] = shadeFixRange;
+        }
 
         /* We have all we need.  Construct and return the object
          * that can do the plot. */
@@ -1193,24 +1233,41 @@ public abstract class AbstractPlot2Task implements Task, DynamicTask {
 
             public PlotDisplay createPlotComponent( DataStore dataStore,
                                                     boolean navigable,
-                                                    boolean caching ) {
+                                                    PlotCaching caching ) {
+                Navigator navigator = navigable
+                                    ? surfFact.createNavigator( navConfig )
+                                    : null;
                 PlotDisplay panel =
                     PlotDisplay
-                   .createPlotDisplay( layers, surfFact, surfConfig, legend,
-                                       legpos, title, shadeFact, shadeFixRange,
-                                       ptsel, compositor, dataStore,
-                                       surfaceAuxRange, navigable, caching );
+                   .createGangDisplay( ganger, surfFact, nz, contents,
+                                       profiles, aspectConfigs,
+                                       shadeFacts, shadeFixRanges, navigator,
+                                       ptSel, compositor, dataStore, caching );
                 panel.setPreferredSize( new Dimension( xpix, ypix ) );
-                panel.setDataInsets( insets );
                 return panel;
             }
 
             public Icon createPlotIcon( DataStore dataStore ) {
+                Object[] aspects = new Object[ nz ];
+                long t0 = System.currentTimeMillis();
+                for ( int iz = 0; iz < nz; iz++ ) {
+                    ZoneContent content = contents[ iz ];
+                    Object profile = profiles[ iz ];
+                    ConfigMap config = aspectConfigs[ iz ];
+                    PlotLayer[] layers = content.getLayers();
+                    Range[] ranges =
+                          surfFact.useRanges( profile, config )
+                        ? surfFact.readRanges( profile, layers, dataStore )
+                        : null;
+                    aspects[ iz ] =
+                        surfFact.createAspect( profile, config, ranges );
+                }
                 return AbstractPlot2Task
-                      .createPlotIcon( layers, surfFact, surfConfig, legend,
-                                       legpos, title, shadeFact, shadeFixRange,
-                                       ptsel, compositor, dataStore,
-                                       xpix, ypix, insets, forceBitmap );
+                      .createPlotIcon( ganger, surfFact,
+                                       nz, contents, profiles, aspects,
+                                       shadeFacts, shadeFixRanges,
+                                       ptSel, compositor, dataStore,
+                                       xpix, ypix, forceBitmap );
             }
         };
     }
@@ -1281,6 +1338,61 @@ public abstract class AbstractPlot2Task implements Task, DynamicTask {
             }
         }
         return layers;
+    }
+
+    /**
+     * Determines from the environment which layers are to be plotted
+     * in which zones.  The result is an ordered map in which each key
+     * is a zone suffix, and each value is a non-empty list of layer 
+     * suffixes from the input array that will appear in that zone.
+     * Unnamed zones are represented by the empty string.
+     *
+     * <p>If multi-zone plots are not supported, the result will be
+     * a single entry map, with the sole key being the empty string.
+     *
+     * @param   env  execution environment
+     * @param  layerSuffixes   suffixes for layers that will be plotted
+     * @return   map from zone suffix to list of layer suffixes
+     */
+    private Map<String,String[]> getZoneSuffixMap( Environment env,
+                                                   String[] layerSuffixes )
+            throws TaskException {
+
+        /* If no ganging, just group all the layer suffixes under
+         * a single key. */
+        if ( ! gangerFact_.isMultiZone() ) {
+            Map<String,String[]> map = new HashMap<String,String[]>();
+            map.put( "", layerSuffixes );
+            return map;
+        }
+
+        /* Otherwise we need to group under zone suffixes. */
+        else {    
+            Map<String,List<String>> zoneMap =
+                new LinkedHashMap<String,List<String>>();
+
+            /* Iterate over known layers. */
+            for ( String layerSuffix : layerSuffixes ) {
+
+                /* Identify explicitly stated or implicit zone suffix. */
+                String zoneSuffix = getZoneSuffix( env, layerSuffix );
+
+                /* Add layer suffix to zone map entry, initialising entry
+                 * first if required. */
+                if ( ! zoneMap.containsKey( zoneSuffix ) ) {
+                    zoneMap.put( zoneSuffix, new ArrayList<String>() );
+                }
+                zoneMap.get( zoneSuffix ).add( layerSuffix );
+            }
+
+            /* Recast map and return. */
+            Map<String,String[]> zmap = new LinkedHashMap<String,String[]>();
+            for ( Map.Entry<String,List<String>> entry : zoneMap.entrySet() ) {
+                zmap.put( entry.getKey(),
+                          entry.getValue().toArray( new String[ 0 ] ) );
+            }
+            return zmap;
+        }
     }
 
     /**
@@ -1392,6 +1504,24 @@ public abstract class AbstractPlot2Task implements Task, DynamicTask {
     }
 
     /**
+     * Returns the zone suffix associated with a given layer.
+     *
+     * @param   env  execution environment
+     * @param   layerSuffix  identifier for a layer
+     * @return   zone identifier for layer, may be empty string but not null
+     */
+    private static String getZoneSuffix( Environment env, String layerSuffix )
+            throws TaskException {
+        String zoneSuffix = new ParameterFinder<Parameter<String>>() {
+            public Parameter<String> createParameter( String sfix ) {
+                return createZoneParameter( sfix );
+            }
+        }.getParameter( env, layerSuffix )
+         .objectValue( env ); 
+        return zoneSuffix == null ? "" : zoneSuffix;
+    }
+
+    /**
      * Returns a map of suffix strings to LayerType objects.
      * Each suffix string is appended to parameters associated with the
      * relevant LayerType as a namespacing device on the command line.
@@ -1400,8 +1530,8 @@ public abstract class AbstractPlot2Task implements Task, DynamicTask {
      * @param  context  plot context
      * @return  mapping from suffixes to layer types for the environment
      */
-    private Map<String,LayerType> getLayers( Environment env,
-                                             PlotContext context )
+    private static Map<String,LayerType> getLayers( Environment env,
+                                                    PlotContext context )
             throws TaskException {
         String prefix = LAYER_PREFIX;
         Map<String,LayerType> map = new LinkedHashMap<String,LayerType>();
@@ -1456,14 +1586,16 @@ public abstract class AbstractPlot2Task implements Task, DynamicTask {
     }
 
     /**
-     * Acquires a ShadeAxisFactory from the environment.
+     * Acquires a ShadeAxisFactory from the environment for a given plot zone.
      *
      * @param  env  execution environment
      * @param  layers  layers that will be plotted
+     * @param  zoneSuffix   identifier for zone whose shader is to be calculated
      * @return   shade axis factory, may be null
      */
     private ShadeAxisFactory createShadeAxisFactory( Environment env,
-                                                     PlotLayer[] layers )
+                                                     PlotLayer[] layers,
+                                                     String zoneSuffix )
             throws TaskException {
 
         /* Locate the first layer that references the aux colour scale. */
@@ -1471,7 +1603,12 @@ public abstract class AbstractPlot2Task implements Task, DynamicTask {
         PlotLayer scaleLayer = getFirstAuxLayer( layers, scale );
 
         /* Work out whether to display the colour ramp at all. */
-        Boolean auxvis = auxvisibleParam_.objectValue( env );
+        Boolean auxvis = new ParameterFinder<BooleanParameter>() {
+            public BooleanParameter createParameter( String sfix ) {
+                return createAuxVisibleParameter( sfix );
+            }
+        }.getParameter( env, zoneSuffix )
+         .objectValue( env );
         boolean hasAux = auxvis == null ? scaleLayer != null
                                         : auxvis.booleanValue();
         if ( ! hasAux ) {
@@ -1479,24 +1616,45 @@ public abstract class AbstractPlot2Task implements Task, DynamicTask {
         }
 
         /* Find a suitable label for the colour ramp. */
+        StringParameter auxlabelParam = new ParameterFinder<StringParameter>() {
+            public StringParameter createParameter( String sfix ) {
+                return createAuxLabelParameter( sfix );
+            }
+        }.getParameter( env, zoneSuffix );
         if ( scaleLayer != null ) {
-            auxlabelParam_.setStringDefault( getAuxLabel( scaleLayer, scale ) );
+            auxlabelParam.setStringDefault( getAuxLabel( scaleLayer, scale ) );
         }
-        String label = auxlabelParam_.objectValue( env );
+        String label = auxlabelParam.objectValue( env );
+
+        /* Get axis crowding. */
+        double crowd = new ParameterFinder<DoubleParameter>() {
+            public DoubleParameter createParameter( String sfix ) {
+                return createAuxCrowdParameter( sfix );
+            }
+        }.getParameter( env, zoneSuffix )
+         .doubleValue( env );
+
+        /* Get axis colour ramp width in pixels. */
+        int rampWidth = new ParameterFinder<IntegerParameter>() {
+            public IntegerParameter createParameter( String sfix ) {
+                return createAuxWidthParameter( sfix );
+            }
+        }.getParameter( env, zoneSuffix )
+         .intValue( env );
 
         /* Configure and return a shade axis accordingly. */
         RampKeySet rampKeys = StyleKeys.AUX_RAMP;
         Captioner captioner = getCaptioner( env );
-        ConfigMap auxConfig = createBasicConfigMap( env, rampKeys.getKeys() );
+        ConfigMap auxConfig =
+            createZoneSuffixedConfigMap( env, rampKeys.getKeys(), zoneSuffix );
         RampKeySet.Ramp ramp = rampKeys.createValue( auxConfig );
-        double crowd = auxcrowdParam_.doubleValue( env );
-        return RampKeySet
-              .createShadeAxisFactory( ramp, captioner, label, crowd );
+        return RampKeySet.createShadeAxisFactory( ramp, captioner, label,
+                                                  crowd, rampWidth );
     }
 
     /**
      * Returns a config map based on given keys with values derived from
-     * the execution environment.  There no funny business with appending
+     * the execution environment.  There is no funny business with appending
      * suffixes etc.
      *
      * @param  env  execution environment
@@ -1538,16 +1696,20 @@ public abstract class AbstractPlot2Task implements Task, DynamicTask {
         /* Prepare a config map with entries for all the config keys
          * required by the plotter.  All the config keys reported
          * by the plotter are included.  We also add keys for the
-         * aux axis, if used, since these are global.
+         * aux axis, if used, since these are global (per zone not per layer).
          * This is a bit questionable, the plotter is using unreported
          * config options, but if it didn't, it would report per-layer
          * aux axis options (colour maps etc) which the plot surface
          * decorations can't reflect (there's only one aux colour ramp
          * displayed).  Maybe look at this again one day. */
-        ConfigMap config =
-            createSuffixedConfigMap( env, plotter.getStyleKeys(), suffix );
-        config.putAll( createBasicConfigMap( env,
-                                             StyleKeys.AUX_RAMP.getKeys() ) );
+        ConfigMap layerConfig =
+            createLayerSuffixedConfigMap( env, plotter.getStyleKeys(), suffix );
+        ConfigMap auxConfig =
+            createZoneSuffixedConfigMap( env, StyleKeys.AUX_RAMP.getKeys(),
+                                         getZoneSuffix( env, suffix ) );
+        ConfigMap config = new ConfigMap();
+        config.putAll( auxConfig );
+        config.putAll( layerConfig );
 
         /* Work out the requested style. */
         @SuppressWarnings("unchecked")
@@ -1626,33 +1788,121 @@ public abstract class AbstractPlot2Task implements Task, DynamicTask {
     }
 
     /**
+     * Returns a ConfigMap specific to a given layer derived from the
+     * assignments made in a given execution environment,
+     * based on config keys and a layer identifier.
+     *
+     * @param  env  execution environment bearing the parameter values
+     * @param  configKeys  layer-specific configuration keys to find values for
+     * @param  layerSuffix  layer identifier string appended to config key
+     *                      shortnames to make env parameter names
+     * @return  config map with values for the supplied keys
+     */
+    private ConfigMap createLayerSuffixedConfigMap( Environment env,
+                                                    ConfigKey[] configKeys,
+                                                    String layerSuffix )
+            throws TaskException {
+        return createSuffixedConfigMap( env, configKeys, layerSuffix, false );
+    }
+
+    /**
+     * Returns a ConfigMap specific to a given zone derived from the
+     * assignments made in a given execution environment,
+     * based on config keys and a zone identifier.
+     *
+     * @param  env  execution environment bearing the parameter values
+     * @param  configKeys  zone-specific configuration keys to find values for
+     * @param  zoneSuffix   zone identifier string appended to config key
+     *                      shortnames to make env parameter names
+     * @return  config map with values for the supplied keys
+     */
+    private ConfigMap createZoneSuffixedConfigMap( Environment env,
+                                                   ConfigKey[] configKeys,
+                                                   String zoneSuffix )
+            throws TaskException {
+        return createSuffixedConfigMap( env, configKeys, zoneSuffix, true );
+    }
+
+    /**
      * Returns a ConfigMap derived from the assignments made in a given
-     * execution environment.
+     * execution environment, with a layer- or zone-related suffix.
      * Parameter names specified in the environment
-     * are the config names plus a supplied suffix.
+     * are the config names plus a supplied zone suffix,
+     * but parameters named with the suffix partly or completely omitted
+     * are used if they exist and the suffixed one does not.
      *
      * @param  env  execution environment bearing the parameter values
      * @param  configKeys  configuration keys to find values for
-     * @param  suffix  trailer applied to config key shortnames to make
-     *                 env parameter names
+     * @param  suffix  identifier to append to config key shortnames
+     *                 to make env parameter names
+     * @param  isZone  true for zone suffixes, false for layer suffixes
      * @return  config map with values for the supplied keys
      */
     private ConfigMap createSuffixedConfigMap( Environment env,
                                                ConfigKey[] configKeys,
-                                               final String suffix )
+                                               final String suffix,
+                                               final boolean isZone )
             throws TaskException {
         ConfigParameterFactory cpFact = new ConfigParameterFactory() {
             public <T> ConfigParameter<T>
                     getParameter( Environment env, final ConfigKey<T> key ) {
                 return new ParameterFinder<ConfigParameter<T>>() {
                     public ConfigParameter<T> createParameter( String sfix ) {
-                        return ConfigParameter
-                              .createSuffixedParameter( key, sfix, true );
+                        return isZone
+                             ? ConfigParameter
+                              .createZoneSuffixedParameter( key, sfix, true )
+                             : ConfigParameter
+                              .createLayerSuffixedParameter( key, sfix, true );
                     }
                 }.getParameter( env, suffix );
             }
         };
         return createConfigMap( env, configKeys, cpFact );
+    }
+
+    /**
+     * Constructs from the environment a config map with requested entries
+     * that are specific (or can be treated as specific) to a given zone.
+     *
+     * @param  env  execution environment
+     * @param  zoneConfigKeys   keys for which an entry in the output map
+     *                          is required
+     * @param  zoneSuffix  suffix identifying the zone in question
+     * @param  zoneLayerSuffixes   list of suffixes identifying layers
+     *                             that will be plotted on the zone of interest
+     * @return  config map containing entries specific to chosen zone
+     */
+    private ConfigMap createZoneConfigMap( Environment env,
+                                           ConfigKey[] zoneConfigKeys,
+                                           final String zoneSuffix,
+                                           final String[] zoneLayerSuffixes )
+            throws TaskException {
+        ConfigParameterFactory cpFact = new ConfigParameterFactory() {
+            public <T> ConfigParameter<T> getParameter( Environment env,
+                                                        final ConfigKey<T> key )
+                    throws TaskException {
+
+                /* Identify a parameter that will acquire the value of the
+                 * chosen config key for the chosen zone. */
+                ConfigParameter<T> param =
+                        new ParameterFinder<ConfigParameter<T>>() {
+                    public ConfigParameter<T> createParameter( String sfix ) {
+                        return ConfigParameter
+                              .createZoneSuffixedParameter( key, sfix, true );
+                    }
+                }.getParameter( env, zoneSuffix );
+
+                /* This can use subclass functionality to default axis names
+                 * from data coordinate parameter values. */
+                String dflt =
+                    getConfigParamDefault( env, key, zoneLayerSuffixes );
+                if ( dflt != null ) {
+                    param.setStringDefault( dflt );
+                }
+                return param;
+            }
+        };
+        return createConfigMap( env, zoneConfigKeys, cpFact );
     }
 
     /**
@@ -1790,6 +2040,238 @@ public abstract class AbstractPlot2Task implements Task, DynamicTask {
     }
 
     /**
+     * Returns a parameter to get a plot title for the zone identified
+     * by a given zone suffix.
+     *
+     * @param  suffix  zone suffix, or either null or empty string for all zones
+     * @return  parameter to get plot title for zone
+     */
+    private Parameter<String> createTitleParameter( String suffix ) {
+        if ( "".equals( suffix ) ) {
+            suffix = null;
+        }
+        String baseName = "title";
+        StringParameter param =
+            new StringParameter( baseName + ( suffix == null ? "" : suffix ) );
+        param.setPrompt( "Title for plot"
+                       + ( suffix == null ? "" : " zone " + suffix ) );
+        param.setDescription( new String[] {
+            "<p>Text of a title to be displayed at the top of",
+            ( suffix == null ? "the plot" : "plot zone " + suffix ) + ".",
+            "If null, the default, no title is shown",
+            "and there's more space for the graphics.",
+            "</p>",
+            getZoneDoc( baseName, suffix ),
+        } );
+        param.setNullPermitted( true );
+        return param;
+    }
+
+    /**
+     * Returns a parameter for acquiring the aux ramp label.
+     *
+     * @param   suffix  zone suffix
+     * @return   parameter
+     */
+    private StringParameter createAuxLabelParameter( String suffix ) {
+        if ( "".equals( suffix ) ) {
+            suffix = null;
+        }
+        String baseName = "auxlabel";
+        StringParameter param =
+            new StringParameter( baseName + ( suffix == null ? ""
+                                                             : suffix ) );
+        param.setUsage( "<text>" );
+        param.setPrompt( "Label for aux axis"
+                       + ( suffix == null ? "" : " for zone " + suffix ) );
+        param.setDescription( new String[] {
+            "<p>Sets the label used to annotate the aux axis"
+            + ( suffix == null ? ","
+                               : " for zone " + suffix + "," ),
+            "if it is visible.",
+            "</p>",
+            getZoneDoc( baseName, suffix ),
+        } );
+        param.setNullPermitted( true );
+        return param;
+    }
+
+    /**
+     * Returns a parameter for determining whether the aux colour ramp
+     * is painted for a given plot zone.
+     *
+     * @param  suffix  zone suffix
+     * @return   parameter
+     */
+    private BooleanParameter createAuxVisibleParameter( String suffix ) {
+        if ( "".equals( suffix ) ) {
+            suffix = null;
+        }
+        String baseName = "auxvisible";
+        BooleanParameter param =
+            new BooleanParameter( baseName + ( suffix == null ? "" : suffix ) );
+        param.setPrompt( "Display aux colour ramp"
+                       + ( suffix == null ? ""
+                                          : " for zone " + suffix )
+                       + "?" );
+        param.setDescription( new String[] {
+            "<p>Determines whether the aux axis colour ramp",
+            "is displayed alongside the plot"
+            + ( suffix == null ? "."
+                               : " for zone " + suffix + "." ),
+            "</p>",
+            "<p>If not supplied (the default),",
+            "the aux axis will be visible when aux shading is used",
+            "in any of the plotted layers.",
+            "</p>",
+            getZoneDoc( baseName, suffix ),
+        } );
+        param.setNullPermitted( true );
+        return param;
+    }
+
+    /**
+     * Returns a parameter for determining crowding on the aux axis.
+     *
+     * @param  suffix  zone suffix
+     * @return   parameter
+     */
+    private DoubleParameter createAuxCrowdParameter( String suffix ) {
+        if ( "".equals( suffix ) ) {
+            suffix = null;
+        }
+        String baseName = "auxcrowd";
+        DoubleParameter param =
+            new DoubleParameter( baseName + ( suffix == null ? ""
+                                                             : suffix ) );
+        param.setUsage( "<factor>" );
+        param.setPrompt( "Tick crowding on aux axis"
+                       + ( suffix == null ? "" : " for zone " + suffix ) );
+        param.setDescription( new String[] {
+            "<p>Determines how closely the tick marks are spaced on",
+            "the Aux axis" + ( suffix == null ? ","
+                                              : " for zone " + suffix + "," ),
+            "if visible.",
+            "The default value is 1, meaning normal crowding.",
+            "Larger values result in more ticks,",
+            "and smaller values fewer ticks.",
+            "Tick marks will not however be spaced so closely that",
+            "the labels overlap each other,",
+            "so to get very closely spaced marks you may need to",
+            "reduce the font size as well.",
+            "</p>",
+            getZoneDoc( baseName, suffix ),
+        } );
+        param.setDoubleDefault( 1 );
+        return param;
+    }
+
+    /**
+     * Returns a parameter for determining aux colour ramp lateral size
+     * in pixels.
+     *
+     * @param  suffix  zone suffix
+     * @return  parameter
+     */
+    private IntegerParameter createAuxWidthParameter( String suffix ) {
+        if ( "".equals( suffix ) ) {
+            suffix = null;
+        }
+        String baseName = "auxwidth";
+        IntegerParameter param =
+            new IntegerParameter( baseName + ( suffix == null ? "" : suffix ) );
+        param.setUsage( "<pixels>" );
+        param.setPrompt( "Width of aux axis ramp"
+                       + ( suffix == null ? "" : " for zone " + suffix ) );
+        param.setDescription( new String[] {
+            "<p>Determines the lateral size of the aux colour ramp,",
+            "if visible, in pixels.",
+            "</p>",
+            getZoneDoc( baseName, suffix ),
+        } );
+        param.setIntDefault( 15 );
+        return param;
+    }
+
+    /**
+     * Returns a parameter to get the legend position for the zone identified
+     * by a given zone suffix.
+     *
+     * @param  suffix  zone suffix, or either null or empty string for all zones
+     * @return   parameter to get legend position for zone
+     */
+    private DoubleArrayParameter
+            createLegendPositionParameter( String suffix ) {
+        if ( "".equals( suffix ) ) {
+            suffix = null;
+        }
+        String baseName = "legpos";
+        DoubleArrayParameter param =
+            new DoubleArrayParameter( baseName + ( suffix == null ? ""
+                                                                  : suffix ),
+                                      2 );
+        param.setUsage( "<xfrac,yfrac>" );
+        param.setPrompt( "X,Y fractional internal legend position"
+                       + ( suffix == null ? "" : " for zone " + suffix ) );
+        param.setDescription( new String[] {
+            "<p>Determines the internal position of the legend on",
+            ( suffix == null ? "the plot" : "plot zone " + suffix ) + ".",
+            "The value is a comma-separated pair of values giving the",
+            "X and Y positions of the legend within the plotting bounds,",
+            "so for instance \"<code>0.5,0.5</code>\" will put the legend",
+            "right in the middle of the plot.",
+            "If no value is supplied, the legend will appear outside",
+            "the plot boundary.",
+            "</p>",
+            getZoneDoc( baseName, suffix ),
+        } );
+        param.setNullPermitted( true );
+        return param;
+    }
+
+    /**
+     * Returns XML text documenting the zone-specific use of a 
+     * zone-suffixed parameter.  If zones are not in use in this task,
+     * an empty string is returned.
+     *
+     * @param   baseName  base name of parameter
+     * @param   suffix   actual zone suffix of the parameter in question
+     * @return  non-null string containing zero or more XML &lt;p&gt; elements
+     */
+    private String getZoneDoc( String baseName, String suffix ) {
+        if ( ! gangerFact_.isMultiZone() ) {
+            return "";
+        }
+        else if ( suffix != null && suffix.length() > 0 ) {
+            return new StringBuffer()
+               .append( "<p>This parameter affects only zone " )
+               .append( "<code>" )
+               .append( suffix )
+               .append( "</code>.\n" )
+               .append( "</p>" )
+               .toString();
+        }
+        else {
+            return new StringBuffer()
+               .append( "<p>If a zone suffix is appended " )
+               .append( "to the parameter name, " )
+               .append( "only that zone is affected,\n" )
+               .append( "e.g. " )
+               .append( "<code>" )
+               .append( baseName )
+               .append( EXAMPLE_ZONE_SUFFIX )
+               .append( "</code>" )
+               .append( " affects only zone " )
+               .append( "<code>" )
+               .append( EXAMPLE_ZONE_SUFFIX )
+               .append( "</code>" )
+               .append( "." )
+               .append( "</p>\n" )
+               .toString();
+        }
+    }
+
+    /**
      * Returns a parameter for acquiring a plotter.
      *
      * @param   suffix  parameter name suffix
@@ -1799,6 +2281,33 @@ public abstract class AbstractPlot2Task implements Task, DynamicTask {
     public static LayerTypeParameter
             createLayerTypeParameter( String suffix, PlotContext context ) {
         return new LayerTypeParameter( LAYER_PREFIX, suffix, context );
+    }
+
+    /**
+     * Returns a parameter for associating a zone identifier with a given
+     * layer.  The <em>value</em> acquired by this parameter is the zone suffix.
+     *
+     * @param  layerSuffix  identifier for the layer whose zone is to be
+     *                      determined
+     * @return   zone suffix parameter
+     */
+    public static Parameter<String> createZoneParameter( String layerSuffix ) {
+        StringParameter param =
+            new StringParameter( ZONE_PREFIX + layerSuffix );
+        param.setUsage( "<text>" );
+        param.setPrompt( "Plot zone for layer " + layerSuffix );
+        param.setDescription( new String[] {
+            "<p>Defines which plot zone the layer with suffix " + layerSuffix,
+            "will appear in.",
+            "This only makes sense for multi-zone plots.",
+            "The actual value of the parameter is not significant,",
+            "it just serves as a label,",
+            "but different layers will end up in the same plot zone",
+            "if they give the same values for this parameter.",
+            "</p>",
+        } );
+        param.setNullPermitted( true );
+        return param;
     }
 
     /**
@@ -1890,140 +2399,140 @@ public abstract class AbstractPlot2Task implements Task, DynamicTask {
      * This icon is expected to be painted once and then discarded,
      * so it's not cached.
      *
-     * @param  layers   layers constituting plot content
+     * @param  ganger  defines plot surface grouping
      * @param  surfFact   surface factory
-     * @param  config   map containing surface profile and initial aspect
-     *                  configuration
-     * @param  legend   legend icon, or null if none required
-     * @param  legPos   2-element array giving x,y fractional legend placement
-     *                  position within plot (elements in range 0..1),
-     *                  or null for external legend
-     * @param  title    plot title, or null
-     * @param  shadeFact  gets shader axis from range, or null if not required
-     * @param  shadeFixRange  fixed shader range,
-     *                        or null for auto-range where required
-     * @param  ptsel   paper type selector
-     * @param  compositor   compositor for pixel composition
+     * @param  nz   number of plot zones in gang
+     * @param  contents   zone contents (nz-element array)
+     * @param  aspects    plot surface aspects by zone (nz-element array)
+     * @param  shadeFacts   shader axis factories by zone (nz-element array),
+     *                      elements may be null if not required
+     * @param  shadeFixRanges  fixed shader ranges by zone (nz-element array)
+     *                         elements may be null for auto-range or if no
+     *                         shade axis
+     * @param  ptSel    paper type selector
+     * @param  compositor  compositor for pixel composition
      * @param  dataStore   data storage object
      * @param  xpix    horizontal size of icon in pixels
      * @param  ypix    vertical size of icon in pixels
-     * @param  insets  may supply the inset space to be used for
-     *                 axis decoration etc; if null, this will be worked out
-     *                 automatically
      * @param  forceBitmap   true to force bitmap output of vector graphics,
      *                       false to use default behaviour
      * @return  icon  icon for plotting
      */
-    private static <P,A> Icon createPlotIcon( PlotLayer[] layers,
-                                              SurfaceFactory<P,A> surfFact,
-                                              ConfigMap config, Icon legend,
-                                              float[] legPos, String title,
-                                              ShadeAxisFactory shadeFact,
-                                              Range shadeFixRange,
-                                              PaperTypeSelector ptsel,
-                                              Compositor compositor,
-                                              DataStore dataStore,
-                                              int xpix, int ypix, Insets insets,
-                                              boolean forceBitmap ) {
-        P profile = surfFact.createProfile( config );
-        long t0 = System.currentTimeMillis();
-        Range[] ranges = surfFact.useRanges( profile, config )
-                       ? surfFact.readRanges( profile, layers, dataStore )
-                       : null;
-        PlotUtil.logTime( logger_, "Range", t0 );
-        A aspect = surfFact.createAspect( profile, config, ranges );
-        return createPlotIcon( layers, surfFact, profile, aspect,
-                               legend, legPos, title, shadeFact, shadeFixRange,
-                               ptsel, compositor, dataStore, xpix, ypix,
-                               insets, forceBitmap );
-    }
+    public static <P,A> Icon
+            createPlotIcon( Ganger<P,A> ganger,
+                            final SurfaceFactory<P,A> surfFact,
+                            final int nz, final ZoneContent[] contents,
+                            final P[] profiles, final A[] aspects,
+                            ShadeAxisFactory[] shadeFacts,
+                            Range[] shadeFixRanges,
+                            final PaperTypeSelector ptSel,
+                            final Compositor compositor,
+                            final DataStore dataStore,
+                            final int xpix, final int ypix,
+                            final boolean forceBitmap ) {
+        final Rectangle extBox = new Rectangle( 0, 0, xpix, ypix );
+        final boolean cached = false;
+        final Object[] planArray = null;
+        final Set<Object> planSet = null;
+        final boolean withScroll = false;
 
-    /**
-     * Creates an icon which will paint the content of a plot.
-     * This icon is expected to be painted once and then discarded,
-     * so it's not cached.
-     *
-     * @param  layers   layers constituting plot content
-     * @param  surfFact   surface factory
-     * @param  profile   surface profile
-     * @param  aspect    surface aspect
-     * @param  legend   legend icon, or null if none required
-     * @param  legPos   2-element array giving x,y fractional legend placement
-     *                  position within plot (elements in range 0..1),
-     *                  or null for external legend
-     * @param  title   plot title or null
-     * @param  shadeFact  gets shader axis from range, or null if not required
-     * @param  shadeFixRange  fixed shader range,
-     *                        or null for auto-range where required
-     * @param  ptsel   paper type selector
-     * @param  compositor   compositor for pixel composition
-     * @param  dataStore   data storage object
-     * @param  xpix    horizontal size of icon in pixels
-     * @param  ypix    vertical size of icon in pixels
-     * @param  insets  may supply the inset space to be used for
-     *                 axis decoration etc; if null, this will be worked out
-     *                 automatically
-     * @param  forceBitmap   true to force bitmap output of vector graphics,
-     *                       false to use default behaviour
-     * @return  icon  icon for plotting
-     */
-    public static <P,A> Icon createPlotIcon( PlotLayer[] layers,
-                                             SurfaceFactory<P,A> surfFact,
-                                             P profile, A aspect, Icon legend,
-                                             float[] legPos, String title,
-                                             ShadeAxisFactory shadeFact,
-                                             Range shadeFixRange,
-                                             PaperTypeSelector ptsel,
-                                             Compositor compositor,
-                                             DataStore dataStore,
-                                             int xpix, int ypix, Insets insets,
-                                             boolean forceBitmap ) {
-        Rectangle extBounds = new Rectangle( 0, 0, xpix, ypix );
-        Rectangle dataBounds = insets != null        
-                             ? PlotUtil.subtractInsets( extBounds, insets )
-                             : null;
-        Rectangle approxBounds = dataBounds != null ? dataBounds : extBounds;
-        Surface approxSurf =
-            surfFact.createSurface( approxBounds, profile, aspect );
-        Map<AuxScale,Range> auxRanges =
-            PlotDisplay.getAuxRanges( layers, approxSurf, shadeFixRange,
-                                      shadeFact, dataStore );
-        Range shadeRange = auxRanges.get( AuxScale.COLOR );
-        ShadeAxis shadeAxis = shadeFact != null && shadeRange != null
-                            ? shadeFact.createShadeAxis( shadeRange )
-                            : null;
-        if ( dataBounds == null ) {
-            boolean withScroll = false;
-            dataBounds = PlotPlacement
-                        .calculateDataBounds( extBounds, surfFact, profile,
-                                              aspect, withScroll, legend,
-                                              legPos, title, shadeAxis );
+        /* Acquire nominal plot bounds that are good enough for working
+         * out aux data ranges. */
+        Gang approxGang =
+            ganger.createGang( extBox, surfFact, nz, contents, profiles,
+                               aspects, new ShadeAxis[ nz ], withScroll );
+
+        /* Calculate aux ranges if required.
+         * Although this should maybe belong with the aspect determination
+         * since it involves ranging, it's convenient to do it here
+         * because we will need the aux ranges anyway. */
+        final ShadeAxis[] shadeAxes = new ShadeAxis[ nz ];
+        final List<Map<AuxScale,Range>> auxRangeList =
+            new ArrayList<Map<AuxScale,Range>>();
+        long start = System.currentTimeMillis();
+        for ( int iz = 0; iz < nz; iz++ ) {
+            ZoneContent content = contents[ iz ];
+            P profile = profiles[ iz ];
+            ShadeAxisFactory shadeFact = shadeFacts[ iz ];
+            Surface approxSurf =
+                surfFact.createSurface( approxGang.getZonePlotBounds( iz ),
+                                        profiles[ iz ], aspects[ iz ] );
+            Map<AuxScale,Range> auxRanges =
+                PlotDisplay.getAuxRanges( content.getLayers(), approxSurf,
+                                          shadeFixRanges[ iz ], shadeFact,
+                                          planArray, dataStore );
+            auxRangeList.add( auxRanges );
+            Range shadeRange = auxRanges.get( AuxScale.COLOR );
+            if ( shadeFact != null && shadeRange != null ) {
+                shadeAxes[ iz ] = shadeFact.createShadeAxis( shadeRange );
+            }
         }
-        Surface surf = surfFact.createSurface( dataBounds, profile, aspect );
-        Decoration[] decs =
-            PlotPlacement.createPlotDecorations( surf, legend, legPos,
-                                                 title, shadeAxis );
-        PlotPlacement placer = new PlotPlacement( extBounds, surf, decs );
-        LayerOpt[] opts = PaperTypeSelector.getOpts( layers );
-        PaperType paperType = forceBitmap
-                            ? ptsel.getPixelPaperType( opts, compositor, null )
-                            : ptsel.getVectorPaperType( opts );
-        boolean cached = false;
-        return PlotDisplay.createIcon( placer, layers, auxRanges, dataStore,
-                                       paperType, cached );
+        PlotUtil.logTime( logger_, "Range", start );
+
+        /* Work out plot bounds. */
+        final Gang gang =
+            ganger.createGang( extBox, surfFact, nz, contents, profiles,
+                               aspects, shadeAxes, withScroll );
+
+        /* Construct and return an icon that paints all the zones. */
+        return new Icon() {
+            public int getIconWidth() {
+                return xpix;
+            }
+            public int getIconHeight() {
+                return ypix;
+            }
+            public void paintIcon( Component c, Graphics g, int x, int y ) {
+                g.translate( x, y );
+                Shape clip = g.getClip();
+                for ( int iz = 0; iz < nz; iz++ ) {
+                    ZoneContent content = contents[ iz ];
+                    PlotLayer[] layers = content.getLayers();
+                    Surface surface =
+                        surfFact.createSurface( gang.getZonePlotBounds( iz ),
+                                                profiles[ iz ], aspects[ iz ] );
+                    Decoration[] decs =
+                        PlotPlacement
+                       .createPlotDecorations( surface, content.getLegend(),
+                                               content.getLegendPosition(),
+                                               content.getTitle(),
+                                               shadeAxes[ iz ] );
+                    PlotPlacement placer =
+                        new PlotPlacement( extBox, surface, decs );
+                    LayerOpt[] opts = PaperTypeSelector.getOpts( layers );
+                    PaperType paperType =
+                          forceBitmap
+                        ? ptSel.getPixelPaperType( opts, compositor, null )
+                        : ptSel.getVectorPaperType( opts );
+                    if ( clip != null &&
+                         ! clip.intersects( surface.getPlotBounds() ) ) {
+                        layers = new PlotLayer[ 0 ];
+                    }
+                    Icon zicon =
+                        PlotUtil
+                       .createPlotIcon( placer, layers, auxRangeList.get( iz ),
+                                        dataStore, paperType, cached, planSet );
+                    zicon.paintIcon( c, g, 0, 0 );
+                }
+                g.translate( -x, -y );
+            }
+        };
     }
 
     /**
-     * Returns a list of non-suffixed parameters based on a list of
+     * Returns a list of parameters suffixed by zone based on a list of
      * ConfigKeys.
      *
      * @param  keys  config keys
      * @return  parameters for acquiring config key values
      */
-    public static List<Parameter> getKeyParams( ConfigKey[] keys ) {
+    public final List<Parameter> getZoneKeyParams( ConfigKey[] keys ) {
+        boolean isMultiZone = gangerFact_.isMultiZone();
         List<Parameter> plist = new ArrayList<Parameter>();
         for ( int ik = 0; ik < keys.length; ik++ ) {
-            plist.add( new ConfigParameter( keys[ ik ] ) );
+            plist.add( ConfigParameter
+                      .createZoneSuffixedParameter( keys[ ik ], DOC_ZONE_SUFFIX,
+                                                    isMultiZone ) );
         }
         return plist;
     }
@@ -2174,13 +2683,11 @@ public abstract class AbstractPlot2Task implements Task, DynamicTask {
          * @param  dataStore  object containing plot data
          * @param  navigable  if true, standard pan/zoom mouse listeners
          *                   will be installed
-         * @param  caching   if true, plot image will be cached where
-         *                   applicable, if false it will be regenerated
-         *                   from the data on every repaint
+         * @param  caching   plot caching policy
          */
         PlotDisplay createPlotComponent( DataStore dataStore,
                                          boolean navigable,
-                                         boolean caching );
+                                         PlotCaching caching );
 
         /**
          * Generates an icon which will draw the plot.

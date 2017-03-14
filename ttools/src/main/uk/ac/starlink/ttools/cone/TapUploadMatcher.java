@@ -13,6 +13,7 @@ import uk.ac.starlink.table.TableFormatException;
 import uk.ac.starlink.table.TableSink;
 import uk.ac.starlink.table.Tables;
 import uk.ac.starlink.util.ContentCoding;
+import uk.ac.starlink.vo.EndpointSet;
 import uk.ac.starlink.vo.TapQuery;
 import uk.ac.starlink.vo.UwsJob;
 import uk.ac.starlink.votable.DataFormat;
@@ -33,7 +34,7 @@ import uk.ac.starlink.votable.VOTableWriter;
  */
 public class TapUploadMatcher implements UploadMatcher {
 
-    private final URL serviceUrl_;
+    private final EndpointSet endpointSet_;
     private final String tableName_;
     private final String raExpr_;
     private final String decExpr_;
@@ -42,6 +43,7 @@ public class TapUploadMatcher implements UploadMatcher {
     private final String[] tapCols_;
     private final ServiceFindMode serviceMode_;
     private final int pollMillis_ = 10000;
+    private final Map<String,String> extraParams_;
     private final ContentCoding coding_;
 
     private static final String TABLE_ID = "up";
@@ -53,7 +55,7 @@ public class TapUploadMatcher implements UploadMatcher {
     /**
      * Constructor.
      *
-     * @param  serviceUrl  TAP service base URL
+     * @param  endpointSet  TAP service endpoint locations
      * @param  tableName   name of table in TAP service to match against
      * @param  raExpr    column name (or ADQL expression) for RA
      *                   in decimal degrees in TAP table
@@ -65,14 +67,16 @@ public class TapUploadMatcher implements UploadMatcher {
      * @param  tapCols    column names from the remote table to be included
      *                    in the output table; if null, all are included
      * @param  serviceMode  type of match
+     * @param  extraParams  map of additional parameters for TAP query
      * @param  coding     configures HTTP compression for result
      */
-    public TapUploadMatcher( URL serviceUrl, String tableName,
+    public TapUploadMatcher( EndpointSet endpointSet, String tableName,
                              String raExpr, String decExpr,
                              String radiusDegExpr, boolean isSync,
                              String[] tapCols, ServiceFindMode serviceMode,
+                             Map<String,String> extraParams,
                              ContentCoding coding ) {
-        serviceUrl_ = serviceUrl;
+        endpointSet_ = endpointSet;
         tableName_ = tableName;
         raExpr_ = raExpr;
         decExpr_ = decExpr;
@@ -80,6 +84,7 @@ public class TapUploadMatcher implements UploadMatcher {
         isSync_ = isSync;
         tapCols_ = tapCols;
         serviceMode_ = serviceMode;
+        extraParams_ = extraParams;
         coding_ = coding;
         if ( ! Arrays.asList( getSupportedServiceModes() )
                      .contains( serviceMode ) ) {
@@ -93,7 +98,6 @@ public class TapUploadMatcher implements UploadMatcher {
                                     RowMapper<?> rowMapper, long maxrec )
             throws IOException {
         String adql = getAdql( maxrec );
-        Map<String,String> extraParams = new HashMap<String,String>();
         Map<String,StarTable> uploadMap = new HashMap<String,StarTable>();
         uploadMap.put( TABLE_ID,
                        new UploadConeTable( coneSeq, rowMapper,
@@ -101,7 +105,7 @@ public class TapUploadMatcher implements UploadMatcher {
         VOTableWriter voWriter =
             new VOTableWriter( DataFormat.BINARY, true, VOTableVersion.V12 );
         TapQuery tapQuery =
-            new TapQuery( serviceUrl_, adql, extraParams, uploadMap, -1,
+            new TapQuery( endpointSet_, adql, extraParams_, uploadMap, -1,
                           voWriter );
         final URLConnection conn;
         if ( isSync_ ) {

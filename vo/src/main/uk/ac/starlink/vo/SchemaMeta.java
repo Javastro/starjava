@@ -1,5 +1,8 @@
 package uk.ac.starlink.vo;
 
+import java.util.LinkedHashMap;
+import java.util.Map;
+
 /**
  * Represents schema metadata from a TableSet document.
  * The scalar members are intended to be set by classes in this package
@@ -19,12 +22,14 @@ public class SchemaMeta {
     String title_;
     String description_;
     String utype_;
+    Map<String,Object> extras_;
     private TableMeta[] tables_;
 
     /**
      * Constructor.
      */
     protected SchemaMeta() {
+        extras_ = new LinkedHashMap<String,Object>();
     }
 
     /**
@@ -65,6 +70,15 @@ public class SchemaMeta {
     }
 
     /**
+     * Returns a map of additional non-standard metadata items for this schema.
+     *
+     * @return  extras map
+     */
+    public Map<String,Object> getExtras() {
+        return extras_;
+    }
+
+    /**
      * Returns a list of the tables contained in this schema.
      * If the result is null, nothing is known about the tables,
      * and the list may need to be explicitly set.
@@ -92,5 +106,17 @@ public class SchemaMeta {
     @Override
     public String toString() {
         return getName();
+    }
+
+    /**
+     * Returns a new schema with no tables and the given name.
+     *
+     * @param  name   name of new schema
+     * @return  new empty schema
+     */
+    public static SchemaMeta createDummySchema( String name ) {
+        SchemaMeta schema = new SchemaMeta();
+        schema.name_ = name;
+        return schema;
     }
 }

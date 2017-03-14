@@ -1,7 +1,6 @@
 package uk.ac.starlink.ttools.example;
 
 import java.awt.Dimension;
-import java.awt.Insets;
 import java.io.BufferedOutputStream;
 import java.io.IOException;
 import java.io.OutputStream;
@@ -10,16 +9,20 @@ import uk.ac.starlink.ttools.plot.GraphicExporter;
 import uk.ac.starlink.ttools.plot.Picture;
 import uk.ac.starlink.ttools.plot.Range;
 import uk.ac.starlink.ttools.plot2.Navigator;
+import uk.ac.starlink.ttools.plot2.Padding;
 import uk.ac.starlink.ttools.plot2.PlotLayer;
 import uk.ac.starlink.ttools.plot2.PlotUtil;
 import uk.ac.starlink.ttools.plot2.ShadeAxis;
 import uk.ac.starlink.ttools.plot2.ShadeAxisFactory;
+import uk.ac.starlink.ttools.plot2.SingleGanger;
 import uk.ac.starlink.ttools.plot2.SurfaceFactory;
+import uk.ac.starlink.ttools.plot2.ZoneContent;
 import uk.ac.starlink.ttools.plot2.data.DataStore;
 import uk.ac.starlink.ttools.plot2.paper.Compositor;
 import uk.ac.starlink.ttools.plot2.paper.PaperType;
 import uk.ac.starlink.ttools.plot2.paper.PaperTypeSelector;
 import uk.ac.starlink.ttools.plot2.task.AbstractPlot2Task;
+import uk.ac.starlink.ttools.plot2.task.PlotCaching;
 import uk.ac.starlink.ttools.plot2.task.PlotDisplay;
 
 /**
@@ -54,7 +57,7 @@ public class PlotGenerator<P,A> {
     private final DataStore dataStore_;
     private final int xpix_;
     private final int ypix_;
-    private final Insets dataInsets_;
+    private final Padding padding_;
  
     /**
      * Constructor.
@@ -78,9 +81,11 @@ public class PlotGenerator<P,A> {
      *                 (may get changed by window resizing)
      * @param  ypix    initial vertical size in pixels
      *                 (may get changed by window resizing)
-     * @param  dataInsets  extent of region outside plot data box,
-     *                     used for axis labels etc;
-     *                     if null, will be calculated automatically
+     * @param  padding   requirements for extent of region outside plot
+     *                   data box to contain axis labels etc;
+     *                   may be null or parts may be blank;
+     *                   those requirements not specified will be
+     *                   calculated automatically
      */
     public PlotGenerator( PlotLayer[] layers,
                           SurfaceFactory<P,A> surfFact, P profile, A aspect,
@@ -88,7 +93,7 @@ public class PlotGenerator<P,A> {
                           ShadeAxisFactory shadeFact, Range shadeFixRange,
                           PaperTypeSelector ptSel, Compositor compositor,
                           DataStore dataStore, int xpix, int ypix,
-                          Insets dataInsets ) {
+                          Padding padding ) {
         layers_ = layers;
         surfFact_ = surfFact;
         profile_ = profile;
@@ -103,7 +108,7 @@ public class PlotGenerator<P,A> {
         dataStore_ = dataStore;
         xpix_ = xpix;
         ypix_ = ypix;
-        dataInsets_ = dataInsets;
+        padding_ = padding;
     }
 
     /**
@@ -113,21 +118,24 @@ public class PlotGenerator<P,A> {
      *                         when the surface changes
      * @param  navigator  user gesture navigation controller,
      *                    or null for a non-interactive plot
-     * @param  caching   if true, plot image will be cached where applicable,
-     *                   if false it will be regenerated from the data
+     * @param  cacheImage  if true, plot image will be cached where applicable,
+     *                   if false it will be regenerated from data
      *                   on every repaint
      * @return  plot display component
      */
-    public PlotDisplay createPlotDisplay( Navigator<A> navigator,
-                                          boolean surfaceAuxRange,
-                                          boolean caching ) {
-        PlotDisplay display = 
-            new PlotDisplay( layers_, surfFact_, profile_, aspect_, legend_,
-                             legPos_, title_, shadeFact_, shadeFixRange_,
-                             ptSel_, compositor_, dataStore_,
-                             surfaceAuxRange, navigator, caching );
+    public PlotDisplay<P,A> createPlotDisplay( Navigator<A> navigator,
+                                               boolean surfaceAuxRange,
+                                               boolean cacheImage ) {
+        PlotCaching cachePolicy = new PlotCaching();
+        cachePolicy.setReuseRanges( ! surfaceAuxRange );
+        cachePolicy.setCacheImage( cacheImage );
+        cachePolicy.setUsePlans( true );
+        PlotDisplay<P,A> display =
+            new PlotDisplay( surfFact_, layers_, profile_, legend_, legPos_,
+                             title_, aspect_, shadeFact_, shadeFixRange_,
+                             navigator, ptSel_, compositor_, padding_,
+                             dataStore_, cachePolicy );
         display.setPreferredSize( new Dimension( xpix_, ypix_ ) );
-        display.setDataInsets( dataInsets_ );
         return display;
     }
 
@@ -159,9 +167,16 @@ public class PlotGenerator<P,A> {
      */
     public Icon createIcon( boolean forceBitmap ) {
         return AbstractPlot2Task
-              .createPlotIcon( layers_, surfFact_, profile_, aspect_, legend_,
-                               legPos_, title_, shadeFact_, shadeFixRange_,
+              .createPlotIcon( new SingleGanger<P,A>( padding_ ), surfFact_, 1,
+                               new ZoneContent[] {
+                                   new ZoneContent( layers_, legend_,
+                                                    legPos_, title_ )
+                               },
+                               PlotUtil.singletonArray( profile_ ),
+                               PlotUtil.singletonArray( aspect_ ),
+                               new ShadeAxisFactory[] { shadeFact_ },
+                               new Range[] { shadeFixRange_ },
                                ptSel_, compositor_, dataStore_,
-                               xpix_, ypix_, dataInsets_, forceBitmap );
+                               xpix_, ypix_, forceBitmap );
     }
 }

@@ -4,6 +4,7 @@ import uk.ac.starlink.table.ValueInfo;
 import uk.ac.starlink.topcat.ColumnDataComboBoxModel;
 import uk.ac.starlink.topcat.TopcatModel;
 import uk.ac.starlink.ttools.plot2.LegendEntry;
+import uk.ac.starlink.ttools.plot2.config.Specifier;
 import uk.ac.starlink.ttools.plot2.layer.SpectrogramPlotter;
 
 /**
@@ -20,12 +21,17 @@ public class SpectrogramLayerControl extends BasicCoordLayerControl {
      * Constructor.
      *
      * @param  plotter  spectrogram plotter
+     * @param  zsel    zone id specifier, may be null for single-zone plots
+     * @param   baseConfigger   provides global configuration info
      */
-    public SpectrogramLayerControl( SpectrogramPlotter plotter ) {
-        super( plotter,
+    public SpectrogramLayerControl( SpectrogramPlotter plotter,
+                                    Specifier<ZoneId> zsel,
+                                    Configger baseConfigger ) {
+        super( plotter, zsel,
                new SimplePositionCoordPanel( plotter.getCoordGroup()
                                                     .getExtraCoords(),
-                                             null ) );
+                                             null ),
+               baseConfigger, false );
         plotter_ = plotter;
         assert plotter.getCoordGroup().getPositionCount() == 0;
     }

@@ -22,12 +22,9 @@ public class TimeAxisController
 
     /**
      * Constructor.
-     *
-     * @param  stack  control stack
      */
-    public TimeAxisController( ControlStack stack ) {
-        super( new TimeSurfaceFactory(), "timeNavigation",
-               createAxisLabelKeys(), stack );
+    public TimeAxisController() {
+        super( new TimeSurfaceFactory(), createAxisLabelKeys() );
         SurfaceFactory surfFact = getSurfaceFactory();
         ConfigControl mainControl = getMainControl();
 

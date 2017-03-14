@@ -5,6 +5,9 @@ import uk.ac.starlink.task.Environment;
 import uk.ac.starlink.task.Parameter;
 import uk.ac.starlink.task.TaskException;
 import uk.ac.starlink.ttools.plot2.DataGeom;
+import uk.ac.starlink.ttools.plot2.Ganger;
+import uk.ac.starlink.ttools.plot2.GangerFactory;
+import uk.ac.starlink.ttools.plot2.Padding;
 import uk.ac.starlink.ttools.plot2.PlotType;
 
 /**
@@ -18,6 +21,7 @@ public abstract class PlotContext {
 
     private final PlotType plotType_;
     private final DataGeom[] exampleGeoms_;
+    private final GangerFactory gangerFact_;
 
     /**
      * Constructor.
@@ -26,10 +30,13 @@ public abstract class PlotContext {
      *
      * @param  plotType  plot type
      * @param  exampleGeoms   example data geoms
+     * @param  gangerFact   defines plot grouping
      */
-    protected PlotContext( PlotType plotType, DataGeom[] exampleGeoms ) {
+    protected PlotContext( PlotType plotType, DataGeom[] exampleGeoms,
+                           GangerFactory gangerFact ) {
         plotType_ = plotType;
         exampleGeoms_ = exampleGeoms;
+        gangerFact_ = gangerFact;
     }
 
     /**
@@ -52,6 +59,15 @@ public abstract class PlotContext {
      */
     public DataGeom[] getExampleGeoms() {
         return exampleGeoms_;
+    }
+
+    /**
+     * Returns the ganger factory used by this context.
+     *
+     * @return  gangerFact 
+     */
+    public GangerFactory getGangerFactory() {
+        return gangerFact_;
     }
 
     /**
@@ -83,11 +99,14 @@ public abstract class PlotContext {
      * in that it allows pluggable DataGeoms specified by classname.
      *
      * @param  plotType  plot type
+     * @param  gangerFact    defines plot grouping
      * @return  standard plot context
      */
-    public static PlotContext createStandardContext( final PlotType plotType ) {
+    public static PlotContext
+            createStandardContext( final PlotType plotType,
+                                   GangerFactory gangerFact ) {
         final DataGeom[] geoms = plotType.getPointDataGeoms();
-        return new PlotContext( plotType, geoms ) {
+        return new PlotContext( plotType, geoms, gangerFact ) {
 
             public Parameter[] getGeomParameters( String suffix ) {
                 return new Parameter[] { createGeomParameter( suffix ) };
@@ -120,11 +139,14 @@ public abstract class PlotContext {
      *
      * @param  plotType  plot type
      * @param  geom   data geom used in all cases
+     * @param  gangerFact  defines plot grouping
      * @return  fixed-geom plot context
      */
     public static PlotContext createFixedContext( final PlotType plotType,
-                                                  final DataGeom geom ) {
-        return new PlotContext( plotType, new DataGeom[] { geom } ) {
+                                                  final DataGeom geom,
+                                                  GangerFactory gangerFact ) {
+        return new PlotContext( plotType, new DataGeom[] { geom },
+                                gangerFact ) {
             public Parameter[] getGeomParameters( String suffix ) {
                 return new Parameter[ 0 ];
             }

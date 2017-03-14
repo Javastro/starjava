@@ -32,12 +32,9 @@ public class CubeAxisController
      * Constructor.
      *
      * @param  isIso   true for isotropic, false for anisotropic
-     * @param  stack   plot control stack
      */
-    public CubeAxisController( boolean isIso, ControlStack stack ) {
-        super( new CubeSurfaceFactory( isIso ),
-               isIso ? "sphereNavigation" : "cubeNavigation",
-               createAxisLabelKeys(), stack );
+    public CubeAxisController( boolean isIso ) {
+        super( new CubeSurfaceFactory( isIso ), createAxisLabelKeys() );
         isIso_ = isIso;
         final SurfaceFactory<CubeSurfaceFactory.Profile,CubeAspect> surfFact =
             getSurfaceFactory();

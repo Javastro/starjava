@@ -1,6 +1,8 @@
 package uk.ac.starlink.topcat.plot2;
 
 import java.awt.BorderLayout;
+import java.awt.Component;
+import java.awt.Insets;
 import java.awt.event.ActionEvent;
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -10,17 +12,22 @@ import java.util.Map;
 import java.util.logging.Logger;
 import javax.swing.AbstractAction;
 import javax.swing.Action;
+import javax.swing.BorderFactory;
 import javax.swing.Icon;
+import javax.swing.JButton;
 import javax.swing.JComponent;
 import javax.swing.JPanel;
+import javax.swing.JPopupMenu;
 import javax.swing.JScrollPane;
-import javax.swing.JToolBar;
+import javax.swing.event.ListDataEvent;
+import javax.swing.event.ListDataListener;
 import javax.swing.event.ListSelectionEvent;
 import javax.swing.event.ListSelectionListener;
 import uk.ac.starlink.topcat.ResourceIcon;
 import uk.ac.starlink.topcat.TopcatListener;
 import uk.ac.starlink.ttools.plot2.Plotter;
 import uk.ac.starlink.ttools.plot2.config.ConfigKey;
+import uk.ac.starlink.ttools.plot2.config.Specifier;
 import uk.ac.starlink.ttools.plot2.data.Coord;
 import uk.ac.starlink.ttools.plot2.layer.ModePlotter;
 
@@ -43,12 +50,15 @@ public class MultiFormLayerControl extends FormLayerControl {
 
     private static final Logger logger_ =
         Logger.getLogger( "uk.ac.starlink.topcat.plot2" );
+    private static final String[] HINT_LINES =
+        { "Add layers", "using \"Forms\"", "button above", };
 
     /**
      * Constructor.
      *
      * @param  posCoordPanel  panel for entering table and basic positional
      *                        coordinates
+     * @param  zsel    zone id specifier, may be null for single-zone plots
      * @param  autoPopulate  if true, when the table is changed an attempt
      *                       will be made to initialise the coordinate fields
      *                       with some suitable values
@@ -61,12 +71,12 @@ public class MultiFormLayerControl extends FormLayerControl {
      *                        options
      */
     public MultiFormLayerControl( PositionCoordPanel posCoordPanel,
-                                  boolean autoPopulate,
+                                  Specifier<ZoneId> zsel, boolean autoPopulate,
                                   NextSupplier nextSupplier,
                                   TopcatListener tcListener, Icon controlIcon,
                                   Plotter[] plotters,
                                   Configger baseConfigger ) {
-        super( posCoordPanel, autoPopulate, nextSupplier, tcListener,
+        super( posCoordPanel, zsel, autoPopulate, nextSupplier, tcListener,
                controlIcon );
         baseConfigger_ = baseConfigger;
         subsetKeys_ = nextSupplier.getKeys();
@@ -81,16 +91,29 @@ public class MultiFormLayerControl extends FormLayerControl {
         final JComponent fcHolder = new JPanel( new BorderLayout() );
         formStackModel_ = new ControlStackModel();
         formStack_ = new ControlStack( formStackModel_ );
+        final Action removeAction =
+            formStack_
+           .createRemoveAction( "Remove Selected Form",
+                                "Delete the currently selected form"
+                              + " from the stack" );
         formStack_.addListSelectionListener( new ListSelectionListener() {
             public void valueChanged( ListSelectionEvent evt ) {
                 fcHolder.removeAll();
-                Object item = formStack_.getSelectedValue();
-                if ( item instanceof FormControl ) {
-                    FormControl fc = (FormControl) item;
+                Control fc = formStack_.getCurrentControl();
+                if ( fc != null ) {
                     fcHolder.add( fc.getPanel(), BorderLayout.NORTH );
                     fcHolder.revalidate();
                     fcHolder.repaint();
                 }
+                String fcTrailer = fc == null
+                                 ? ""
+                                 : " (" + fc.getControlLabel() + ")";
+                removeAction.putValue( Action.NAME,
+                                       "Remove Selected Form" + fcTrailer );
+                removeAction.putValue( Action.SHORT_DESCRIPTION,
+                                       "Delete the currently selected form"
+                                     + fcTrailer + " from the stack" );
+                removeAction.setEnabled( fc != null );
             }
         } );
         JScrollPane stackScroller = new JScrollPane( formStack_ );
@@ -100,10 +123,40 @@ public class MultiFormLayerControl extends FormLayerControl {
         fcScroller.getVerticalScrollBar().setUnitIncrement( 16 );
         JComponent formPanel = new JPanel( new BorderLayout() );
         JComponent body =  new JPanel( new BorderLayout() );
-        body.add( stackScroller, BorderLayout.WEST );
+        JComponent leftBox = new JPanel( new BorderLayout() );
+        JComponent fBar = new JPanel( new BorderLayout() );
+        fBar.setBorder( BorderFactory.createEmptyBorder( 0, 0, 2, 2 ) );
+        leftBox.add( fBar, BorderLayout.NORTH );
+        leftBox.add( stackScroller, BorderLayout.WEST );
+        body.add( leftBox, BorderLayout.WEST );
         body.add( fcScroller, BorderLayout.CENTER );
         formPanel.add( body, BorderLayout.CENTER );
         formStackModel_.addPlotActionListener( getActionForwarder() );
+
+        /* Fix it so that the hint message is visible at appropriate times,
+         * and the form stack is resized according to the width of its
+         * current contents. */
+        formStackModel_.addListDataListener( new ListDataListener() {
+            public void contentsChanged( ListDataEvent evt ) {
+                rejig();
+            }
+            public void intervalRemoved( ListDataEvent evt ) {
+                if ( formStackModel_.getSize() == 0 ) {
+                    setHintVisible( true );
+                }
+                rejig();
+            }
+            public void intervalAdded( ListDataEvent evt ) {
+                setHintVisible( false );
+                rejig();
+            }
+            private void rejig() {
+                JComponent panel = getPanel();
+                panel.revalidate();
+                panel.repaint();
+            }
+        } );
+        setHintVisible( true );
 
         /* Divide up the supplied plotters into those which constitute
          * mode/form families, and standalone ones. */
@@ -137,41 +190,44 @@ public class MultiFormLayerControl extends FormLayerControl {
             formActionList.add( new SingleFormAction( plotter ) );
         }
 
-        /* Action to remove the current form from the stack. */
-        Action removeAction =
-            formStack_.createRemoveAction( "Remove",
-                                           "Delete the current form" );
-
-        /* Populate a toolbar with these actions. */
-        JToolBar formToolbar = new JToolBar();
-        formToolbar.setFloatable( false );
+        /* Populate a menu with these actions. */
+        final JPopupMenu formMenu = new JPopupMenu( "Forms" );
         for ( Action formAct : formActionList ) {
-            formToolbar.add( formAct );
+            formMenu.add( formAct );
         }
-        formToolbar.addSeparator();
-        formToolbar.add( removeAction );
-        formPanel.add( formToolbar, BorderLayout.NORTH );
+        formMenu.addSeparator();
+        formMenu.add( removeAction );
+        Action fmenuAct = new AbstractAction( "Forms", ResourceIcon.ADD ) {
+            public void actionPerformed( ActionEvent evt ) {
+                Object src = evt.getSource();
+                if ( src instanceof Component ) {
+                    Component comp = (Component) src;
+                    formMenu.show( comp, 0, 0 );
+                }
+            }
+        };
+        JButton fmenuButt = new JButton( fmenuAct );
+        fmenuButt.setMargin( new Insets( 2, 2, 2, 2 ) );
+        fBar.add( fmenuButt, BorderLayout.NORTH );
+
         addControlTab( "Form", formPanel, false );
+        if ( zsel != null ) {
+            addZoneTab( zsel );
+        }
         dfltFormAct_ = formActionList.get( 0 );
     }
 
-    /**
-     * Returns the controls in the form control list which are contributing
-     * to the plot.  Controls that the user has deactivated (unchecked)
-     * are ignored.
-     *
-     * @return  list of active form controls
-     */
-    protected FormControl[] getActiveFormControls() {
-        List<FormControl> fcList = new ArrayList<FormControl>();
+    protected FormControl[] getFormControls() {
         int nf = formStackModel_.getSize();
+        FormControl[] fcs = new FormControl[ nf ];
         for ( int ifm = 0; ifm < nf; ifm++ ) {
-            FormControl fc = (FormControl) formStackModel_.getControlAt( ifm );
-            if ( formStackModel_.isControlActive( fc ) ) {
-                fcList.add( fc );
-            }
+            fcs[ ifm ] = (FormControl) formStackModel_.getControlAt( ifm );
         }
-        return fcList.toArray( new FormControl[ 0 ] );
+        return fcs;
+    }
+
+    protected boolean isControlActive( FormControl fc ) {
+        return formStackModel_.isControlActive( fc );
     }
 
     /**
@@ -179,6 +235,7 @@ public class MultiFormLayerControl extends FormLayerControl {
      */
     public void addDefaultLayer() {
         dfltFormAct_.actionPerformed( null );
+        setHintVisible( true );
     }
 
     /**
@@ -199,6 +256,16 @@ public class MultiFormLayerControl extends FormLayerControl {
         else {
             logger_.warning( "Failed to add layer " + lcmd );
         }
+    }
+
+    /**
+     * Determines whether the hint about using the Forms button is
+     * painted or not.
+     *
+     * @param  isVisible  true iff hint is to be displayed
+     */
+    private void setHintVisible( boolean isVisible ) {
+        formStack_.setListMessage( isVisible ? HINT_LINES : null );
     }
 
     /**
@@ -297,10 +364,10 @@ public class MultiFormLayerControl extends FormLayerControl {
          * @param  plotter   object that generates plot layers
          */
         public SingleFormAction( Plotter plotter ) {
-            super( plotter.getPlotterName(),
+            super( "Add " + plotter.getPlotterName(),
                    ResourceIcon.toAddIcon( plotter.getPlotterIcon() ) );
             putValue( SHORT_DESCRIPTION,
-                      "Add new " + plotter.getPlotterName() + " form" );
+                      "Add a new " + plotter.getPlotterName() + " plot layer" );
             plotter_ = plotter;
         }
 
@@ -324,10 +391,10 @@ public class MultiFormLayerControl extends FormLayerControl {
          * @param  form   common form
          */
         public ModeFormAction( ModePlotter[] plotters, ModePlotter.Form form ) {
-            super( form.getFormName(),
+            super( "Add " + form.getFormName(),
                    ResourceIcon.toAddIcon( form.getFormIcon() ) );
             putValue( SHORT_DESCRIPTION,
-                      "Add new " + form.getFormName() + " form" );
+                      "Add a new " + form.getFormName() + " plot layer" );
             plotters_ = plotters;
         }
 

@@ -38,8 +38,9 @@ import uk.ac.starlink.ttools.plot2.data.DataSpec;
 import uk.ac.starlink.ttools.plot2.data.DataStore;
 import uk.ac.starlink.ttools.plot2.data.FloatingCoord;
 import uk.ac.starlink.ttools.plot2.data.TupleSequence;
-import uk.ac.starlink.ttools.plot2.geom.PlaneSurface;
+import uk.ac.starlink.ttools.plot2.geom.PlanarSurface;
 import uk.ac.starlink.ttools.plot2.geom.SliceDataGeom;
+import uk.ac.starlink.ttools.plot2.geom.TimeDataGeom;
 import uk.ac.starlink.ttools.plot2.paper.Paper;
 import uk.ac.starlink.ttools.plot2.paper.PaperType;
 
@@ -55,20 +56,22 @@ public class HistogramPlotter
 
     private final FloatingCoord xCoord_;
     private final FloatingCoord weightCoord_;
+    private final ConfigKey<Normalisation> normKey_;
     private final SliceDataGeom histoDataGeom_;
     private final CoordGroup histoCoordGrp_;
     private final int icX_;
     private final int icWeight_;
+    private final boolean isTimeX_;
 
     /** ReportKey for histogram bins. */
     public static final ReportKey<BinBag> BINS_KEY =
-        new ReportKey<BinBag>( new ReportMeta( "bins", "Bins" ), BinBag.class,
-                               false );
+        ReportKey.createUnprintableKey( new ReportMeta( "bins", "Bins" ),
+                                        BinBag.class );
 
     /** ReportKey for actual bin width. */
     public static final ReportKey<Double> BINWIDTH_KEY =
-        new ReportKey<Double>( new ReportMeta( "binwidth", "Bin Width" ),
-                               Double.class, false );
+        ReportKey.createDoubleKey( new ReportMeta( "binwidth", "Bin Width" ),
+                                   false );
 
     /** Config key for bin size configuration. */
     public static final ConfigKey<BinSizer> BINSIZER_KEY =
@@ -93,7 +96,7 @@ public class HistogramPlotter
                 "or the numeric entry field to fix the bin width.",
                 "</p>",
             } )
-        , BINWIDTH_KEY, 30, true, false );
+        , BINWIDTH_KEY, 30, false );
 
     /** Config key for bar line thickness. */
     public static final ConfigKey<Integer> THICK_KEY =
@@ -125,9 +128,12 @@ public class HistogramPlotter
      *
      * @param   xCoord  X axis coordinate
      * @param   hasWeight   true to permit histogram weighting
+     * @param   normKey   config key for normalisation options
      */
-    public HistogramPlotter( FloatingCoord xCoord, boolean hasWeight ) {
+    public HistogramPlotter( FloatingCoord xCoord, boolean hasWeight,
+                             ConfigKey<Normalisation> normKey ) {
         xCoord_ = xCoord;
+        normKey_ = normKey;
         if ( hasWeight ) {
             weightCoord_ = FloatingCoord.WEIGHT_COORD;
             histoCoordGrp_ =
@@ -152,6 +158,15 @@ public class HistogramPlotter
         icWeight_ = hasWeight
                   ? histoCoordGrp_.getExtraCoordIndex( 1, null )
                   : -1;
+
+        /* This is not nice, and will come back to bite me if I want to
+         * allow for configurable axis alignment of the histogram.
+         * But this information is required during
+         * PlotLayer.extendCoordinateRange, and in the current framework
+         * there's no better way to get it.
+         * The problem is that PlotLayer.extendCoordinateRange is defined
+         * with rather arbitrary/adhoc arguments. */
+        isTimeX_ = xCoord == TimeDataGeom.T_COORD;
     }
 
     public String getPlotterName() {
@@ -177,7 +192,7 @@ public class HistogramPlotter
             BINSIZER_KEY,
             PHASE_KEY,
             StyleKeys.CUMULATIVE,
-            StyleKeys.NORMALISE,
+            normKey_,
             StyleKeys.BAR_FORM,
             THICK_KEY,
             StyleKeys.DASH,
@@ -185,15 +200,12 @@ public class HistogramPlotter
     }
 
     public HistoStyle createStyle( ConfigMap config ) {
-        Color baseColor = config.get( StyleKeys.COLOR );
-        double alpha = 1 - config.get( StyleKeys.TRANSPARENCY );
-        float[] rgba = baseColor.getRGBComponents( new float[ 4 ] );
-        rgba[ 3 ] *= alpha;
-        Color color = new Color( rgba[ 0 ], rgba[ 1 ], rgba[ 2 ], rgba[ 3 ] );
+        Color color = StyleKeys.getAlphaColor( config, StyleKeys.COLOR,
+                                               StyleKeys.TRANSPARENCY );
         BarStyle.Form barForm = config.get( StyleKeys.BAR_FORM );
         BarStyle.Placement placement = BarStyle.PLACE_OVER;
         boolean cumulative = config.get( StyleKeys.CUMULATIVE );
-        Normalisation norm = config.get( StyleKeys.NORMALISE );
+        Normalisation norm = config.get( normKey_ );
         int thick = config.get( THICK_KEY );
         float[] dash = config.get( StyleKeys.DASH );
         BinSizer sizer = config.get( BINSIZER_KEY );
@@ -222,22 +234,24 @@ public class HistogramPlotter
             Color color = style.color_;
             final boolean isOpaque = color.getAlpha() == 255
                                  && style.barForm_.isOpaque();
+            final Rounding xround = Rounding.getRounding( isTimeX_ );
             LayerOpt layerOpt = new LayerOpt( color, isOpaque );
             return new AbstractPlotLayer( this, histoDataGeom_, dataSpec,
                                           style, layerOpt ) {
                 public Drawing createDrawing( Surface surface,
                                               Map<AuxScale,Range> auxRanges,
                                               final PaperType paperType ) {
-                    if ( ! ( surface instanceof PlaneSurface ) ) {
-                        throw new IllegalArgumentException( "Not plane surface "
-                                                          + surface );
+                    if ( ! ( surface instanceof PlanarSurface ) ) {
+                        throw new IllegalArgumentException( "Not planar surface"
+                                                          + " " + surface );
                     }
-                    final PlaneSurface pSurf = (PlaneSurface) surface;
+                    final PlanarSurface pSurf = (PlanarSurface) surface;
                     final boolean xlog = pSurf.getLogFlags()[ 0 ];
                     double[] xlimits = pSurf.getDataLimits()[ 0 ];
                     final double xlo = xlimits[ 0 ];
                     final double xhi = xlimits[ 1 ];
-                    final double binWidth = sizer.getWidth( xlog, xlo, xhi );
+                    final double binWidth =
+                        sizer.getWidth( xlog, xlo, xhi, xround );
 
                     /* We can't work out what other histogram data sets are
                      * being plotted or where this one fits in - that level
@@ -309,7 +323,7 @@ public class HistogramPlotter
                     double[] xlimits = xRange.getFiniteBounds( xlog );
                     double xlo = xlimits[ 0 ];
                     double xhi = xlimits[ 1 ];
-                    double binWidth = sizer.getWidth( xlog, xlo, xhi );
+                    double binWidth = sizer.getWidth( xlog, xlo, xhi, xround );
                     BinBag binBag = readBins( xlog, binWidth, binPhase, xlo,
                                               dataSpec, dataStore );
 
@@ -394,7 +408,7 @@ public class HistogramPlotter
      * @param  nseq     total number of histograms in the plot
      * @param  g        graphics context
      */
-    private void paintBins( PlaneSurface surface, BinBag binBag,
+    private void paintBins( PlanarSurface surface, BinBag binBag,
                             HistoStyle style, int iseq, int nseq, Graphics g ) {
         Color color0 = g.getColor();
         g.setColor( style.color_ );

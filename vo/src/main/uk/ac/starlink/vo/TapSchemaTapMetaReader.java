@@ -1,11 +1,7 @@
 package uk.ac.starlink.vo;
 
 import java.io.IOException;
-import java.net.MalformedURLException;
-import java.net.URL;
 import java.util.ArrayList;
-import java.util.Arrays;
-import java.util.Comparator;
 import java.util.List;
 import java.util.Map;
 import java.util.logging.Logger;
@@ -35,7 +31,7 @@ public class TapSchemaTapMetaReader implements TapMetaReader {
     /**
      * Constructor.
      *
-     * @param  serviceUrl  TAP service URL
+     * @param  endpointSet  TAP service locations
      * @param  maxrec   maximum number of records to be requested at once
      * @param  coding  configures HTTP compression
      * @param  populateSchemas   whether SchemaMeta objects will be
@@ -50,22 +46,13 @@ public class TapSchemaTapMetaReader implements TapMetaReader {
      * @param  preloadFkeys  if true, all foreign key info is loaded in one go,
      *                       if false it's read per-table as required
      */
-    public TapSchemaTapMetaReader( String serviceUrl, int maxrec,
+    public TapSchemaTapMetaReader( EndpointSet endpointSet, int maxrec,
                                    ContentCoding coding,
                                    boolean populateSchemas,
                                    boolean populateTables,
                                    MetaNameFixer fixer,
                                    boolean preloadFkeys ) {
-        final URL url;
-        try {
-            url = new URL( serviceUrl );
-        }
-        catch ( MalformedURLException e ) {
-            throw (IllegalArgumentException)
-                  new IllegalArgumentException( "Bad URL: " + serviceUrl )
-                 .initCause( e );
-        }
-        tsi_ = new TapSchemaInterrogator( url, maxrec, coding ) {
+        tsi_ = new TapSchemaInterrogator( endpointSet, maxrec, coding ) {
             @Override
             protected StarTable executeQuery( TapQuery tq ) throws IOException {
                 logger_.info( tq.getAdql() );
@@ -80,7 +67,7 @@ public class TapSchemaTapMetaReader implements TapMetaReader {
     }
 
     public String getSource() {
-        return tsi_.getServiceUrl().toString();
+        return tsi_.getEndpointSet().getIdentity();
     }
 
     public String getMeans() {
@@ -111,13 +98,6 @@ public class TapSchemaTapMetaReader implements TapMetaReader {
             tsi_.readSchemas( populateSchemas_, populateTables_,
                               addOrphanTables_ );
         fixer_.fixSchemas( schemas );
-        sortSchemas( schemas );
-        for ( SchemaMeta smeta : schemas ) {
-            TableMeta[] tmetas = smeta.getTables();
-            if ( tmetas != null ) {
-                sortTables( tmetas );
-            }
-        }
         return schemas;
     }
 
@@ -154,7 +134,6 @@ public class TapSchemaTapMetaReader implements TapMetaReader {
         }
         TableMeta[] tables = tableList.toArray( new TableMeta[ 0 ] );
         fixer_.fixTables( tables, schema );
-        sortTables( tables );
         return tables;
     }
 
@@ -233,39 +212,5 @@ public class TapSchemaTapMetaReader implements TapMetaReader {
                            + objType + " entries" );
             logger_.info( "Orphaned " + objType + "s: " + map.keySet() );
         }
-    }
-
-    /**
-     * Sorts an array of schemas in place by schema name.
-     *
-     * @param  smetas  schema array
-     */
-    static void sortSchemas( SchemaMeta[] smetas ) {
-        Arrays.sort( smetas, new Comparator<SchemaMeta>() {
-            public int compare( SchemaMeta s1, SchemaMeta s2 ) {
-                return getSchemaName( s1 ).compareTo( getSchemaName( s2 ) );
-            }
-            private String getSchemaName( SchemaMeta smeta ) {
-                String name = smeta.getName();
-                return name == null ? "" : name;
-            }
-        } );
-    }
-
-    /**
-     * Sorts an array of tables in place by table name.
-     *
-     * @param  tmetas  table array
-     */
-    static void sortTables( TableMeta[] tmetas ) {
-        Arrays.sort( tmetas, new Comparator<TableMeta>() {
-            public int compare( TableMeta t1, TableMeta t2 ) {
-                return getTableName( t1 ).compareTo( getTableName( t2 ) );
-            }
-            private String getTableName( TableMeta tmeta ) {
-                String name = tmeta.getName();
-                return name == null ? "" : name;
-            }
-        } );
     }
 }

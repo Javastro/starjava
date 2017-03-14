@@ -44,7 +44,7 @@ public class SkyAxisController
      * Constructor.
      */
     public SkyAxisController() {
-        super( new SkySurfaceFactory(), "skyNavigation" );
+        super( new SkySurfaceFactory() );
         SurfaceFactory surfFact = getSurfaceFactory();
         ConfigControl mainControl = getMainControl();
 
@@ -87,6 +87,12 @@ public class SkyAxisController
                                                          .getKeys() ) );
 
         assert assertHasKeys( surfFact.getProfileKeys() );
+    }
+
+    /**
+     * No-op.
+     */
+    public void configureForLayers( LayerControl[] layerControls ) {
     }
 
     /**

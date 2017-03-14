@@ -1,11 +1,13 @@
 package uk.ac.starlink.topcat.plot2;
 
 import java.awt.Color;
-import java.awt.event.ActionEvent;
 import java.awt.event.ActionListener;
 import javax.swing.Box;
 import javax.swing.Icon;
+import javax.swing.JCheckBox;
 import javax.swing.JComponent;
+import javax.swing.SwingConstants;
+import uk.ac.starlink.topcat.LineBox;
 import uk.ac.starlink.topcat.ResourceIcon;
 import uk.ac.starlink.topcat.ToggleButtonModel;
 import uk.ac.starlink.ttools.plot.Range;
@@ -36,13 +38,13 @@ import uk.ac.starlink.ttools.plot2.data.DataSpec;
  */
 public class ShaderControl extends ConfigControl {
 
-    private final ControlStackModel stackModel_;
-    private final Configger configger_;
+    private final MultiConfigger configger_;
     private final AutoSpecifier<String> labelSpecifier_;
     private final AutoSpecifier<Boolean> visibleSpecifier_;
     private final ConfigSpecifier rangeSpecifier_;
     private static final AuxScale SCALE = AuxScale.COLOR;
     private static final RampKeySet RAMP_KEYS = StyleKeys.AUX_RAMP;
+    private static final int RAMP_WIDTH = 15;
     private static final ConfigKey<String> AUXLABEL_KEY =
         new StringConfigKey( new ConfigMeta( "auxlabel", "Aux Axis Label" ),
                              null );
@@ -53,13 +55,15 @@ public class ShaderControl extends ConfigControl {
     /**
      * Constructor.
      *
-     * @param   stackModel   model containing layer controls
      * @param   configger   config source containing some plot-wide config,
      *                      specifically captioner style
+     * @param   auxLockModel   toggle to control whether aux ranges are
+     *                         updated dynamically or held fixed;
+     *                         may be null
      */
-    public ShaderControl( ControlStackModel stackModel, Configger configger ) {
+    public ShaderControl( MultiConfigger configger,
+                          final ToggleButtonModel auxLockModel ) {
         super( SCALE.getName() + " Axis", ResourceIcon.COLORS );
-        stackModel_ = stackModel;
         configger_ = configger;
         ActionListener forwarder = getActionForwarder();
 
@@ -72,14 +76,7 @@ public class ShaderControl extends ConfigControl {
         visibleSpecifier_ = axisSpecifier.getAutoSpecifier( AUXVISIBLE_KEY );
         labelSpecifier_.setAutoValue( null );
         visibleSpecifier_.setAutoValue( false );
-
-        stackModel.addPlotActionListener( new ActionListener() {
-            public void actionPerformed( ActionEvent evt ) {
-                adjustAutoConfig();
-            }
-        } );
-        adjustAutoConfig();
-
+        configureForLayers( new LayerControl[ 0 ] );
         rangeSpecifier_ = new ConfigSpecifier( new ConfigKey[] {
             StyleKeys.SHADE_LOW, StyleKeys.SHADE_HIGH, StyleKeys.SHADE_SUBRANGE,
         } ) {
@@ -88,6 +85,17 @@ public class ShaderControl extends ConfigControl {
                     throws ConfigException {
                 checkRangeSense( config, "Aux",
                                  StyleKeys.SHADE_LOW, StyleKeys.SHADE_HIGH );
+            }
+            @Override
+            public JComponent createComponent() {
+                JComponent box = Box.createVerticalBox();
+                box.add( super.createComponent() );
+                if ( auxLockModel != null ) {
+                    JCheckBox lockBox = auxLockModel.createCheckBox();
+                    lockBox.setHorizontalTextPosition( SwingConstants.LEADING );
+                    box.add( new LineBox( lockBox ) );
+                }
+                return box;
             }
         };
         rangeSpecifier_.addActionListener( forwarder );
@@ -125,13 +133,27 @@ public class ShaderControl extends ConfigControl {
 
     /**
      * Returns an object which can turn a range into a ShadeAxis
-     * based on current config of this component.
+     * based on current config of this component and a set of layer controls.
      *
+     * @param  controls   list of layer controls to which the axis will apply
+     * @param  zid     identifier for zone to which axis factory applies
      * @return   shade axis factory
      */
-    public ShadeAxisFactory createShadeAxisFactory() {
+    public ShadeAxisFactory createShadeAxisFactory( LayerControl[] controls,
+                                                    ZoneId zid ) {
         final ConfigMap config = getConfig();
-        final boolean visible = config.get( AUXVISIBLE_KEY );
+        config.putAll( configger_.getZoneConfig( zid ) );
+        PlotLayer scaleLayer = getFirstAuxLayer( controls, SCALE );
+        boolean autoVis = scaleLayer != null;
+        String autoLabel = scaleLayer == null
+                         ? null
+                         : getAuxLabel( scaleLayer, SCALE );
+        boolean visible = visibleSpecifier_.isAuto()
+                        ? autoVis
+                        : config.get( AUXVISIBLE_KEY );
+        String label = labelSpecifier_.isAuto()
+                     ? autoLabel
+                     : config.get( AUXLABEL_KEY );
         if ( ! visible ) {
             return new ShadeAxisFactory() {
                 public ShadeAxis createShadeAxis( Range range ) {
@@ -142,13 +164,11 @@ public class ShaderControl extends ConfigControl {
                 }
             };
         }
-        String label = config.get( AUXLABEL_KEY );
         double crowd = config.get( StyleKeys.AUX_CROWD ).doubleValue();
-        Captioner captioner =
-            StyleKeys.CAPTIONER.createValue( configger_.getConfig() );
+        Captioner captioner = StyleKeys.CAPTIONER.createValue( config );
         RampKeySet.Ramp ramp = RAMP_KEYS.createValue( config );
-        return RampKeySet
-              .createShadeAxisFactory( ramp, captioner, label, crowd );
+        return RampKeySet.createShadeAxisFactory( ramp, captioner, label,
+                                                  crowd, RAMP_WIDTH );
     }
 
     public boolean isLog() {
@@ -157,14 +177,20 @@ public class ShaderControl extends ConfigControl {
 
     /**
      * Configures state according to the current state of the control stack.
+     *
+     * @param  layerControls   list of layer controls relevant to this shading
      */
-    private void adjustAutoConfig() {
-        PlotLayer scaleLayer =
-            getFirstAuxLayer( stackModel_.getLayerControls( true ), SCALE );
-        visibleSpecifier_.setAutoValue( scaleLayer != null );
+    public void configureForLayers( LayerControl[] layerControls ) {
+        PlotLayer scaleLayer = getFirstAuxLayer( layerControls, SCALE );
+        boolean isAuto = scaleLayer != null;
+        if ( visibleSpecifier_.getAutoValue() != isAuto ) {
+            visibleSpecifier_.setAutoValue( isAuto );
+        }
         String label = scaleLayer == null ? null
                                           : getAuxLabel( scaleLayer, SCALE );
-        labelSpecifier_.setAutoValue( label );
+        if ( ! PlotUtil.equals( labelSpecifier_.getAutoValue(), label ) ) {
+            labelSpecifier_.setAutoValue( label );
+        }
     }
 
     /**

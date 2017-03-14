@@ -139,24 +139,24 @@ public abstract class ShapeMode implements ModePlotter.Mode {
 
     /** Report key for pixel X dimension in data coordinates. */
     public static final ReportKey<Double> REPKEY_XPIX =
-        new ReportKey<Double>( new ReportMeta( "xpix_size",
-                                               "Pixel X dimension"
-                                             + " in data coords" ),
-                               Double.class, true );
+        ReportKey.createDoubleKey( new ReportMeta( "xpix_size",
+                                                   "Pixel X dimension"
+                                                + " in data coords" ),
+                                   true );
 
     /** Report key for pixel Y dimension in data coordinates. */
     public static final ReportKey<Double> REPKEY_YPIX =
-        new ReportKey<Double>( new ReportMeta( "ypix_size",
-                                               "Pixel Y dimension"
-                                             + " in data coords" ),
-                               Double.class, true );
+        ReportKey.createDoubleKey( new ReportMeta( "ypix_size",
+                                                   "Pixel Y dimension"
+                                                 + " in data coords" ),
+                                   true );
 
     /** Report key for nominal pixel size in square degrees. */
     public static final ReportKey<Double> REPKEY_SKYPIX =
-        new ReportKey<Double>( new ReportMeta( "pixel_sqdeg",
-                                               "Pixel size in square degrees"
-                                             + " at projection center" ),
-                               Double.class, true );
+        ReportKey.createDoubleKey( new ReportMeta( "pixel_sqdeg",
+                                                   "Pixel size in square "
+                                                 + "degrees at proj center" ),
+                                   true );
 
     /**
      * Constructor.
@@ -1396,17 +1396,25 @@ public abstract class ShapeMode implements ModePlotter.Mode {
                         return icWeight_;
                     }
                     public void adjustAuxRange( Surface surface,
-                                                TupleSequence tseq,
+                                                DataSpec dataSpec,
+                                                DataStore dataStore,
+                                                Object[] knownPlans,
                                                 Range range ) {
-                        /* We don't have one - have to fake it. */
-                        Map<AuxScale,Range> auxRanges =
-                            new HashMap<AuxScale,Range>();
-                        double[] bounds =
-                            readBinList( surface, tseq, auxRanges )
-                           .getResult()
-                           .getValueBounds();
-                        range.submit( bounds[ 0 ] );
-                        range.submit( bounds[ 1 ] );
+                        WeightPlan wplan =
+                            getWeightPlan( knownPlans, surface, dataSpec );
+                        final BinList.Result binResult;
+                        if ( wplan == null ) {
+                            // no auxRanges - have to fake it.
+                            Map<AuxScale,Range> auxRanges =
+                                new HashMap<AuxScale,Range>();
+                            binResult = readBinList( surface, dataSpec,
+                                                     dataStore, auxRanges )
+                                       .getResult();
+                        }
+                        else {
+                            binResult = wplan.binResult_;
+                        }
+                        PlotUtil.extendRange( range, binResult );
                     }
                 } );
                 return map;
@@ -1423,10 +1431,13 @@ public abstract class ShapeMode implements ModePlotter.Mode {
              * about how to do the plot.
              *
              * @param  surface  plot surface
+             * @param  dataSpec  data specification
+             * @param  dataStore  data storage
              * @param  tseq    point sequence
              * @param  auxRanges   aux data range map
              */
-            private BinList readBinList( Surface surface, TupleSequence tseq,
+            private BinList readBinList( Surface surface, DataSpec dataSpec,
+                                         DataStore dataStore,
                                          Map<AuxScale,Range> auxRanges ) {
                 DataGeom geom = getDataGeom();
                 WeightPaper wpaper =
@@ -1435,10 +1446,11 @@ public abstract class ShapeMode implements ModePlotter.Mode {
                 ShapePainter painter =
                     outliner_.create2DPainter( surface, geom, auxRanges,
                                                wpaper.getPaperType() );
+                TupleSequence tseq = dataStore.getTupleSequence( dataSpec );
 
                 /* Under normal circumstances, use the submitted combiner
                  * to construct a bin list to order. */
-                boolean hasWeight = ! getDataSpec().isCoordBlank( icWeight_ );
+                boolean hasWeight = ! dataSpec.isCoordBlank( icWeight_ );
                 if ( hasWeight ) {
                     while ( tseq.next() ) {
                         double w =
@@ -1495,25 +1507,24 @@ public abstract class ShapeMode implements ModePlotter.Mode {
 
                 public Object calculatePlan( Object[] knownPlans,
                                              DataStore dataStore ) {
-                    DataGeom geom = getDataGeom();
                     DataSpec dataSpec = getDataSpec();
-                    for ( Object plan : knownPlans ) {
-                        if ( plan instanceof WeightPlan ) {
-                            WeightPlan wplan = (WeightPlan) plan;
-                            if ( wplan.matches( wstamper_.combiner_, surface_,
-                                                geom, dataSpec, outliner_ ) ) {
-                                return wplan;
-                            }
-                        }
+                    WeightPlan knownPlan =
+                        getWeightPlan( knownPlans, surface_,  dataSpec );
+                    if ( knownPlan != null ) {
+                        return knownPlan;
                     }
-                    TupleSequence tseq = dataStore.getTupleSequence( dataSpec );
-                    BinList binList = readBinList( surface_, tseq, auxRanges_ );
-                    int nbin = (int) binList.getSize();  // pixel count
-                    Combiner combiner = binList.getCombiner();
-                    BinList.Result binResult = binList.getResult();
-                    return new WeightPlan( nbin, combiner, binResult,
-                                           surface_, geom, dataSpec,
-                                           outliner_ );
+                    else {
+                        BinList binList = readBinList( surface_, dataSpec,
+                                                       dataStore, auxRanges_ );
+                        int nbin = (int) binList.getSize();  // pixel count
+                        Combiner combiner = binList.getCombiner();
+                        BinList.Result binResult =
+                            binList.getResult().compact();
+                        DataGeom geom = getDataGeom();
+                        return new WeightPlan( nbin, combiner, binResult,
+                                               surface_, geom, dataSpec,
+                                               outliner_ );
+                    }
                 }
 
                 public void paintData( Object plan, Paper paper,
@@ -1591,6 +1602,32 @@ public abstract class ShapeMode implements ModePlotter.Mode {
                     }
                     return pixels;
                 }
+            }
+
+            /**
+             * Identifies and retrieves a weight plan that can be used for
+             * this layer from a list of precalculated plans.
+             * If none of the supplied plans is suitable, null is returned.
+             *
+             * @param  knownPlans  available pre-calculated plans
+             * @param  surface   target plotting surface
+             * @param  dataSpec   weight data specification
+             * @return  suitable weight plan from supplied list, or null
+             */
+            private WeightPlan getWeightPlan( Object[] knownPlans,
+                                              Surface surface,
+                                              DataSpec dataSpec ) {
+                DataGeom geom = getDataGeom();
+                for ( Object plan : knownPlans ) {
+                    if ( plan instanceof WeightPlan ) {
+                        WeightPlan wplan = (WeightPlan) plan;
+                        if ( wplan.matches( wstamper_.combiner_, surface,
+                                            geom, dataSpec, outliner_ ) ) {
+                            return wplan;
+                        }
+                    }
+                }
+                return null;
             }
         }
 

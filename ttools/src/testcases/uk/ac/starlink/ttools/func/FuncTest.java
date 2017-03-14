@@ -31,19 +31,19 @@ public class FuncTest extends TestCase {
         assertEquals( 2.3, Arithmetic.abs( -2.3 ) );
 
         assertEquals( 5, Arithmetic.max( (short) 5, (short) 4) );
-        assertEquals( -4.0, Arithmetic.max( -5.0f, -4.0f ) );
+        assertEquals( -4.0, Arithmetic.maxNaN( -5.0f, -4.0f ) );
 
         assertEquals( 4, Arithmetic.min( (short) 5, (short) 4) );
-        assertEquals( -5.0, Arithmetic.min( -5.0f, -4.0f ) );
+        assertEquals( -5.0, Arithmetic.minNaN( -5.0f, -4.0f ) );
 
         assertEquals( 4.0, Arithmetic.maxReal( 4.0, Double.NaN ) );
         assertEquals( 4.0, Arithmetic.maxReal( Double.NaN, 4.0 ) );
         assertEquals( Math.PI, Arithmetic.minReal( Math.PI, Double.NaN ) );
         assertEquals( Math.PI, Arithmetic.minReal( Double.NaN, Math.PI ) );
-        assertTrue( Double.isNaN( Arithmetic.max( 4.0, Double.NaN ) ) );
-        assertTrue( Double.isNaN( Arithmetic.max( Double.NaN, 4.0 ) ) );
-        assertTrue( Double.isNaN( Arithmetic.min( Math.PI, Double.NaN ) ) );
-        assertTrue( Double.isNaN( Arithmetic.min( Double.NaN, Math.PI ) ) );
+        assertTrue( Double.isNaN( Arithmetic.maxNaN( 4.0, Double.NaN ) ) );
+        assertTrue( Double.isNaN( Arithmetic.maxNaN( Double.NaN, 4.0 ) ) );
+        assertTrue( Double.isNaN( Arithmetic.minNaN( Math.PI, Double.NaN ) ) );
+        assertTrue( Double.isNaN( Arithmetic.minNaN( Double.NaN, Math.PI ) ) );
         assertEquals( 4.0, Arithmetic.maxReal( 4.0, Math.PI ) );
         assertEquals( 4.0, Arithmetic.maxReal( Math.PI, 4.0 ) );
         assertEquals( Math.PI, Arithmetic.minReal( 4.0, Math.PI ) );
@@ -56,6 +56,22 @@ public class FuncTest extends TestCase {
         assertEquals( 4, Arithmetic.round( 4.5 ) );
 
         assertEquals( 3.14f, Arithmetic.roundDecimal( Math.PI, 2 ) );
+    }
+
+    public void testList() {
+        assertEquals( 103, Lists.sum( 1, 3, 99 ) );
+        assertEquals( 4, Lists.sum( 1f, 3.0, Double.NaN ) );
+        assertEquals( 5, Lists.mean( 2, 4, (byte) 6, 8L ) );
+        assertEquals( 100, Lists.mean( 100.5, 99.5, Float.NaN ) );
+        assertEquals( 2.8, Lists.variance( 0, 3, 4, 3, 0 ) );
+        assertEquals( 2, Lists.variance( 0, 3, Double.NaN, 3, Float.NaN ) );
+        assertEquals( 2.8, Lists.stdev( -3, -2, 0, 0, 1, 2, 3, 4, 5, 6 ) );
+        assertEquals( Math.PI, Lists.min( Math.PI ) );
+        assertEquals( -50, Lists.min( 20, 25, -50., Double.NaN, 101 ) );
+        assertEquals( Math.E, Lists.max( Math.E ) );
+        assertEquals( 101, Lists.max( 20, 25, -50, Float.NaN, 101 ) );
+        assertEquals( -5.25, Lists.median( -5.25 ) );
+        assertEquals( 6, Lists.median( -1000000, 5, 7, 8, 6 ) );
     }
 
     public void testArray() {
@@ -81,6 +97,14 @@ public class FuncTest extends TestCase {
             assertEquals( Arrays.maximum( array ),
                           Arrays.quantile( array, 1.0 ) );
         }
+
+        assertEquals( 16.0, Lists.sum( d1 ) );
+        assertEquals( -3.0, Lists.min( d1 ) );
+        assertEquals( 6.0, Lists.max( d1 ) );
+        assertEquals( 1.6, Lists.mean( d1 ) );
+        assertEquals( 2.8, Lists.stdev( d1 ) );
+        assertEquals( 7.84, Lists.variance( d1 ) );
+
         Object[] a2s = new Object[] { f2, d2, };
         for ( int ia = 0; ia < a2s.length; ia++ ) {
             Object array = a2s[ ia ];
@@ -97,6 +121,13 @@ public class FuncTest extends TestCase {
             assertEquals( Arrays.maximum( array ),
                           Arrays.quantile( array, 1.0 ) );
         }
+
+        assertEquals( 16.0, Lists.sum( d2 ) );
+        assertEquals( -3.0, Lists.min( d2 ) );
+        assertEquals( 6.0, Lists.max( d2 ) );
+        assertEquals( 2.0, Lists.mean( d2 ) );
+        assertEquals( 3.0, Lists.stdev( d2 ) );
+        assertEquals( 9.0, Lists.variance( d2 ) );
 
         double[][] a5s = new double[][] {
             Arrays.array( 1, 5, 4, 3, Math.E ),
@@ -122,6 +153,14 @@ public class FuncTest extends TestCase {
         assertEquals( 1, Arrays.median( Arrays.array( 1, 0, 0, 0, 2, 2, 2 ) ) );
         assertEquals( 1, Arrays.median( Arrays
                                        .array( 1, 1, 0, 0, 0, 2, 2, 2 ) ) );
+
+        assertEquals( 2,
+                      Arrays.countTrue( new boolean[] { true, false, true } ) );
+        assertEquals( 2, Lists.countTrue( true, false, true ) );
+        assertEquals( 2, Arrays.count( new Object[] {
+                             Float.NaN, Double.NaN, new Integer( 23 ),
+                             "abc", null, null
+                         } ) );
 
         assertEquals( "1; 2; 4", Arrays.join( new int[] { 1, 2, 4, }, "; " ) );
 
@@ -157,6 +196,14 @@ public class FuncTest extends TestCase {
         assertArrayEquals( new double[] { 0, 3, 0.5 },
                            Arrays.divide( new short[] { 0, 9, 4 },
                                           new double[] { 1, 3, 8 } ) );
+
+        assertArrayEquals( new double[] { 1.0, Float.NaN, Math.PI },
+                           Arrays.array( 1, Double.NaN, Math.PI ) );
+        assertArrayEquals( new String[] { "Geddy", "Neil", "Alex", null },
+                           Arrays.stringArray( "Geddy", "Neil", "Alex",
+                                               null ) );
+        assertArrayEquals( new int[] { 7, 10, 12 },
+                           Arrays.intArray( 7, 10, 12 ) );
     }
 
     public void testConversions() {
@@ -362,6 +409,8 @@ public class FuncTest extends TestCase {
         assertEquals( 32.0, Maths.sqrt( 1024.0 ) );
 
         assertEquals( 5.0, Maths.hypot( 3, -4 ) );
+        assertEquals( 4.0, Maths.hypot( 2, 2, 2, -2 ) );
+        assertEquals( Math.E, Maths.hypot( Math.E ) );
        
         double delta = 1e-7;
         for ( int i = 0; i < 1000; i++ ) {
@@ -401,6 +450,20 @@ public class FuncTest extends TestCase {
         assertEquals( "starlink", Strings.concat( "star", "link" ) );
         assertEquals( "star", Strings.concat( "star", null ) );
         assertEquals( "link", Strings.concat( "", "link" ) );
+        assertEquals( "1223334444",
+                      Strings.concat( "1", 22, "", "333", null, "4444" ) );
+
+        assertEquals( "A big gale", Strings.join( " ", "A", "big", "gale" ) );
+        assertEquals( "one, 2, 3.0, 4",
+                      Strings.join( ", ", "one", "2", 3.0, 4L ) );
+
+        assertEquals( "One2Three4.0Five999",
+                      Strings.concat( "One", new Integer( 2 ), "Three",
+                                      new Double( 4.0 ), "Five", null,
+                                      new Long( 999L ) ) );
+        assertEquals( "One2Three4.0Five999",
+                      Strings.concat( "One", 2, "Three", 4.0, "Five",
+                                      null, 999L ) );
 
         assertTrue( Strings.contains( "awkward", "awk" ) );
         assertTrue( Strings.contains( "hawkwind", "awk" ) );
@@ -574,6 +637,28 @@ public class FuncTest extends TestCase {
         assertEquals( pi4, Tilings.sqdegToSteradians( 129600 / Math.PI ),
                       1e-6 );
         assertEquals( 41253, Tilings.steradiansToSqdeg( pi4 ), 1. );
+        assertEquals( 279401, Tilings.healpixNestIndex( 8, 23, -12 ) );
+        assertEquals( -12.0247, Tilings.healpixNestLat( 8, 279401 ), 1e-4 );
+        assertEquals( 23.0273, Tilings.healpixNestLon( 8, 279401 ), 1e-4 );
+        assertEquals( 111, Tilings.healpixRingToNest( 2, 48 ) );
+        assertEquals( 48, Tilings.healpixNestToRing( 2, 111 ) );
+        for ( int ik = 0; ik < 4; ik++ ) {
+            long npix = 12L << 2*ik;
+            for ( long ip = 0; ip < npix; ip++ ) {
+                assertEquals( ip, Tilings.healpixRingToNest( ik,
+                                  Tilings.healpixNestToRing( ik, ip ) ) );
+                assertEquals( ip, Tilings.healpixNestToRing( ik,
+                                  Tilings.healpixRingToNest( ik, ip ) ) );
+                assertEquals( Tilings.healpixNestLat( ik, ip ),
+                              Tilings.healpixRingLat( ik,
+                                   Tilings.healpixNestToRing( ik, ip ) ),
+                              1e-6 );
+                assertEquals( Tilings.healpixNestLon( ik, ip ),
+                              Tilings.healpixRingLon( ik,
+                                   Tilings.healpixNestToRing( ik, ip ) ),
+                              1e-6 );
+            }
+        }
     }
 
     public void testJELClasses() {

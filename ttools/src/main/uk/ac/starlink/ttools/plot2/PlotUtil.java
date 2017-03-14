@@ -12,14 +12,23 @@ import java.lang.reflect.Array;
 import java.text.DecimalFormat;
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.Collection;
+import java.util.HashSet;
+import java.util.Iterator;
 import java.util.List;
+import java.util.Map;
+import java.util.Set;
+import java.util.logging.Level;
 import java.util.logging.Logger;
 import javax.swing.Icon;
 import uk.ac.starlink.ttools.plot.PdfGraphicExporter;
 import uk.ac.starlink.ttools.plot.Picture;
 import uk.ac.starlink.ttools.plot.Range;
+import uk.ac.starlink.ttools.plot2.config.ConfigMap;
 import uk.ac.starlink.ttools.plot2.data.DataStore;
 import uk.ac.starlink.ttools.plot2.data.TupleSequence;
+import uk.ac.starlink.ttools.plot2.layer.BinList;
+import uk.ac.starlink.ttools.plot2.paper.PaperType;
 
 /**
  * Miscellaneous utilities for use with the plotting classes.
@@ -50,6 +59,9 @@ public class PlotUtil {
         public double getDoubleValue( int icol ) {
             throw new IllegalStateException();
         }
+        public int getIntValue( int icol ) {
+            throw new IllegalStateException();
+        }
         public boolean getBooleanValue( int icol ) {
             throw new IllegalStateException();
         }
@@ -78,6 +90,9 @@ public class PlotUtil {
 
     /** Amount of padding added to data ranges for axis scaling. */
     private static final double PAD_FRACTION = 0.02;
+
+    /** Level at which plot reports are logged. */
+    private static final Level REPORT_LEVEL = Level.INFO;
 
     /**
      * Private constructor prevents instantiation.
@@ -294,6 +309,90 @@ public class PlotUtil {
     }
 
     /**
+     * Returns a 2-element array consisting of the two input values
+     * in ascending order.  If either is NaN, behaviour is undefined.
+     *
+     * @param  p1  one value
+     * @param  p2  other value
+     * @return   2-element array [plo,phi]
+     */
+    public static double[] orderPair( double p1, double p2 ) {
+        return p1 <= p2 ? new double[] { p1, p2 }
+                        : new double[] { p2, p1 };
+    }
+
+    /**
+     * Determines the union of the data bounds of zones in a gang.
+     *
+     * @param  gang  gang
+     * @return   rectangle containing all data bounds rectangles in gang,
+     *           or null if no zones
+     */
+    public static Rectangle getGangBounds( Gang gang ) {
+        int nz = gang.getZoneCount();
+        int xmin = Integer.MAX_VALUE;
+        int ymin = Integer.MAX_VALUE;
+        int xmax = Integer.MIN_VALUE;
+        int ymax = Integer.MIN_VALUE;
+        for ( int iz = 0; iz < nz; iz++ ) {
+            Rectangle rect = gang.getZonePlotBounds( iz );
+            xmin = Math.min( xmin, rect.x );
+            ymin = Math.min( ymin, rect.y );
+            xmax = Math.max( xmax, rect.x + rect.width );
+            ymax = Math.max( ymax, rect.y + rect.height );
+        }
+        return xmax >= xmin && ymax >= ymin
+             ? new Rectangle( xmin, ymin, xmax - xmin, ymax - ymin )
+             : null;
+    }
+
+    /**
+     * Returns a single-element array from an object with a parameterised type.
+     * The array element type is taken from the runtime type of the single
+     * element.
+     *
+     * @param   object  array element
+     * @return   array containing element
+     */
+    public static <T> T[] singletonArray( T object ) {
+        T[] array = (T[]) Array.newInstance( object.getClass(), 1 );
+        array[ 0 ] = object;
+        return array;
+    }
+
+    /**
+     * Returns an empty array suitable (it has the right parameterised type)
+     * for containing elements that are profiles for a given surface factory.
+     *
+     * @param   surfFact  surface factory
+     * @param   length   array size
+     * @return   new empty array
+     */
+    public static <P> P[] createProfileArray( SurfaceFactory<P,?> surfFact,
+                                              int length ) {
+        P profile = surfFact.createProfile( new ConfigMap() );
+        P[] array = (P[]) Array.newInstance( profile.getClass(), length );
+        return array;
+    }
+
+    /**
+     * Returns an empty array suitable (it has the right parameterised type)
+     * for containing elements that are aspects for a given surface factory.
+     *
+     * @param   surfFact  surface factory
+     * @param   length   array size
+     * @return   new empty array
+     */
+    public static <P,A> A[] createAspectArray( SurfaceFactory<P,A> surfFact,
+                                               int length ) {
+        ConfigMap config = new ConfigMap();
+        P profile = surfFact.createProfile( config );
+        A aspect = surfFact.createAspect( profile, config, null );
+        A[] array = (A[]) Array.newInstance( aspect.getClass(), length );
+        return array;
+    }
+
+    /**
      * Turns an Icon into a Picture.
      *
      * @param   icon   icon
@@ -417,6 +516,19 @@ public class PlotUtil {
     }
 
     /**
+     * Modifies a supplied range object by submitting the values in the
+     * bins of a given BinList.Result.
+     * 
+     * @param  range  range to extend
+     * @param  binResult  bin data
+     */
+    public static void extendRange( Range range, BinList.Result binResult ) {
+        for ( Iterator<Long> it = binResult.indexIterator(); it.hasNext(); ) {
+            range.submit( binResult.getBinValue( it.next().longValue() ) );
+        }
+    }
+
+    /**
      * Scans a tuple sequence to identify the data point which is
      * plotted closest to a given graphics position.
      * Note the result might still be a long way off - standard practice
@@ -451,6 +563,72 @@ public class PlotUtil {
         return Thread.currentThread().isInterrupted() || bestIndex < 0
              ? null
              : new IndicatedRow( bestIndex, Math.sqrt( bestDist2 ) );
+    }
+
+    /**     
+     * Creates an icon which will paint a surface and the layers on it.
+     * If the <code>storedPlans</code> object is supplied, it may contain
+     * plans from previous plots.  On exit, it will contain the plans
+     * used for this plot.
+     *
+     * @param  placer  plot placement
+     * @param  layers   layers constituting plot content
+     * @param  auxRanges  requested range information calculated from data
+     * @param  dataStore  data storage object
+     * @param  paperType  rendering type
+     * @param  cached  whether to cache pixels for future use
+     * @param  storedPlans  writable collection of plan objects, or null
+     * @return   icon containing complete plot
+     */ 
+    @Slow
+    public static Icon createPlotIcon( PlotPlacement placer, PlotLayer[] layers,
+                                       Map<AuxScale,Range> auxRanges,
+                                       DataStore dataStore, PaperType paperType,
+                                       boolean cached,
+                                       Collection<Object> storedPlans ) {
+        Surface surface = placer.getSurface();
+        int nl = layers.length;
+        logger_.info( "Layers: " + nl + ", Paper: " + paperType );
+        Drawing[] drawings = new Drawing[ nl ];
+        Object[] plans = new Object[ nl ];
+        Set<Object> knownPlans = new HashSet<Object>();
+        if ( storedPlans != null ) {
+            knownPlans.addAll( storedPlans );
+        }
+        long t1 = System.currentTimeMillis();
+        for ( int il = 0; il < nl; il++ ) {
+            drawings[ il ] = layers[ il ]
+                            .createDrawing( surface, auxRanges, paperType );
+            plans[ il ] = drawings[ il ].calculatePlan( knownPlans.toArray(),
+                                                        dataStore );
+            knownPlans.add( plans[ il ] );
+        }
+        PlotUtil.logTime( logger_, "Plans", t1 );
+        if ( storedPlans != null ) {
+            storedPlans.clear();
+            storedPlans.addAll( new HashSet<Object>( Arrays.asList( plans ) ) );
+        }
+        Icon dataIcon =
+            paperType.createDataIcon( surface, drawings, plans, dataStore,
+                                      cached );
+        if ( logger_.isLoggable( REPORT_LEVEL ) ) {
+            for ( int il = 0; il < nl; il++ ) {
+                ReportMap report = drawings[ il ].getReport( plans[ il ] );
+                if ( report != null ) {
+                    String rtxt = report.toString( false );
+                    if ( rtxt.length() > 0 ) {
+                        String msg = new StringBuffer()
+                            .append( "Layer " )
+                            .append( il ) 
+                            .append( ": " )
+                            .append( rtxt ) 
+                            .toString();
+                        logger_.log( REPORT_LEVEL, msg );
+                    }
+                }
+            }
+        }
+        return placer.createPlotIcon( dataIcon ); 
     }
 
     /**

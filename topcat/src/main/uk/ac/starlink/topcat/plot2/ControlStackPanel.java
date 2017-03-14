@@ -118,7 +118,7 @@ public class ControlStackPanel extends JPanel {
      * @param   c0  template control
      * @param   c1  control whose state may be altered
      */
-    private static void configureLike( Control c0, Control c1 ) {
+    public static void configureLike( Control c0, Control c1 ) {
         if ( c0 instanceof TabberControl && c1 instanceof TabberControl ) {
             JTabbedPane tabber0 = ((TabberControl) c0).getTabber();
             JTabbedPane tabber1 = ((TabberControl) c1).getTabber();
@@ -161,12 +161,15 @@ public class ControlStackPanel extends JPanel {
 
         public void valueChanged( ListSelectionEvent evt ) {
             if ( ! evt.getValueIsAdjusting() ) {
-                controlHolder_.removeAll();
                 Control control = (Control) list1_.getSelectedValue();
                 if ( control != null ) {
                     list2_.clearSelection();
                     adjustControl( control );
+                    controlHolder_.removeAll();
                     controlHolder_.add( control.getPanel() );
+                }
+                else if ( list2_.getSelectedValue() == null ) {
+                    controlHolder_.removeAll();
                 }
                 controlHolder_.revalidate();
                 controlHolder_.repaint();

@@ -1,6 +1,8 @@
 package uk.ac.starlink.topcat.plot2;
 
 import java.awt.Component;
+import uk.ac.starlink.ttools.plot2.GangerFactory;
+import uk.ac.starlink.ttools.plot2.SingleGanger;
 import uk.ac.starlink.ttools.plot2.geom.CubeAspect;
 import uk.ac.starlink.ttools.plot2.geom.CubePlotType;
 import uk.ac.starlink.ttools.plot2.geom.CubeSurfaceFactory;
@@ -33,8 +35,8 @@ public class CubePlotWindow
     private static class CubePlotTypeGui
             implements PlotTypeGui<CubeSurfaceFactory.Profile,CubeAspect> {
         public AxisController<CubeSurfaceFactory.Profile,CubeAspect>
-                createAxisController( ControlStack stack ) {
-            return new CubeAxisController( false, stack );
+                createAxisController() {
+            return new CubeAxisController( false );
         }
         public PositionCoordPanel createPositionCoordPanel( int npos ) {
             return SimplePositionCoordPanel
@@ -42,6 +44,15 @@ public class CubePlotWindow
         }
         public boolean hasPositions() {
             return true;
+        }
+        public GangerFactory getGangerFactory() {
+            return SingleGanger.FACTORY;
+        }
+        public ZoneFactory createZoneFactory() {
+            return ZoneFactories.FIXED;
+        }
+        public String getNavigatorHelpId() {
+            return "cubeNavigation";
         }
     }
 }

@@ -30,44 +30,75 @@ public abstract class GuiNavigationListener<A> extends NavigationListener<A> {
         plotPanel_ = plotPanel;
     }
 
-    public Surface getSurface() {
-        return plotPanel_.getLatestSurface();
+    /**
+     * May return a negative value if no surface corresponds to the given point.
+     */
+    public int getSurfaceIndex( Point pos ) {
+        return plotPanel_.getGang().getNavigationZoneIndex( pos );
     }
+
+    public Surface getSurface( int isurf ) {
+        return isurf >= 0 ? plotPanel_.getLatestSurface( isurf )
+                          : null;
+    }
+
+    public Navigator<A> getNavigator( int isurf ) {
+        return isurf >= 0 ? getExistingNavigator( isurf )
+                          : null;
+    }
+
+    /**
+     * Returns the navigator for a surface that is actually known by
+     * this listener.
+     *
+     * @param  isurf  surface index, &gt;=0
+     * @return  navigator for given surface index
+     */
+    protected abstract Navigator<A> getExistingNavigator( int isurf );
 
     @Override
-    protected void handleClick( final Navigator<A> navigator,
-                                final Surface surface,
+    protected void handleClick( final Navigator<A> navigator, final int isurf,
                                 final Point pos, final int ibutt,
                                 final Iterable<double[]> dposIt ) {
+        final Surface surface = getSurface( isurf );
+        if ( surface != null ) {
 
-        /* The click operation *may* take time, if it is necessary to
-         * iterate over the data positions.  To cover that possibility,
-         * calculate the new aspect asynchronously and update the GUI
-         * later on the EDT.  Also make sure that progress is logged. */
-        plotPanel_.submitPlotAnnotator( new Runnable() {
-            public void run() {
-                NavAction<A> navact =
-                    navigator.click( surface, pos, ibutt, dposIt );
-                updateDecoration( navact.getDecoration(), true );
-                final A aspect = navact == null ? null
-                                                : navact.getAspect();
-                if ( aspect != null &&
-                     ! Thread.currentThread().isInterrupted() ) {
-                    SwingUtilities.invokeLater( new Runnable() {
-                        public void run() {
-                            setAspect( aspect );
-                        }
-                    } );
+            /* The click operation *may* take time, if it is necessary to
+             * iterate over the data positions.  To cover that possibility,
+             * calculate the new aspect asynchronously and update the GUI
+             * later on the EDT.  Also make sure that progress is logged. */
+            plotPanel_.submitPlotAnnotator( new Runnable() {
+                public void run() {
+                    NavAction<A> navact =
+                        navigator.click( surface, pos, ibutt, dposIt );
+                    updateDecoration( navact.getDecoration(), true );
+                    final A aspect = navact == null ? null
+                                                    : navact.getAspect();
+                    if ( aspect != null &&
+                         ! Thread.currentThread().isInterrupted() ) {
+                        SwingUtilities.invokeLater( new Runnable() {
+                            public void run() {
+                                setAspect( isurf, aspect );
+                            }
+                        } );
+                    }
                 }
-            }
-        } );
+            } );
+        }
     }
 
-    public Iterable<double[]> createDataPosIterable() {
+    public Iterable<double[]> createDataPosIterable( Point pos ) {
 
         /* Handles progress reporting and thread interruption. */
-        GuiPointCloud pointCloud = plotPanel_.createGuiPointCloud();
-        return pointCloud
-              .createDataPosIterable( pointCloud.createGuiDataStore() );
+        int iz = getSurfaceIndex( pos );
+        Surface surf = plotPanel_.getSurface( iz );
+        if ( surf != null && surf.getPlotBounds().contains( pos ) ) {
+            GuiPointCloud pointCloud = plotPanel_.createGuiPointCloud( iz );
+            return pointCloud
+                  .createDataPosIterable( pointCloud.createGuiDataStore() );
+        }
+        else {
+            return null;
+        }
     }
 }

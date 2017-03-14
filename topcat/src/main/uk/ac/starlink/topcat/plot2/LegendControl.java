@@ -4,9 +4,6 @@ import java.awt.BorderLayout;
 import java.awt.Color;
 import java.awt.event.ActionEvent;
 import java.awt.event.ActionListener;
-import java.util.ArrayList;
-import java.util.Arrays;
-import java.util.List;
 import javax.swing.Box;
 import javax.swing.Icon;
 import javax.swing.JComponent;
@@ -33,8 +30,7 @@ public class LegendControl extends TabberControl {
     /* This class could perhaps be written in a more generic way
      * (subclassing ConfigControl). */
 
-    private final ControlStackModel stackModel_;
-    private final Configger configger_;
+    private final MultiConfigger configger_;
     private final ToggleButtonModel visibleModel_;
     private final ToggleButtonModel opaqueModel_;
     private final ToggleButtonModel borderModel_;
@@ -46,13 +42,11 @@ public class LegendControl extends TabberControl {
     /**
      * Constructor.
      *
-     * @param   stackModel   model containing layer controls
      * @param   configger   config source containing some plot-wide config,
      *                      specifically captioner style
      */
-    public LegendControl( ControlStackModel stackModel, Configger configger ) {
+    public LegendControl( MultiConfigger configger ) {
         super( "Legend", ResourceIcon.LEGEND );
-        stackModel_ = stackModel;
         configger_ = configger;
         final ActionListener forwarder = getActionForwarder();
 
@@ -105,19 +99,6 @@ public class LegendControl extends TabberControl {
         pusher_.setEnabled( insideModel_.isSelected() );
         pusher_.addActionListener( forwarder );
 
-        /* Update visibility defaults based on how many entries the legend
-         * would have - it's not very useful if it only has one entry.
-         * But once it's appeared once keep it, because it's more distracting
-         * to have it keep appearing and disappearing. */
-        stackModel_.addPlotActionListener( new ActionListener() {
-            public void actionPerformed( ActionEvent evt ) {
-                if ( getLegendEntries().length > 1 &&
-                     ! everMadeInvisible_ ) {
-                    visibleModel_.setSelected( true );
-                }
-            }
-        } );
-
         /* Style panel. */
         JComponent styleBox = Box.createVerticalBox();
         styleBox.add( new LineBox( visibleModel_.createCheckBox() ) );
@@ -140,17 +121,33 @@ public class LegendControl extends TabberControl {
     /**
      * Returns the legend icon for the current state of the stack model.
      *
+     * @param   entries   entries to include in legend
+     * @param   zid      zone identifier for legend zone
      * @return  legend icon, or null if not visible
      */
-    public Icon getLegendIcon() {
+    public Icon createLegendIcon( LegendEntry[] entries, ZoneId zid ) {
+
+        /* Update visibility defaults based on how many entries the legend
+         * would have - it's not very useful if it only has one entry.
+         * But once it's appeared once keep it, because it's more distracting
+         * to have it keep appearing and disappearing. 
+         * This behaviour is invoked as a side effect of some other method
+         * requesting the icon.  That's a bit untidy, but in practice
+         * icon request will only happen when a legend is about to be
+         * displayed. */
+        if ( entries.length > 1 && ! everMadeInvisible_ ) {
+            visibleModel_.setSelected( true );
+        }
+
+        /* Construct and return the icon, if required. */
         if ( visibleModel_.isSelected() ) {
-            LegendEntry[] entries = getLegendEntries();
             if ( entries.length == 0 ) {
                 return null;
             }
             else {
                 Captioner captioner =
-                    StyleKeys.CAPTIONER.createValue( configger_.getConfig() );
+                    StyleKeys.CAPTIONER
+                   .createValue( configger_.getZoneConfig( zid ) );
                 boolean border = borderModel_.isSelected();
                 Color bgColor = opaqueModel_.isSelected() ? Color.WHITE : null;
                 return new LegendIcon( entries, captioner, border, bgColor );
@@ -172,20 +169,5 @@ public class LegendControl extends TabberControl {
              ? new float[] { pusher_.getXPosition(),
                              1f - pusher_.getYPosition() }
              : null;
-    }
-
-    /**
-     * Returns a list of legend entries for the current state of the stack.
-     *
-     * @return   legend entries
-     */
-    private LegendEntry[] getLegendEntries() {
-        List<LegendEntry> entryList = new ArrayList<LegendEntry>();
-        LayerControl[] controls = stackModel_.getLayerControls( true );
-        for ( int ic = 0; ic < controls.length; ic++ ) {
-            entryList.addAll( Arrays.asList( controls[ ic ]
-                                            .getLegendEntries() ) );
-        }
-        return entryList.toArray( new LegendEntry[ 0 ] );
     }
 }

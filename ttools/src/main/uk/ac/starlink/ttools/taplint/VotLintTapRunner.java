@@ -35,6 +35,7 @@ import uk.ac.starlink.util.MultiplexInvocationHandler;
 import uk.ac.starlink.util.StarEntityResolver;
 import uk.ac.starlink.vo.TapQuery;
 import uk.ac.starlink.vo.UwsJob;
+import uk.ac.starlink.vo.UwsJobInfo;
 import uk.ac.starlink.votable.TableElement;
 import uk.ac.starlink.votable.VODocument;
 import uk.ac.starlink.votable.VOElement;
@@ -524,7 +525,7 @@ public abstract class VotLintTapRunner extends TapRunner {
             protected URLConnection getResultConnection( Reporter reporter,
                                                          TapQuery tq )
                     throws IOException {
-                return UwsJob.postForm( new URL( tq.getServiceUrl() + "/sync" ),
+                return UwsJob.postForm( tq.getEndpointSet().getSyncEndpoint(),
                                         ContentCoding.NONE,
                                         tq.getStringParams(),
                                         tq.getStreamParams() );
@@ -545,13 +546,14 @@ public abstract class VotLintTapRunner extends TapRunner {
             protected URLConnection getResultConnection( Reporter reporter,
                                                          TapQuery tq )
                     throws IOException {
+                URL syncEndpoint = tq.getEndpointSet().getSyncEndpoint();
                 if ( tq.getStreamParams() == null ||
                      tq.getStreamParams().isEmpty() ) {
                     String ptxt =
                         new String( UwsJob
                                    .toPostedBytes( tq.getStringParams() ),
                                     "utf-8" );
-                    URL qurl = new URL( tq.getServiceUrl() + "/sync?" + ptxt );
+                    URL qurl = new URL( syncEndpoint + "?" + ptxt );
                     if ( doChecks ) {
                         reporter.report( FixedCode.I_QGET,
                                          "Query GET URL: " + qurl );
@@ -559,11 +561,9 @@ public abstract class VotLintTapRunner extends TapRunner {
                     return qurl.openConnection();
                 }
                 else {
-                    return UwsJob
-                          .postForm( new URL( tq.getServiceUrl() + "/sync" ),
-                                     ContentCoding.NONE,
-                                     tq.getStringParams(),
-                                     tq.getStreamParams() );
+                    return UwsJob.postForm( syncEndpoint, ContentCoding.NONE,
+                                            tq.getStringParams(),
+                                            tq.getStreamParams() );
                 }
             }
         };
@@ -585,22 +585,24 @@ public abstract class VotLintTapRunner extends TapRunner {
                                                          TapQuery tq )
                     throws IOException {
                 UwsJob uwsJob =
-                    UwsJob.createJob( tq.getServiceUrl()+ "/async",
+                    UwsJob.createJob( tq.getEndpointSet().getAsyncEndpoint()
+                                                         .toString(),
                                       tq.getStringParams(),
                                       tq.getStreamParams() );
                 URL jobUrl = uwsJob.getJobUrl();
                 reporter.report( FixedCode.I_QJOB,
                                  "Submitted query at " + jobUrl );
                 uwsJob.start();
-                String phase;
+                UwsJobInfo info;
                 try {
-                    phase = uwsJob.waitForFinish( pollMillis );
+                    info = uwsJob.waitForFinish( pollMillis );
                 }
                 catch ( InterruptedException e ) {
                     throw (IOException)
                           new InterruptedIOException( "interrupted" )
                          .initCause( e );
                 }
+                String phase = info.getPhase();
                 if ( "COMPLETED".equals( phase ) ) {
                     uwsJob.setDeleteOnExit( true );
                     return new URL( jobUrl + "/results/result" )

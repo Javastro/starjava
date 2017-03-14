@@ -25,7 +25,7 @@ import uk.ac.starlink.ttools.plot2.config.StyleKeys;
 import uk.ac.starlink.ttools.plot2.data.DataSpec;
 import uk.ac.starlink.ttools.plot2.data.DataStore;
 import uk.ac.starlink.ttools.plot2.data.FloatingCoord;
-import uk.ac.starlink.ttools.plot2.geom.PlaneSurface;
+import uk.ac.starlink.ttools.plot2.geom.PlanarSurface;
 
 /**
  * Abstract superclass for a plotter that plots something that looks like
@@ -44,13 +44,14 @@ public abstract class AbstractKernelDensityPlotter
 
     /** Report key for plotted bin height in data coordinates. */
     public static final ReportKey<double[]> BINS_KEY =
-        new ReportKey<double[]>( new ReportMeta( "bins", "Bins" ),
-                                 double[].class, false );
+        ReportKey.createUnprintableKey( new ReportMeta( "bins", "Bins" ),
+                                        double[].class );
 
     /** Config key for line thickness (only effective if fill==false). */
     public static final ConfigKey<Integer> THICK_KEY =
         StyleKeys.createThicknessKey( 2 );
 
+    private final ConfigKey<Normalisation> normKey_;
     private static final int GUESS_PLOT_WIDTH = 300;
 
     /**
@@ -58,13 +59,16 @@ public abstract class AbstractKernelDensityPlotter
      *
      * @param   xCoord  X axis coordinate
      * @param   hasWeight   true to permit histogram weighting
+     * @param   normKey   config key for normalisation options
      * @param   name  plotter name
      * @param   icon  plotter icon
      */
     protected AbstractKernelDensityPlotter( FloatingCoord xCoord,
                                             boolean hasWeight,
+                                            ConfigKey<Normalisation> normKey,
                                             String name, Icon icon ) {
         super( xCoord, hasWeight, name, icon );
+        normKey_ = normKey;
     }
 
     /**
@@ -92,21 +96,18 @@ public abstract class AbstractKernelDensityPlotter
         list.addAll( Arrays.asList( getKernelConfigKeys() ) );
         list.add( KERNEL_KEY );
         list.add( StyleKeys.CUMULATIVE );
-        list.add( StyleKeys.NORMALISE );
+        list.add( normKey_ );
         list.add( StyleKeys.FILL );
         list.add( THICK_KEY );
         return list.toArray( new ConfigKey[ 0 ] );
     }
 
     public KDenseStyle createStyle( ConfigMap config ) throws ConfigException {
-        Color baseColor = config.get( StyleKeys.COLOR );
-        double alpha = 1 - config.get( StyleKeys.TRANSPARENCY );
-        float[] rgba = baseColor.getRGBComponents( new float[ 4 ] );
-        rgba[ 3 ] *= alpha;
-        Color color = new Color( rgba[ 0 ], rgba[ 1 ], rgba[ 2 ], rgba[ 3 ] );
+        Color color = StyleKeys.getAlphaColor( config, StyleKeys.COLOR,
+                                               StyleKeys.TRANSPARENCY );
         Kernel1dShape kernelShape = config.get( KERNEL_KEY );
         boolean isCumulative = config.get( StyleKeys.CUMULATIVE );
-        Normalisation norm = config.get( StyleKeys.NORMALISE );
+        Normalisation norm = config.get( normKey_ );
         FillMode fill = config.get( StyleKeys.FILL );
         KernelFigure kernelFigure = createKernelFigure( config );
         Stroke stroke = fill.hasLine()
@@ -124,13 +125,13 @@ public abstract class AbstractKernelDensityPlotter
         return new LayerOpt( color, isOpaque );
     }
 
-    protected int getPixelPadding( KDenseStyle style, PlaneSurface surf ) {
+    protected int getPixelPadding( KDenseStyle style, PlanarSurface surf ) {
         Kernel1d kernel =
             style.createKernel( surf.getAxes()[ 0 ], surf.getLogFlags()[ 0 ] );
         return getEffectiveExtent( kernel );
     }
 
-    protected void paintBins( PlaneSurface surface, BinArray binArray,
+    protected void paintBins( PlanarSurface surface, BinArray binArray,
                               KDenseStyle style, Graphics2D g ) {
 
         /* Store graphics context state. */
@@ -206,11 +207,13 @@ public abstract class AbstractKernelDensityPlotter
                 }
             }
             else {
-                nVertex = np + 2;
+                nVertex = np + 3;
                 pxs = new int[ nVertex ];
                 pys = new int[ nVertex ];
                 System.arraycopy( xs, 0, pxs, 1, np );
                 System.arraycopy( ys, 0, pys, 1, np );
+                pxs[ nVertex - 2 ] = pxs[ nVertex - 3 ] + 1;
+                pys[ nVertex - 2 ] = pys[ nVertex - 3 ];
             }
             pxs[ 0 ] = xs[ 0 ];
             pys[ 0 ] = gy0;

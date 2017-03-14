@@ -1,6 +1,8 @@
 package uk.ac.starlink.ttools.plot2.layer;
 
+import java.util.BitSet;
 import java.util.HashMap;
+import java.util.Iterator;
 import java.util.Map;
 
 /**
@@ -14,26 +16,17 @@ public class HashBinList implements BinList {
 
     private final long size_;
     private final Combiner combiner_;
-    private final boolean isCopyResult_;
     private final Map<Long,Combiner.Container> map_;
 
     /**
      * Constructor.
-     * The <code>isCopyResult</code> flag determines how the
-     * {@link #getResult} method is implemented.
-     * As a rule it should be true if an accumulating bin requires
-     * more than a <code>double</code>'s worth of storage,
-     * and false otherwise.
      *
      * @param  size  number of bins
      * @param  combiner  combiner
-     * @param  isCopyResult  true if getResult copies data to a new array,
-     *                       false if it acts as an adapter on existing data
      */
-    public HashBinList( long size, Combiner combiner, boolean isCopyResult ) {
+    public HashBinList( long size, Combiner combiner ) {
         size_ = size;
         combiner_ = combiner;
-        isCopyResult_ = isCopyResult;
         map_ = new HashMap<Long,Combiner.Container>();
     }
 
@@ -56,72 +49,68 @@ public class HashBinList implements BinList {
     }
 
     public Result getResult() {
-        return isCopyResult_ ? createCopyResult() : createAdapterResult();
-    }
-
-    /**
-     * Returns a Result object that extracts values as required from
-     * the data structure into which bin values are accumulated.
-     *
-     * @return   bin result structure
-     */
-    private Result createAdapterResult() {
         return new Result() {
             public double getBinValue( long index ) {
                 Combiner.Container container = map_.get( new Long( index ) );
                 return container == null ? Double.NaN : container.getResult();
             }
-            public double[] getValueBounds() {
-                double lo = Double.POSITIVE_INFINITY;
-                double hi = Double.NEGATIVE_INFINITY;
-                for ( Combiner.Container container : map_.values() ) {
-                    double v = container.getResult();
-                    assert ! Double.isNaN( v );
-                    if ( v < lo ) {
-                        lo = v;
+            public long getBinCount() {
+                return map_.size();
+            }
+            public Iterator<Long> indexIterator() {
+                return map_.keySet().iterator();
+            }
+            public Result compact() {
+                double frac = map_.size() * 1.0 / size_;
+                if ( frac > 0.25 && size_ < Integer.MAX_VALUE ) {
+                    int isize = (int) size_;
+                    double[] values = new double[ isize ];
+                    BitSet mask = new BitSet( (int) isize );
+                    for ( Iterator<Long> it = indexIterator(); it.hasNext(); ) {
+                        int index = it.next().intValue();
+                        mask.set( index );
+                        values[ index ] = getBinValue( index );
                     }
-                    if ( v > hi ) {
-                        hi = v;
-                    }
+                    return ArrayBinList.createDoubleMaskResult( mask, values );
                 }
-                return lo <= hi ? new double[] { lo, hi }
-                                : new double[] { 0, 1 };
+                else if ( combiner_.hasBigBin() ) {
+                    Map<Long,Double> cmap = new HashMap<Long,Double>();
+                    for ( Iterator<Long> it = indexIterator(); it.hasNext(); ) {
+                        Long key = it.next();
+                        Combiner.Container container = map_.get( key );
+                        double val = container == null ? Double.NaN
+                                                       : container.getResult();
+                        cmap.put( key, new Double( val ) );
+                    }
+                    return createHashResult( cmap );
+                }
+                else {
+                    return this;
+                }
             }
         };
     }
 
     /**
-     * Constructs and returns a Result object by reading the current state
-     * of the bins and storing the values into a new array.
+     * Returns a new Result instance based on a Map.
      *
-     * @return   bin result structure
+     * @param  map   map of values
+     * @return  result based on <code>map</code>
      */
-    private Result createCopyResult() {
-        final Map<Long,Double> resultMap = new HashMap<Long,Double>();
-        double lo = Double.POSITIVE_INFINITY;
-        double hi = Double.NEGATIVE_INFINITY;
-        for ( Map.Entry<Long,Combiner.Container> entry : map_.entrySet() ) {
-            Long key = entry.getKey();
-            double value = entry.getValue().getResult();
-            if ( ! Double.isNaN( value ) ) {
-                if ( value < lo ) {
-                    lo = value;
-                }
-                if ( value > hi ) {
-                    hi = value;
-                }
-                resultMap.put( key, new Double( value ) );
-            }
-        }
-        final double[] bounds = lo <= hi ? new double[] { lo, hi }
-                                         : new double[] { 0, 1 };
+    public static Result createHashResult( final Map<Long,Double> map ) { 
         return new Result() {
             public double getBinValue( long index ) {
-                Double value = resultMap.get( new Long( index ) );
+                Double value = map.get( new Long( index ) );
                 return value == null ? Double.NaN : value.doubleValue();
             }
-            public double[] getValueBounds() {
-                return bounds.clone();
+            public long getBinCount() {
+                return map.size();
+            }
+            public Iterator<Long> indexIterator() {
+                return map.keySet().iterator();
+            }
+            public Result compact() {
+                return this;
             }
         };
     }

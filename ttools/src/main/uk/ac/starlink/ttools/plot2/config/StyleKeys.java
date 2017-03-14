@@ -169,7 +169,7 @@ public class StyleKeys {
             new ConfigMeta( "transparency", "Transparency" )
            .setShortDescription( "Fractional transparency" )
            .setXmlDescription( new String[] {
-                "<p>Transparency with which compoents are plotted,",
+                "<p>Transparency with which components are plotted,",
                 "in the range 0 (opaque) to 1 (invisible).",
                 "The value is 1-alpha.",
                 "</p>",
@@ -222,7 +222,8 @@ public class StyleKeys {
         public String getXmlDescription( Combiner combiner ) {
             return combiner.getDescription();
         }
-    };
+    }.setOptionUsage()
+     .addOptionsXml();
 
     private static final BarStyle.Form[] BARFORMS = new BarStyle.Form[] {
         BarStyle.FORM_OPEN,
@@ -308,23 +309,13 @@ public class StyleKeys {
             } )
         );
 
-    /** Config key for histogram normalisation mode. */
+    /** Config key for histogram normalisation mode on generic axis. */
     public static final ConfigKey<Normalisation> NORMALISE =
-        new OptionConfigKey<Normalisation>(
-            new ConfigMeta( "normalise", "Normalise" )
-           .setShortDescription( "Normalisation mode" )
-           .setXmlDescription( new String[] {
-                "<p>Defines how, if at all, the bars of histogram-like plots",
-                "are normalised.",
-                "</p>",
-            } )
-        , Normalisation.class, Normalisation.values(), Normalisation.NONE ) {
-            public String getXmlDescription( Normalisation norm ) {
-                return norm.getDescription();
-            }
-        }.setOptionUsage()
-         .addOptionsXml();
+        createNormalisationKey( false );
 
+    /** Cnofig key for histogram normalisation mode on time axis. */
+    public static final ConfigKey<Normalisation> NORMALISE_TIME =
+        createNormalisationKey( true );
 
     /** Config key for line antialiasing. */
     public static final ConfigKey<Boolean> ANTIALIAS =
@@ -612,16 +603,6 @@ public class StyleKeys {
         new RampKeySet( "dense", "Density",
                         createDensityShaders(), Scaling.LOG, true );
 
-    /** Config key set for density map shading. */
-    public static final RampKeySet DENSEMAP_RAMP =
-        new RampKeySet( "dense", "Density",
-                        createDensityMapShaders(), Scaling.LINEAR, true );
-
-    /** Config key set for spectrogram shading. */
-    public static final RampKeySet SPECTRO_RAMP =
-        new RampKeySet( "spectro", "Spectral",
-                        createAuxShaders(), Scaling.LINEAR, true );
-
     /**
      * Private constructor prevents instantiation.
      */
@@ -742,6 +723,24 @@ public class StyleKeys {
     }
 
     /**
+     * Returns a colour specified by a basic colour key and a transparency key.
+     *
+     * @param   config   config map
+     * @param   colorKey  key for colour, for instance {@link #COLOR}
+     * @param   transparencyKey  key for 1-alpha, for instance
+     *                           {@link #TRANSPARENCY}
+     */
+    public static Color getAlphaColor( ConfigMap config,
+                                       ConfigKey<Color> colorKey,
+                                       ConfigKey<Double> transparencyKey ) {
+        Color baseColor = config.get( colorKey );
+        double alpha = 1 - config.get( transparencyKey );
+        float[] rgba = baseColor.getRGBComponents( new float[ 4 ] );
+        rgba[ 3 ] *= alpha;
+        return new Color( rgba[ 0 ], rgba[ 1 ], rgba[ 2 ], rgba[ 3 ] );
+    }
+
+    /**
      * Creates a config key for a multipoint shape.
      *
      * @param   shortName   one-word name
@@ -790,31 +789,120 @@ public class StyleKeys {
     }
 
     /**
+     * Constructs a config key for obtaining normalisation options.
+     *
+     * @param  isTime   true for time axis, false for generic axis
+     * @return  config key
+     */
+    private static ConfigKey<Normalisation>
+            createNormalisationKey( boolean isTime ) {
+
+        /* Prepare time-specific normalisation options. */
+        Normalisation timeNormExample1;
+        Normalisation timeNormExample2;
+        double tSecond = 1.0;
+        double tMinute = 60 * tSecond;
+        double tHour = 60 * tMinute;
+        double tDay = 24 * tHour;
+        double tWeek = 7 * tDay;
+        double tYear = 365.25 * tDay;
+        Normalisation[] timeNorms = new Normalisation[] {
+            timeNormExample1 =
+            createTimeNormalisation( "second", tSecond ),
+            createTimeNormalisation( "minute", tMinute ),
+            createTimeNormalisation( "hour", tHour ),
+            timeNormExample2 =
+            createTimeNormalisation( "day", tDay ),
+            createTimeNormalisation( "week", tWeek ),
+            createTimeNormalisation( "year", tYear ),
+        };
+
+        /* Construct a list of the normalisation options we will
+         * actually offer. */
+        List<Normalisation> normList = new ArrayList<Normalisation>();
+        normList.addAll( Arrays.asList( Normalisation.getKnownValues() ) );
+        if ( isTime ) {
+            normList.addAll( Arrays.asList( timeNorms ) );
+        }
+        Normalisation[] normOpts = normList.toArray( new Normalisation[ 0 ] );
+
+        /* Prepare the metadata object. */
+        ConfigMeta meta = new ConfigMeta( "normalise", "Normalise" );
+        meta.setShortDescription( "Normalisation mode" );
+        meta.setXmlDescription( new String[] {
+            "<p>Defines how, if at all, the bars of histogram-like plots",
+            "are normalised or otherwise scaled vertically.",
+            "</p>",
+
+            /* It shouldn't really be necessary to write this here,
+             * since if the config key instance allows these options
+             * it will document them explicitly.
+             * However, when used for generating STILTS/TOPCAT user
+             * documents, the plotter is only interrogated once,
+             * not once for each plot type, so otherwise this
+             * information would be invisible in the user documentation. */
+            "<p>When used in the time plot only, time-specific options",
+            "like <code>" + timeNormExample1 + "</code>",
+            "and <code>" + timeNormExample2 + "</code>",
+            "are available.",
+            "</p>",
+        } );
+
+        /* Add per-option metadata information. */
+        OptionConfigKey<Normalisation> key =
+                new OptionConfigKey<Normalisation>( meta, Normalisation.class,
+                                                    normOpts,
+                                                    Normalisation.NONE ) {
+            public String getXmlDescription( Normalisation norm ) {
+                return norm.getDescription();
+            }
+        };
+        key.setOptionUsage();
+        key.addOptionsXml();
+        return key;
+    }
+
+    /**
+     * Constructs a normaliser that corresponds to scaling histogram bars
+     * so their height corresponds to frequency over a given time period,
+     * given that the underlying numerical scale for the time axis is in
+     * seconds.
+     *
+     * @param  unitName  name of the time unit the scaler will correspond to
+     * @param  unitSec   length in seconds of the time unit
+     *                   the scaler will correspond to
+     * @return  new normalisation instance
+     */
+    private static Normalisation
+            createTimeNormalisation( String unitName, final double unitSec ) {
+        String descrip = new StringBuffer()
+            .append( "Scales histogram bars so their height is in units of " )
+            .append( "frequency per " )
+            .append( unitName )
+            .append( ". " )
+            .append( "For cumulative plots, this behaves like <code>" )
+            .append( Normalisation.NONE )
+            .append( "</code>." )
+            .toString();
+        return new Normalisation( "per_" + unitName, descrip ) {
+            public double getScaleFactor( double sum, double max,
+                                          double binWidth, boolean cumul ) {
+                return cumul ? 1.0 : unitSec / binWidth;
+            }
+        };
+    }
+
+    /**
      * Returns a list of shaders suitable for density point shading.
      *
      * @return  shaders
      */
-    private static Shader[] createDensityShaders() {
-        List<Shader> list = new ArrayList<Shader>();
+    private static ClippedShader[] createDensityShaders() {
+        List<ClippedShader> list = new ArrayList<ClippedShader>();
         list.add( clip( Shaders.FADE_BLACK, 0, false ) );
         list.add( clip( Shaders.FADE_WHITE, 0.1, false ) );
         list.addAll( Arrays.asList( createColorShaders( true ) ) );
-        return list.toArray( new Shader[ 0 ] );
-    }
-
-    /**
-     * Returns a list of shaders suitable for density map shading.
-     *
-     * @return  shaders
-     */
-    private static Shader[] createDensityMapShaders() {
-        List<Shader> list = new ArrayList<Shader>();
-        for ( Shader shader : createColorShaders( false ) ) {
-            if ( shader.isAbsolute() ) {
-                list.add( shader );
-            }
-        }
-        return list.toArray( new Shader[ 0 ] );
+        return list.toArray( new ClippedShader[ 0 ] );
     }
 
     /**
@@ -822,16 +910,16 @@ public class StyleKeys {
      *
      * @return  shaders
      */
-    public static Shader[] createAuxShaders() {
-        List<Shader> list = new ArrayList<Shader>();
+    public static ClippedShader[] createAuxShaders() {
+        List<ClippedShader> list = new ArrayList<ClippedShader>();
         list.addAll( Arrays.asList( createColorShaders( true ) ) );
-        list.addAll( Arrays.asList( new Shader[] {
-            Shaders.createMaskShader( "Mask", 0f, 1f, true ),
+        list.addAll( Arrays.asList( new ClippedShader[] {
+            clip( Shaders.createMaskShader( "Mask", 0f, 1f, true ), 0, false ),
             clip( Shaders.FADE_BLACK, 0, false ),
             clip( Shaders.FADE_WHITE, 0.1, false ),
             clip( Shaders.TRANSPARENCY, 0.1, false ),
         } ) );
-        return list.toArray( new Shader[ 0 ] );
+        return list.toArray( new ClippedShader[ 0 ] );
     }
 
     /**
@@ -847,14 +935,14 @@ public class StyleKeys {
      *         so that all the whole range is distinguishable from white
      * @return  general-purpose shader list
      */
-    private static Shader[] createColorShaders( boolean isAllVisible ) {
+    private static ClippedShader[] createColorShaders( boolean isAllVisible ) {
         double c = isAllVisible ? 1 : 0;
-        return new Shader[] {
+        return new ClippedShader[] {
             clip( Shaders.LUT_MPL2INFERNO, c * 0.1, true ),
             clip( Shaders.LUT_MPL2MAGMA, c * 0.1, true ),
             clip( Shaders.LUT_MPL2PLASMA, c * 0.1, true ),
             clip( Shaders.LUT_MPL2VIRIDIS, c * 0.06, true ),
-            clip( Shaders.LUT_CUBEHELIX, c * 0.2, true ),
+            clip( Shaders.CUBEHELIX, c * 0.15, true ),
             clip( Shaders.SRON_RAINBOW, 0, true ),
             clip( Shaders.LUT_RAINBOW, 0, true ),
             clip( Shaders.LUT_GLNEMO2, c * 0.03, true ),
@@ -913,27 +1001,24 @@ public class StyleKeys {
      * @param  flip  true iff the sense of the input shader is to be inverted
      * @return  output shader
      */
-    private static Shader clip( Shader shader, double clip, boolean flip ) {
+    private static ClippedShader clip( Shader shader, double clip,
+                                       boolean flip ) {
         String name = shader.getName();
-        final float f0;
-        final float f1;
         if ( flip ) {
-            f0 = 1f - (float) clip;
-            f1 = 0f;
-        }
-        else {
-            f0 = (float) clip;
-            f1 = 1f;
-        }
-        if ( f0 == 1f && f1 == 0f ) {
             shader = Shaders.invert( shader );
-        }
-        else if ( f0 != 0f || f1 != 1f ) {
-            shader = Shaders.stretch( shader, f0, f1 );
         }
         if ( ! name.equals( shader.getName() ) ) {
             shader = Shaders.rename( shader, name );
         }
-        return shader;
+        final Shader shader0 = shader;
+        final Subrange subrange = new Subrange( clip, 1 );
+        return new ClippedShader() {
+            public Shader getShader() {
+                return shader0;
+            }
+            public Subrange getSubrange() {
+                return subrange;
+            }
+        };
     }
 }

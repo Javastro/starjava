@@ -4,6 +4,9 @@ import java.awt.event.ActionEvent;
 import java.awt.event.ActionListener;
 import java.awt.event.ItemEvent;
 import java.awt.event.ItemListener;
+import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.List;
 import java.util.Map;
 import javax.swing.Box;
 import javax.swing.ComboBoxModel;
@@ -18,6 +21,7 @@ import uk.ac.starlink.ttools.plot2.LegendEntry;
 import uk.ac.starlink.ttools.plot2.PlotLayer;
 import uk.ac.starlink.ttools.plot2.Plotter;
 import uk.ac.starlink.ttools.plot2.ReportMap;
+import uk.ac.starlink.ttools.plot2.config.ConfigKey;
 import uk.ac.starlink.ttools.plot2.config.ConfigMap;
 import uk.ac.starlink.ttools.plot2.config.Specifier;
 import uk.ac.starlink.ttools.plot2.data.DataSpec;
@@ -35,23 +39,36 @@ public class BasicCoordLayerControl extends ConfigControl
     private final Plotter<?> plotter_;
     private final TablesListComboBox tableSelector_;
     private final PositionCoordPanel coordPanel_;
+    private final Configger baseConfigger_;
+    private final boolean autoPopulate_;
     private final JComboBox subsetSelector_;
     private final ComboBoxModel dummyComboBoxModel_;
     private final ConfigStyler styler_;
+    private final Specifier<ZoneId> zsel_;
     private TopcatModel tcModel_;
 
     /**
      * Constructor.
      *
      * @param   plotter  plotter
+     * @param   zsel    zone id specifier, may be null for single-zone case
      * @param   coordPanel   panel which displays the plotter's coordinates,
      *                       and supplies a DataGeom
+     * @param   baseConfigger   provides global configuration info
+     * @param  autoPopulate  if true, when the table is changed an attempt
+     *                       will be made to initialise the coordinate fields
+     *                       with some suitable values
      */
-    public BasicCoordLayerControl( Plotter<?> plotter,
-                                   PositionCoordPanel coordPanel ) {
+    public BasicCoordLayerControl( Plotter<?> plotter, Specifier<ZoneId> zsel,
+                                   PositionCoordPanel coordPanel,
+                                   Configger baseConfigger,
+                                   boolean autoPopulate ) {
         super( null, plotter.getPlotterIcon() );
         plotter_ = plotter;
+        zsel_ = zsel;
         coordPanel_ = coordPanel;
+        baseConfigger_ = baseConfigger;
+        autoPopulate_ = true;
         styler_ = new ConfigStyler( coordPanel_.getComponent() );
 
         /* Create data selection components. */
@@ -79,17 +96,29 @@ public class BasicCoordLayerControl extends ConfigControl
                                     true ) );
         dataPanel.add( coordPanel_.getComponent() );
         dataPanel.add( Box.createVerticalStrut( 5 ) );
-        dataPanel.add( new LineBox( "Row Subset: ",
+        dataPanel.add( new LineBox( "Row Subset",
                                     new ShrinkWrapper( subsetSelector_ ),
                                     true ) );
 
-        /* Configure panel for specifying style. */
-        ConfigSpecifier styleSpecifier =
-            new ConfigSpecifier( plotter.getStyleKeys() );
+        /* Configure panel for specifying style.
+         * If any of the config keys are supplied by the base configger,
+         * don't re-acquire them here. */
+        List<ConfigKey> klist = new ArrayList<ConfigKey>();
+        klist.addAll( Arrays.asList( plotter.getStyleKeys() ) );
+        klist.removeAll( baseConfigger_.getConfig().keySet() );
+        klist.removeAll( Arrays.asList( coordPanel_.getConfigSpecifier()
+                                                   .getConfigKeys() ) );
+        ConfigKey[] keys = klist.toArray( new ConfigKey[ 0 ] );
+        ConfigSpecifier styleSpecifier = new ConfigSpecifier( keys );
 
         /* Add tabs. */
         addControlTab( "Data", dataPanel, true );
-        addSpecifierTab( "Style", styleSpecifier );
+        if ( styleSpecifier.getConfigKeys().length > 0 ) {
+            addSpecifierTab( "Style", styleSpecifier );
+        }
+        if ( zsel != null ) {
+            addZoneTab( zsel );
+        }
     }
 
     @Override
@@ -106,6 +135,7 @@ public class BasicCoordLayerControl extends ConfigControl
         DataGeom geom = coordPanel_.getDataGeom();
         DataSpec dataSpec = new GuiDataSpec( tcModel_, subset, coordContents );
         ConfigMap config = getConfig();
+        config.putAll( baseConfigger_.getConfig() );
         PlotLayer layer =
             styler_.createLayer( plotter_, geom, dataSpec, config );
         return layer == null ? new PlotLayer[ 0 ] : new PlotLayer[] { layer };
@@ -118,6 +148,17 @@ public class BasicCoordLayerControl extends ConfigControl
 
     public LegendEntry[] getLegendEntries() {
         return new LegendEntry[ 0 ];
+    }
+
+    public Specifier<ZoneId> getZoneSpecifier() {
+        return zsel_;
+    }
+
+    @Override
+    public ConfigMap getConfig() {
+        ConfigMap config = super.getConfig();
+        config.putAll( coordPanel_.getConfigSpecifier().getSpecifiedValue() );
+        return config;
     }
 
     public void submitReports( Map<LayerId,ReportMap> reports ) {
@@ -160,7 +201,7 @@ public class BasicCoordLayerControl extends ConfigControl
      * @param   tcModel   new topcat model, may be null
      */
     protected void tableChanged( TopcatModel tcModel ) {
-        coordPanel_.setTable( tcModel, false );
+        coordPanel_.setTable( tcModel, autoPopulate_ );
 
         /* Set up subset selector. */
         final ComboBoxModel subselModel;

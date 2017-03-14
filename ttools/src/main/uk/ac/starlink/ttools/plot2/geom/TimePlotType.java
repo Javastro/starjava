@@ -1,20 +1,35 @@
 package uk.ac.starlink.ttools.plot2.geom;
 
+import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.List;
 import uk.ac.starlink.ttools.gui.ResourceIcon;
 import uk.ac.starlink.ttools.plot2.DataGeom;
 import uk.ac.starlink.ttools.plot2.PlotType;
 import uk.ac.starlink.ttools.plot2.PlotUtil;
 import uk.ac.starlink.ttools.plot2.Plotter;
 import uk.ac.starlink.ttools.plot2.SurfaceFactory;
+import uk.ac.starlink.ttools.plot2.config.ConfigKey;
 import uk.ac.starlink.ttools.plot2.config.StyleKeys;
 import uk.ac.starlink.ttools.plot2.layer.CartesianErrorCoordSet;
+import uk.ac.starlink.ttools.plot2.layer.DensogramPlotter;
+import uk.ac.starlink.ttools.plot2.layer.FillPlotter;
+import uk.ac.starlink.ttools.plot2.layer.FixedKernelDensityPlotter;
 import uk.ac.starlink.ttools.plot2.layer.FunctionPlotter;
+import uk.ac.starlink.ttools.plot2.layer.GridPlotter;
+import uk.ac.starlink.ttools.plot2.layer.HistogramPlotter;
+import uk.ac.starlink.ttools.plot2.layer.KnnKernelDensityPlotter;
 import uk.ac.starlink.ttools.plot2.layer.LabelPlotter;
 import uk.ac.starlink.ttools.plot2.layer.LinePlotter;
 import uk.ac.starlink.ttools.plot2.layer.MarkForm;
 import uk.ac.starlink.ttools.plot2.layer.MultiPointForm;
+import uk.ac.starlink.ttools.plot2.layer.Normalisation;
+import uk.ac.starlink.ttools.plot2.layer.ShapeForm;
+import uk.ac.starlink.ttools.plot2.layer.ShapeMode;
 import uk.ac.starlink.ttools.plot2.layer.ShapePlotter;
 import uk.ac.starlink.ttools.plot2.layer.SpectrogramPlotter;
+import uk.ac.starlink.ttools.plot2.layer.Stats1Plotter;
+import uk.ac.starlink.ttools.plot2.layer.TracePlotter;
 import uk.ac.starlink.ttools.plot2.paper.PaperTypeSelector;
 
 /**
@@ -51,14 +66,30 @@ public class TimePlotType implements PlotType {
                                 CartesianErrorCoordSet
                                .createSingleAxisErrorCoordSet( 2, 1, "Y" ),
                                 false, StyleKeys.ERROR_SHAPE_1D );
-        return new Plotter[] {
+        ShapeForm[] modeForms = new ShapeForm[] { MarkForm.SINGLE };
+        List<Plotter> plotters = new ArrayList<Plotter>();
+        plotters.addAll( Arrays
+                        .asList( ShapePlotter
+                                .createShapePlotters( modeForms,
+                                                      ShapeMode.MODES_2D ) ) );
+        ConfigKey<Normalisation> normKey = StyleKeys.NORMALISE_TIME;
+        plotters.addAll( Arrays.asList( new Plotter[] {
             new LinePlotter(),
-            ShapePlotter.createFlat2dPlotter( MarkForm.SINGLE ),
+            new FillPlotter( false ),
+            new TracePlotter( false ),
+            new GridPlotter( true ),
+            new HistogramPlotter( TimeDataGeom.T_COORD, true, normKey ),
+            new FixedKernelDensityPlotter( TimeDataGeom.T_COORD, true,
+                                           normKey ),
+            new KnnKernelDensityPlotter( TimeDataGeom.T_COORD, true, normKey ),
+            new DensogramPlotter( TimeDataGeom.T_COORD, true ),
+            new Stats1Plotter( TimeDataGeom.T_COORD, true, normKey ),
             ShapePlotter.createFlat2dPlotter( errorForm ),
             new SpectrogramPlotter( TimeDataGeom.T_COORD ),
             new LabelPlotter(),
             FunctionPlotter.PLANE,
-        };
+        } ) );
+        return plotters.toArray( new Plotter[ 0 ] );
     }
 
     public SurfaceFactory getSurfaceFactory() {

@@ -4,6 +4,10 @@ import java.io.IOException;
 import java.net.URL;
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.Collection;
+import java.util.Collections;
+import java.util.HashMap;
+import java.util.HashSet;
 import java.util.Iterator;
 import java.util.LinkedHashMap;
 import java.util.List;
@@ -13,6 +17,7 @@ import uk.ac.starlink.table.ColumnInfo;
 import uk.ac.starlink.table.RowSequence;
 import uk.ac.starlink.table.StarTable;
 import uk.ac.starlink.table.StoragePolicy;
+import uk.ac.starlink.table.Tables;
 import uk.ac.starlink.util.ContentCoding;
 
 /**
@@ -26,10 +31,11 @@ import uk.ac.starlink.util.ContentCoding;
  */
 public class TapSchemaInterrogator {
 
-    private final URL serviceUrl_;
+    private final EndpointSet endpointSet_;
     private final Map<String,String> extraParams_;
     private final int maxrec_;
     private final ContentCoding coding_;
+    private final Map<String,String[]> colsMap_;
 
     /**
      * Acquires ForeignMeta.Link objects from TAP_SCHEMA.key_columns.
@@ -41,7 +47,7 @@ public class TapSchemaInterrogator {
     /**
      * Acquires ForeignMeta objects from TAP_SCHEMA.keys.
      * When reading a map, it is keyed by from_table.
-     */
+     */     
     public static final MetaQuerier<ForeignMeta> FKEY_QUERIER =
         createForeignKeyQuerier();
 
@@ -72,28 +78,29 @@ public class TapSchemaInterrogator {
     /**
      * Constructs an interrogator with explicit configuration.
      *
-     * @param  serviceUrl  TAP base service URL
+     * @param  endpointSet  TAP service locations
      * @param  maxrec  maximum number of records to retrieve per query
      * @param  coding  configures HTTP compression
      */
-    public TapSchemaInterrogator( URL serviceUrl, int maxrec,
+    public TapSchemaInterrogator( EndpointSet endpointSet, int maxrec,
                                   ContentCoding coding ) {
-        serviceUrl_ = serviceUrl;
+        endpointSet_ = endpointSet;
         maxrec_ = maxrec;
         coding_ = coding;
         extraParams_ = new LinkedHashMap<String,String>();
         if ( maxrec > 0 ) {
             extraParams_.put( "MAXREC", Integer.toString( maxrec_ ) );
         }
+        colsMap_ = new HashMap<String,String[]>();
     }
 
     /**
-     * Returns the TAP service URL used by this interrogator.
+     * Returns the TAP endpoint locations used by this interrogator.
      *
-     * @return  service URL
+     * @return  TAP endpoints
      */
-    public URL getServiceUrl() {
-        return serviceUrl_;
+    public EndpointSet getEndpointSet() {
+        return endpointSet_;
     }
 
     /**
@@ -167,8 +174,7 @@ public class TapSchemaInterrogator {
                     String sname = entry.getKey();
                     List<TableMeta> tlist = entry.getValue();
                     assert tlist != null;
-                    SchemaMeta smeta = new SchemaMeta();
-                    smeta.name_ = sname;
+                    SchemaMeta smeta = SchemaMeta.createDummySchema( sname );
                     smeta.setTables( tlist.toArray( new TableMeta[ 0 ] ) );
                     sList.add( smeta );
                 }
@@ -281,7 +287,7 @@ public class TapSchemaInterrogator {
      * @return  query to execute
      */
     protected TapQuery createTapQuery( String adql ) {
-        return new TapQuery( serviceUrl_, adql, extraParams_ );
+        return new TapQuery( endpointSet_, adql, extraParams_ );
     }
 
     /**
@@ -293,6 +299,50 @@ public class TapSchemaInterrogator {
      */
     protected StarTable executeQuery( TapQuery tq ) throws IOException {
         return tq.executeSync( StoragePolicy.getDefaultPolicy(), coding_ );
+    }
+
+    /**
+     * Returns the columns available in the TAP service for a given table.
+     * The result may be cached from a previous invocation.
+     *
+     * @param  tableName  table name
+     * @return   list of column names 
+     */
+    private String[] getAvailableColumns( String tableName )
+            throws IOException {
+        synchronized ( colsMap_ ) {
+            if ( ! colsMap_.containsKey( tableName ) ) {
+                colsMap_.put( tableName, readAvailableColumns( tableName ) );
+            }
+        }
+        return colsMap_.get( tableName );
+    }
+
+    /**
+     * Reads the columns available in the TAP service for a given table.
+     *
+     * @param  tableName  table name
+     * @return   list of column names 
+     */
+    private String[] readAvailableColumns( String tableName )
+            throws IOException {
+        String adql = new StringBuffer()
+            .append( "SELECT TOP 1 * FROM " )
+            .append( tableName )
+            .toString();
+        Map<String,String> extraParams = new HashMap<String,String>();
+        extraParams.put( "MAXREC", "1" );
+        StarTable table =
+            executeQuery( new TapQuery( endpointSet_, adql, extraParams ) );
+        List<String> list = new ArrayList<String>();
+        int ncol = table.getColumnCount();
+        for ( int icol = 0; icol < ncol; icol++ ) {
+            String name = table.getColumnInfo( icol ).getName();
+            if ( ! name.toLowerCase().matches( ".*size.*" ) ) {
+                list.add( name );
+            }
+        }
+        return list.toArray( new String[ 0 ] );
     }
 
     /**
@@ -312,31 +362,24 @@ public class TapSchemaInterrogator {
     }
 
     /**
-     * Indicates whether an TAP output value represents a boolean True.
-     *
-     * @param   entry   table entry
-     * @return  true iff entry is a Number with a non-zero value
-     */
-    private static boolean isTrue( Object entry ) {
-        return entry instanceof Number
-            && ((Number) entry).intValue() != 0;
-    }
-
-    /**
      * Returns a MetaQuerier for reading ForeignMeta.Link objects.
      *
      * @return   link querier
      */
     private static MetaQuerier<ForeignMeta.Link> createLinkQuerier() {
-        ColList lcList = new ColList();
-        final int ilcFrom = lcList.addStringCol( "from_column" );
-        final int ilcTarget = lcList.addStringCol( "target_column" );
+        final String cFromColumn;
+        final String cTargetColumn;
+        String[] atts = {
+            cFromColumn = "from_column",
+            cTargetColumn = "target_column",
+        };
         return new MetaQuerier<ForeignMeta.Link>( "TAP_SCHEMA.key_columns",
-                                                  lcList, "key_id" ) {
-            public ForeignMeta.Link createMeta( Object[] row ) {
+                                                  atts, true, "key_id",
+                                                  null, null ) {
+            public ForeignMeta.Link createMeta( ColSet colset, Object[] row ) {
                 ForeignMeta.Link link = new ForeignMeta.Link();
-                link.from_ = (String) row[ ilcFrom ];
-                link.target_ = (String) row[ ilcTarget ];
+                link.from_ = colset.getCellString( cFromColumn, row );
+                link.target_ = colset.getCellString( cTargetColumn, row );
                 return link;
             }
         };
@@ -348,19 +391,24 @@ public class TapSchemaInterrogator {
      * @return  foreign key querier
      */
     private static MetaQuerier<ForeignMeta> createForeignKeyQuerier() {
-        ColList fcList = new ColList();
-        final int ifcId = fcList.addStringCol( "key_id" );
-        final int ifcTarget = fcList.addStringCol( "target_table" );
-        final int ifcDesc = fcList.addStringCol( "description" );
-        final int ifcUtype = fcList.addStringCol( "utype" );
-        return new MetaQuerier<ForeignMeta>( "TAP_SCHEMA.keys", fcList,
-                                             "from_table" ) {
-            public ForeignMeta createMeta( Object[] row ) {
+        final String cKeyId;
+        final String cTargetTable;
+        final String cDescription;
+        final String cUtype;
+        String[] atts = {
+            cKeyId = "key_id",
+            cTargetTable = "target_table",
+            cDescription = "description",
+            cUtype = "utype",
+        };
+        return new MetaQuerier<ForeignMeta>( "TAP_SCHEMA.keys", atts, true,
+                                             "from_table", null, null ) {
+            public ForeignMeta createMeta( ColSet colset, Object[] row ) {
                 ForeignMeta fmeta = new ForeignMeta();
-                fmeta.keyId_ = (String) row[ ifcId ];
-                fmeta.targetTable_ = (String) row[ ifcTarget ];
-                fmeta.description_ = (String) row[ ifcDesc ];
-                fmeta.utype_ = (String) row[ ifcUtype ];
+                fmeta.keyId_ = colset.getCellString( cKeyId, row );
+                fmeta.targetTable_ = colset.getCellString( cTargetTable, row );
+                fmeta.description_ = colset.getCellString( cDescription, row );
+                fmeta.utype_ = colset.getCellString( cUtype, row );
                 return fmeta;
             }
         };
@@ -372,37 +420,53 @@ public class TapSchemaInterrogator {
      * @return   column querier
      */
     private static MetaQuerier<ColumnMeta> createColumnQuerier() {
-        ColList ccList = new ColList();
-        final int iccName = ccList.addStringCol( "column_name" );
-        final int iccDesc = ccList.addStringCol( "description" );
-        final int iccUnit = ccList.addStringCol( "unit" );
-        final int iccUcd = ccList.addStringCol( "ucd" );
-        final int iccUtype = ccList.addStringCol( "utype" );
-        final int iccDatatype = ccList.addStringCol( "datatype" );
-        final int iccIndexed = ccList.addOtherCol( "indexed" );
-        final int iccPrincipal = ccList.addOtherCol( "principal" );
-        final int iccStd = ccList.addOtherCol( "std" );
-        return new MetaQuerier<ColumnMeta>( "TAP_SCHEMA.columns", ccList,
-                                            "table_name" ) {
-            public ColumnMeta createMeta( Object[] row ) {
+        final String cColumnName;
+        final String cDescription;
+        final String cUnit;
+        final String cUcd;
+        final String cUtype;
+        final String cDatatype;
+        final String cIndexed;
+        final String cPrincipal;
+        final String cStd;
+        String[] attCols = {
+            cColumnName = "column_name",
+            cDescription = "description",
+            cUnit = "unit",
+            cUcd = "ucd",
+            cUtype = "utype",
+            cDatatype = "datatype",
+            cIndexed = "indexed",
+            cPrincipal = "principal",
+            cStd = "std",
+        };
+        final String cColumnIndex = "column_index";
+        final String[] flagAtts = { cIndexed, cPrincipal, cStd };
+        return new MetaQuerier<ColumnMeta>( "TAP_SCHEMA.columns", attCols,
+                                            false, "table_name",
+                                            cColumnIndex, null ) {
+            public ColumnMeta createMeta( ColSet colset, Object[] row ) {
                 ColumnMeta cmeta = new ColumnMeta();
-                cmeta.name_ = (String) row[ iccName ];
-                cmeta.description_ = (String) row[ iccDesc ];
-                cmeta.unit_ = (String) row[ iccUnit ];
-                cmeta.ucd_ = (String) row[ iccUcd ];
-                cmeta.utype_ = (String) row[ iccUtype ];
-                cmeta.dataType_ = (String) row[ iccDatatype ];
+                cmeta.name_ = colset.getCellString( cColumnName, row );
+                cmeta.description_ = colset.getCellString( cDescription, row );
+                cmeta.unit_ = colset.getCellString( cUnit, row );
+                cmeta.ucd_ = colset.getCellString( cUcd, row );
+                cmeta.utype_ = colset.getCellString( cUtype, row );
+                cmeta.dataType_ = colset.getCellString( cDatatype, row );
                 List<String> flagList = new ArrayList<String>();
-                if ( isTrue( row[ iccIndexed ] ) ) {
-                    flagList.add( "indexed" );
-                }
-                if ( isTrue( row[ iccPrincipal ] ) ) {
-                    flagList.add( "principal" );
-                }
-                if ( isTrue( row[ iccStd ] ) ) {
-                    flagList.add( "std" );
+                for ( String flagAtt : flagAtts ) {
+                    if ( colset.getCellBoolean( flagAtt, row ) ) {
+                        flagList.add( flagAtt );
+                    }
                 }
                 cmeta.flags_ = flagList.toArray( new String[ 0 ] );
+                cmeta.extras_ = colset.getExtras( row );
+                for ( Iterator<String> it = cmeta.extras_.keySet().iterator();
+                      it.hasNext(); ) {
+                    if ( cColumnIndex.equalsIgnoreCase( it.next() ) ) {
+                        it.remove();
+                    }
+                }
                 return cmeta;
             }
         };
@@ -414,19 +478,40 @@ public class TapSchemaInterrogator {
      * @return  table querier
      */
     private static MetaQuerier<TableMeta> createTableQuerier() {
-        ColList tcList = new ColList();
-        final int itcName = tcList.addStringCol( "table_name" );
-        final int itcType = tcList.addStringCol( "table_type" );
-        final int itcDesc = tcList.addStringCol( "description" );
-        final int itcUtype = tcList.addStringCol( "utype" );
-        return new MetaQuerier<TableMeta>( "TAP_SCHEMA.tables", tcList,
-                                           "schema_name" ) {
-            public TableMeta createMeta( Object[] row ) {
+        final String cTableName;
+        final String cTableType;
+        final String cDescription;
+        final String cUtype;
+        String[] attCols = {
+            cTableName = "table_name",
+            cTableType = "table_type",
+            cDescription = "description",
+            cUtype = "utype",
+        };
+
+        /* TAP 1.1 defines "table_index" as an optional display ordering
+         * column, so maybe should use that.  But I'm inclined to stick
+         * with alphabetic ordering here, since that's what you'll see
+         * for other metadata read policies, and it's probably what
+         * users expect. */
+        final String cTableIndex = "table_index";
+        String rankColName = null;
+        return new MetaQuerier<TableMeta>( "TAP_SCHEMA.tables", attCols,
+                                           false, "schema_name",
+                                           rankColName, cTableName ) {
+            public TableMeta createMeta( ColSet colset, Object[] row ) {
                 TableMeta tmeta = new TableMeta();
-                tmeta.name_ = (String) row[ itcName ];
-                tmeta.type_ = (String) row[ itcType ];
-                tmeta.description_ = (String) row[ itcDesc ];
-                tmeta.utype_ = (String) row[ itcUtype ];
+                tmeta.name_ = colset.getCellString( cTableName, row );
+                tmeta.type_ = colset.getCellString( cTableType, row );
+                tmeta.description_ = colset.getCellString( cDescription, row );
+                tmeta.utype_ = colset.getCellString( cUtype, row );
+                tmeta.extras_ = colset.getExtras( row );
+                for ( Iterator<String> it = tmeta.extras_.keySet().iterator();
+                      it.hasNext(); ) {
+                    if ( cTableIndex.equalsIgnoreCase( it.next() ) ) {
+                        it.remove();
+                    }
+                }
                 return tmeta;
             }
         };
@@ -438,52 +523,87 @@ public class TapSchemaInterrogator {
      * @return   schema querier
      */
     private static MetaQuerier<SchemaMeta> createSchemaQuerier() {
-        ColList scList = new ColList();
-        final int iscName = scList.addStringCol( "schema_name" );
-        final int iscDesc = scList.addStringCol( "description" );
-        final int iscUtype = scList.addStringCol( "utype" );
-        return new MetaQuerier<SchemaMeta>( "TAP_SCHEMA.schemas", scList,
-                                            null ) {
-            public SchemaMeta createMeta( Object[] row ) {
+        final String cSchemaName;
+        final String cDescription;
+        final String cUtype;
+        String[] attCols = {
+            cSchemaName = "schema_name",
+            cDescription = "description",
+            cUtype = "utype",
+        };
+        return new MetaQuerier<SchemaMeta>( "TAP_SCHEMA.schemas", attCols,
+                                            true, null, null, cSchemaName ) {
+            public SchemaMeta createMeta( ColSet colset, Object[] row ) {
                 SchemaMeta smeta = new SchemaMeta();
-                smeta.name_ = (String) row[ iscName ];
-                smeta.description_ = (String) row[ iscDesc ];
-                smeta.utype_ = (String) row[ iscUtype ];
+                smeta.name_ = colset.getCellString( cSchemaName, row );
+                smeta.description_ = colset.getCellString( cDescription, row );
+                smeta.utype_ = colset.getCellString( cUtype, row );
                 return smeta;
             }
         };
     }
 
     /**
-     * Object that can read a certain type T of TAP metadata object from
+     * Object that can read a certain type of TAP metadata object from
      * a table of a TAP_SCHEMA database table.
      * Instances are provided as static members of the enclosing
      * {@link TapSchemaInterrogator} class.
+     *
+     * @param  <T>  metadata object type that this class can obtain
      */
     public static abstract class MetaQuerier<T> {
 
         final String tableName_;
-        final CSpec[] atts_;
+        final String[] attCols_;
+        final boolean queryStdOnly_;
         final String parentColName_;
+        final String rankColName_;
+        final String alphaColName_;
+        final String[] attPlusParentCols_;
 
         /**
          * Constructor.
          *
          * @param  tableName  name of the TAP database table from the rows
          *                    of which each metadata item can be read
-         * @param  attList   sequence of columns required when querying
-         *                   the database table; each represents an attribute
-         *                   of the constructed metadata item
+         * @param  attCols   standard columns representing metadata item
+         *                   attributes with known semantics in the
+         *                   TAP_SCHEMA table representing this object type;
+         *                   ones not in this list and not the parentColName
+         *                   count as "extra" metadata items
+         * @param  queryStdOnly  if true, only the stdCols are queried,
+         *                       and all must be present otherwise an error
+         *                       will result (so they better be mandatory);
+         *                       if false, all available columns in the
+         *                       table are queried
          * @param  parentColName  name of the string-typed database column
          *                        that refers to the 'parent' object
          *                        of the constructed metadata items;
          *                        may be null
+         * @param  rankColName  name of a column that, if it exists and is
+         *                      numeric, gives a preferred display ordering
+         *                      for this querier's metadata items; may be null
+         * @param  alphaColName  name of a column that, if it exists and is
+         *                       string-valued, provides an alphabetic display
+         *                       ordering for this querier's metadata items
+         *                       when rank is not available; may be null
          */
-        private MetaQuerier( String tableName, ColList attList,
-                             String parentColName ) {
+        private MetaQuerier( String tableName, String[] attCols,
+                             boolean queryStdOnly, String parentColName,
+                             String rankColName, String alphaColName ) {
             tableName_ = tableName;
-            atts_ = attList.getCols();
+            attCols_ = attCols;
+            queryStdOnly_ = queryStdOnly;
             parentColName_ = parentColName;
+            rankColName_ = rankColName;
+            alphaColName_ = alphaColName;
+            int natt = attCols_.length;
+            List<String> appList = new ArrayList<String>();
+            appList.addAll( Arrays.asList( attCols ) );
+            if ( parentColName != null ) {
+                appList.add( parentColName );
+            }
+            attPlusParentCols_ = appList.toArray( new String[ 0 ] );
         }
 
         /**
@@ -499,12 +619,11 @@ public class TapSchemaInterrogator {
         /**
          * Constructs a metadata item from a database row.
          *
-         * @param  row  database query response row, for a query containing
-         *              this querier's attribute list columns as at least
-         *              the initial elements (there may be more after)
+         * @param  colset  describes the columns in the query
+         * @param  row  database query response row
          * @return  metadata item constructed from <code>row</code> elements
          */
-        abstract T createMeta( Object[] row );
+        abstract T createMeta( ColSet colset, Object[] row );
 
         /**
          * Queries the database to retrieve a map of parent-name to
@@ -516,28 +635,32 @@ public class TapSchemaInterrogator {
         Map<String,List<T>> readMap( TapSchemaInterrogator tsi,
                                      String moreAdql )
                 throws IOException {
-            List<CSpec> colList = new ArrayList<CSpec>();
-            colList.addAll( Arrays.asList( atts_ ) );
-            colList.add( new CSpec( parentColName_, true ) );
-            int icParent = colList.size() - 1;
-            StarTable table = query( tsi, colList, moreAdql );
-            Map<String,List<T>> map = new LinkedHashMap<String,List<T>>();
+            String[] queryCols = queryStdOnly_
+                               ? attPlusParentCols_
+                               : tsi.getAvailableColumns( tableName_ );
+            ColSet colset = new ColSet( queryCols, attPlusParentCols_ );
+            StarTable table = query( tsi, colset, moreAdql );
+            Map<String,List<RankedMeta>> rmap =
+                new LinkedHashMap<String,List<RankedMeta>>();
             RowSequence rseq = table.getRowSequence();
             try {
+                int iseq = 0;
                 while ( rseq.next() ) {
                     Object[] row = rseq.getRow();
-                    Object parentValue = row[ icParent ];
-                    String key = parentValue == null ? null
-                                                     : parentValue.toString();
-                    T value = createMeta( row );
-                    if ( ! map.containsKey( key ) ) {
-                        map.put( key, new ArrayList<T>() );
+                    String key = colset.getCellString( parentColName_, row );
+                    RankedMeta value = createRankedMeta( colset, row, iseq++ );
+                    if ( ! rmap.containsKey( key ) ) {
+                        rmap.put( key, new ArrayList<RankedMeta>() );
                     }
-                    map.get( key ).add( value );
+                    rmap.get( key ).add( value );
                 }
             }
             finally {
                 rseq.close();
+            }
+            Map<String,List<T>> map = new LinkedHashMap<String,List<T>>();
+            for ( Map.Entry<String,List<RankedMeta>> entry : rmap.entrySet() ) {
+                map.put( entry.getKey(), extractMetas( entry.getValue() ) );
             }
             return map;
         }
@@ -555,19 +678,24 @@ public class TapSchemaInterrogator {
          */
         List<T> readList( TapSchemaInterrogator tsi, String moreAdql )
                 throws IOException {
-            List<CSpec> colList = Arrays.asList( atts_ );
-            StarTable table = query( tsi, colList, moreAdql );
-            List<T> list = new ArrayList<T>();
+            String[] queryCols = queryStdOnly_
+                               ? attCols_
+                               : tsi.getAvailableColumns( tableName_ );
+            ColSet colset = new ColSet( queryCols, attPlusParentCols_ );
+            StarTable table = query( tsi, colset, moreAdql );
+            List<RankedMeta> rlist = new ArrayList<RankedMeta>();
             RowSequence rseq = table.getRowSequence();
             try {
+                int iseq = 0;
                 while ( rseq.next() ) {
-                    list.add( createMeta( rseq.getRow() ) );
+                    rlist.add( createRankedMeta( colset, rseq.getRow(),
+                                                 iseq++ ) );
                 }
             }
             finally {
                 rseq.close();
             }
-            return list;
+            return extractMetas( rlist );
         }
 
         /**
@@ -575,21 +703,23 @@ public class TapSchemaInterrogator {
          * as a StarTable.
          *
          * @param  tsi    interrogator for which query will be done
+         * @param  colSet   describes columns to be queried
          * @param  moreAdql   additional ADQL text to append after the
          *                    FROM clause (for example a WHERE clause);
          *                    may be null
          * @return   result
          */
-        private StarTable query( TapSchemaInterrogator tsi, List<CSpec> colList,
+        private StarTable query( TapSchemaInterrogator tsi, ColSet colSet,
                                  String moreAdql )
                 throws IOException {
             StringBuffer sbuf = new StringBuffer();
             sbuf.append( "SELECT " );
-            for ( Iterator<CSpec> it = colList.iterator(); it.hasNext(); ) {
-                sbuf.append( it.next().name_ );
-                if ( it.hasNext() ) {
+            String[] queryCols = colSet.querycols_;
+            for ( int ic = 0; ic < queryCols.length; ic++ ) {
+                if ( ic > 0 ) {
                     sbuf.append( ", " );
                 }
+                sbuf.append( queryCols[ ic ] );
             }
             sbuf.append( " FROM " )
                 .append( tableName_ );
@@ -599,7 +729,7 @@ public class TapSchemaInterrogator {
             }
             StarTable result =
                 tsi.executeQuery( tsi.createTapQuery( sbuf.toString() ) );
-            checkResultTable( result, colList );
+            checkResultTable( result, queryCols );
             return result;
         }
 
@@ -609,117 +739,274 @@ public class TapSchemaInterrogator {
          * IOException will be thrown.  Otherwise no action is taken.
          *
          * @param   result table  table to check
+         * @param   cols   columns expected to be present in table
          */
-        private void checkResultTable( StarTable table, List<CSpec> colList )
+        private void checkResultTable( StarTable table, String[] cols )
                 throws IOException {
             int ncol = table.getColumnCount();
-            if ( ncol != colList.size() ) {
+            if ( ncol != cols.length ) {
                 throw new IOException( "Schema query column count mismatch ("
-                                     + ncol + " != " + colList.size() + " )" );
+                                     + ncol + " != " + cols.length + " )" );
             }
-            for ( int ic = 0; ic < ncol; ic++ ) {
-                ColumnInfo info = table.getColumnInfo( ic );
-                boolean isString = String.class
-                                  .isAssignableFrom( info.getContentClass() );
-                CSpec cspec = colList.get( ic );
-                boolean mustBeString = cspec.isString_;
-                if ( mustBeString && ! isString ) {
-                    throw new IOException( "Schema query column type mismatch: "
-                                         + info + " is not string type" );
+        }
+
+        /**
+         * Constructs a RankedMeta object from a database row.
+         *
+         * @param  colset  describes the columns in the query
+         * @param  row  database query response row
+         * @param  iseq   running index of object in this set
+         * @return  metadata item constructed from <code>row</code> elements
+         */
+        private RankedMeta createRankedMeta( ColSet colset, Object[] row,
+                                             int iseq ) {
+            double rank = rankColName_ == null
+                        ? Double.NaN
+                        : colset.getCellDouble( rankColName_, row );
+            String alpha = alphaColName_ == null
+                         ? null
+                         : colset.getCellString( alphaColName_, row );
+            return new RankedMeta( createMeta( colset, row ),
+                                   rank, alpha, iseq );
+        }
+
+        /**
+         * Returns an (if possible sorted) list of metadata objects
+         * from an unsorted collection of RankedMeta objects.
+         *
+         * @param  rlist  unsorted collection of ranked metadata objects
+         * @return  sorted list of metadata objects
+         */
+        private List<T> extractMetas( List<RankedMeta> rlist ) {
+
+            /* Sort the list as far as possible. */
+            if ( rankColName_ != null || alphaColName_ != null ) {
+                boolean hasRanks = false;
+                boolean hasAlphas = false;
+                for ( RankedMeta m : rlist ) {
+                    hasRanks = hasRanks || ! Double.isNaN( m.rank_ );
+                    hasAlphas = hasAlphas || m.alpha_ != null;
+                }
+                if ( hasRanks || hasAlphas ) {
+                    Collections.sort( rlist );
                 }
             }
+
+            /* Extract the contents to an unranked list and return. */
+            List<T> mlist = new ArrayList<T>( rlist.size() );
+            for ( RankedMeta r : rlist ) {
+                mlist.add( r.meta_ );
+            }
+            return mlist;
+        }
+
+        /**
+         * Packages instances of this querier's metadata items along with
+         * ordering information; a possible rank value and a possible
+         * alphanumeric label.  Either or both may be blank.
+         */
+        private class RankedMeta implements Comparable<RankedMeta> {
+            final T meta_;
+            final double rank_;
+            final String alpha_;
+            final int iseq_;
+
+            /**
+             * Constructor.
+             *
+             * @param  meta  metadata item
+             * @param  rank  numeric indication of ordering; NaN if unknown
+             * @param  alpha  alphabetic indication of ordering; null if unknown
+             * @param  iseq  running sequence number; used to resolve conflicts
+             *               if rank and alpha are tied
+             */
+            RankedMeta( T meta, double rank, String alpha, int iseq ) {
+                meta_ = meta;
+                rank_ = rank;
+                alpha_ = alpha;
+                iseq_ = iseq;
+            }
+
+            /**
+             * Implements Comparable interface.
+             * Rank is considered before alpha.
+             */
+            public int compareTo( RankedMeta other ) {
+                int rc = (int) Math.signum( toComparable( this.rank_ )
+                                          - toComparable( other.rank_ ) );
+                if ( rc != 0 ) {
+                    return rc;
+                }
+                if ( this.alpha_ != null || other.alpha_ != null ) {
+                    if ( this.alpha_ == null ) {
+                        return +1;
+                    }
+                    else if ( other.alpha_ == null ) {
+                        return -1;
+                    }
+                    else {
+                        return this.alpha_.compareTo( other.alpha_ );
+                    }
+                }
+                int sc = (int) Math.signum( this.iseq_ - other.iseq_ );
+                if ( sc != 0 ) {
+                    return sc;
+                }
+                return (int) Math.signum( this.hashCode() - other.hashCode() );
+            }
+
+            /**
+             * Makes sure a numeric value is usable for numeric comparison.
+             * Maps NaN to a large number.
+             *
+             * @param  rank  raw value
+             * @return   sanitised value
+             */
+            private double toComparable( double rank ) {
+                return Double.isNaN( rank ) ? 0.25 * Double.MAX_VALUE : rank;
+            }
         }
     }
 
     /**
-     * Represents a list of columns in a TAP table which will be queried.
+     * Describes a set of columns to be queried in an ADQL query.
      */
-    private static class ColList {
-
-        private final List<CSpec> clist_;
+    private static class ColSet {
+        final Map<String,Integer> icolMap_;
+        final String[] querycols_;
+        final String[] extraCols_;
 
         /**
          * Constructor.
+         *
+         * @param  queryCols  names of all columns queried
+         * @param  stdCols  names of columns with known semantics;
+         *                  any others will be made available as "extras"
          */
-        ColList() {
-            clist_ = new ArrayList<CSpec>();
+        ColSet( String[] queryCols, String[] stdCols ) {
+            querycols_ = toLowers( queryCols );
+            Collection<String> stdcols =
+                new HashSet( Arrays.asList( toLowers( stdCols ) ) );
+            icolMap_ = new HashMap<String,Integer>();
+            List<String> extrasList = new ArrayList<String>();
+            int nc = querycols_.length;
+            for ( int ic = 0; ic < nc; ic++ ) {
+                String col = querycols_[ ic ];
+                icolMap_.put( col, new Integer( ic ) );
+                if ( ! stdcols.contains( col ) ) {
+                    extrasList.add( queryCols[ ic ] );
+                }
+            }
+            extraCols_ = extrasList.toArray( new String[ 0 ] );
         }
 
         /**
-         * Returns the content of this list as an array of column specification
-         * objects.
+         * Returns a map of any non-standard items recovered from the query.
+         * This is all the columns actually present except those named as
+         * standard in the constructor.  Only non-blank items are included
+         * in the returned map.
          *
-         * @return   column specification objects
+         * @param  row   row from query result
+         * @return   map from column name to value in row
          */
-        CSpec[] getCols() {
-            return clist_.toArray( new CSpec[ 0 ] );
+        Map<String,Object> getExtras( Object[] row ) {
+            Map<String,Object> map = new LinkedHashMap<String,Object>();
+            for ( String col : extraCols_ ) {
+                Object obj = getCellObject( col, row );
+                if ( ! Tables.isBlank( obj ) ) {
+                    map.put( col, obj );
+                }
+            }
+            return map;
         }
 
         /**
-         * Adds a new string-valued column to the list.
-         * If the corresponding column in the result is not string-valued
-         * an error will result.
+         * Returns the value of the cell in a given row of a named column.
          *
-         * @param  name  column name in remote table
-         * @return  index of column which has been added
+         * @param  colname   column name (not case sensitive)
+         * @param  row   row from query result
+         * @return   value of named column in row, null if can't do it
          */
-        int addStringCol( String name ) {
-            return addCol( new CSpec( name, true ) );
+        Object getCellObject( String colname, Object[] row ) {
+            Integer icol = icolMap_.get( colname.toLowerCase() );
+            return icol == null ? null : row[ icol.intValue() ];
         }
 
         /**
-         * Adds a new non-string-valued column to the list.
+         * Returns the string value of the cell in a given row of
+         * a named column.  In general the column name should refer to
+         * a string-valued column, but no error will result if it doesn't.
          *
-         * @param  name  column name in remote table
-         * @return  index of column which has been added
+         * @param  colname   column name (not case sensitive)
+         * @param  row   row from query result
+         * @return   string value of named column in row, null if can't do it
          */
-        int addOtherCol( String name ) {
-            return addCol( new CSpec( name, false ) );
+        String getCellString( String colname, Object[] row ) {
+            Object obj = getCellObject( colname, row );
+            return obj == null ? null : obj.toString();
         }
 
         /**
-         * Adds a new column specifier to the list.
+         * Returns the value of the cell in a given row of a named
+         * column interpreted as a boolean.  In TAP terms this means
+         * a non-zero integer value.  So the column should be numeric,
+         * but no error will result if it isn't.
          *
-         * @param  cspec  column specifier
-         * @return  index of column which has been added
+         * @param  colname   column name (not case sensitive)
+         * @param  row   row from query result
+         * @return   boolean value of named column in row, false if can't do it
          */
-        private int addCol( CSpec cspec ) {
-            clist_.add( cspec );
-            return clist_.size() - 1;
+        boolean getCellBoolean( String colname, Object[] row ) {
+            Object obj = getCellObject( colname, row );
+            return obj instanceof Number
+                && ((Number) obj).intValue() != 0;
+        }
+
+        /**
+         * Returns the value of the cell in a given row of a named column
+         * interpreted as a double.  If the column is not numeric or
+         * doesn't exist, NaN is returned.
+         *
+         * @param  colname   column name (not case sensitive)
+         * @param  row   row from query result
+         * @return   numeric value of named column in row, NaN if can't do it
+         */
+        double getCellDouble( String colname, Object[] row ) {
+            Object obj = getCellObject( colname, row );
+            return obj instanceof Number
+                 ? ((Number) obj).doubleValue() : Double.NaN;
+        }
+
+        /**
+         * Utility method to convert an array of strings to its
+         * lower-cased equivalent.
+         *
+         * @param  ins  input list
+         * @return   output list (same length)
+         */
+        private static String[] toLowers( String[] ins ) {
+            int n = ins.length;
+            String[] outs = new String[ n ];
+            for ( int i = 0; i < n; i++ ) {
+                outs[ i ] = ins[ i ].toLowerCase();
+            }
+            return outs;
         }
     }
 
     /**
-     * Column specifier.
-     * Aggregates name and rudimentary type information.
-     */
-    private static class CSpec {
-        final String name_;
-        final boolean isString_;
-
-        /**
-         * Constructor.
-         *
-         * @param  name  column name
-         * @param  isString  true iff the column must be string valued
-         */
-        CSpec( String name, boolean isString ) {
-            name_ = name;
-            isString_ = isString;
-        }
-    }
-
-    /**
-     * Prints out tmetadata content of a given TAP service.
+     * Prints out metadata content of a given TAP service.
      *
      * @param  args  first element is TAP service URL
      */
     public static void main( String[] args ) throws IOException {
         String url = args[ 0 ];
+        EndpointSet endpointSet =
+            Endpoints.createDefaultTapEndpointSet( new URL( url ) );
         int maxrec = 100000;
         ContentCoding coding = ContentCoding.GZIP;
         SchemaMeta[] smetas =
-            new TapSchemaInterrogator( new URL( url ), maxrec, coding )
+            new TapSchemaInterrogator( endpointSet, maxrec, coding )
            .readSchemas( true, true, true );
         for ( int is = 0; is < smetas.length; is++ ) {
             SchemaMeta smeta = smetas[ is ];

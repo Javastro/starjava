@@ -16,6 +16,7 @@ import java.util.regex.Pattern;
 import org.xml.sax.SAXException;
 import uk.ac.starlink.util.ByteList;
 import uk.ac.starlink.util.ContentCoding;
+import uk.ac.starlink.vo.EndpointSet;
 import uk.ac.starlink.vo.SchemaMeta;
 import uk.ac.starlink.vo.TableMeta;
 import uk.ac.starlink.vo.TapQuery;
@@ -47,6 +48,10 @@ public class JobStage implements Stage {
       + "([\\.,]\\d+(?!:))?)?(\\17[0-5]\\d([\\.,]\\d+)?)?"
       + "([zZ]|([\\+-])([01]\\d|2[0-3]):?([0-5]\\d)?)?)?)?$"
     );
+    private static final ContentType CTYPE_PLAIN =
+        new ContentType( new String[] { "text/plain" } );
+    private static final ContentType CTYPE_XML =
+        new ContentType( new String[] { "text/xml", "application/xml" } );
 
     /**
      * Constructor.
@@ -65,7 +70,7 @@ public class JobStage implements Stage {
         return "Test asynchronous UWS/TAP behaviour";
     }
 
-    public void run( Reporter reporter, URL serviceUrl ) {
+    public void run( Reporter reporter, EndpointSet endpointSet ) {
         SchemaMeta[] smetas = metaHolder_.getTableMetadata();
         TableMeta tmeta = getFirstTable( metaHolder_.getTableMetadata() );
         if ( tmeta == null ) {
@@ -75,7 +80,7 @@ public class JobStage implements Stage {
                            + " - will not attempt UWS tests" );
             return;
         }
-        new UwsRunner( reporter, serviceUrl, tmeta, pollMillis_ ).run();
+        new UwsRunner( reporter, endpointSet, tmeta, pollMillis_ ).run();
     }
 
     /**
@@ -100,7 +105,7 @@ public class JobStage implements Stage {
      */
     private static class UwsRunner implements Runnable {
         private final Reporter reporter_;
-        private final URL serviceUrl_;
+        private final EndpointSet endpointSet_;
         private final TableMeta tmeta_;
         private final long poll_;
         private final String shortAdql_;
@@ -111,14 +116,14 @@ public class JobStage implements Stage {
          * Constructor.
          *
          * @param  reporter  destination for validation messages
-         * @param  serviceUrl  base URL of TAP service
+         * @param  endpointSet  locations of TAP services
          * @param  tmeta  example table metadata
          * @param  poll  number of milliseconds between polls when waiting
          */
-        UwsRunner( Reporter reporter, URL serviceUrl, TableMeta tmeta,
+        UwsRunner( Reporter reporter, EndpointSet endpointSet, TableMeta tmeta,
                    long poll ) {
             reporter_ = reporter;
-            serviceUrl_ = serviceUrl;
+            endpointSet_ = endpointSet;
             tmeta_ = tmeta;
             poll_ = poll;
             shortAdql_ = "SELECT TOP 100 * FROM " + tmeta.getName();
@@ -157,7 +162,6 @@ public class JobStage implements Stage {
             }
             // should check 303 response here really
             if ( postKeyValue( job, "", "ACTION", "DELETE" ) ) {
-           
                 checkDeleted( job );
             }
         }
@@ -225,8 +229,8 @@ public class JobStage implements Stage {
             try {
                 boolean knownPhase = false;
                 while ( ! knownPhase ) {
-                    job.readPhase();
-                    phase = job.getLastPhase();
+                    UwsJobInfo info = job.readInfo();
+                    phase = info.getPhase();
                     knownPhase = ! "UNKNOWN".equals( phase );
                     if ( ! knownPhase ) {
                         waitUnknown( jobUrl );
@@ -360,19 +364,14 @@ public class JobStage implements Stage {
 
             /* Check and read the job document. */
             URL jobUrl = job.getJobUrl();
-            readContent( jobUrl, ContentType.XML, true );
+            readContent( jobUrl, CTYPE_XML, true );
             UwsJobInfo jobInfo;
             try {
-                jobInfo = job.readJob();
+                jobInfo = job.readInfo();
             }
             catch ( IOException e ) {
                 reporter_.report( FixedCode.E_JDIO,
                                   "Error reading job document " + jobUrl, e );
-                return;
-            }
-            catch ( SAXException e ) {
-                reporter_.report( FixedCode.E_JDSX,
-                                  "Error parsing job document " + jobUrl, e );
                 return;
             }
             if ( jobInfo == null ) {
@@ -615,9 +614,10 @@ public class JobStage implements Stage {
          */
         private void waitForFinish( UwsJob job ) {
             URL jobUrl = job.getJobUrl();
-            while ( UwsStage.forPhase( job.getLastPhase() )
+            UwsJobInfo info = job.getLastInfo();
+            while ( UwsStage.forPhase( info.getPhase() )
                     != UwsStage.FINISHED ) {
-                String phase = job.getLastPhase();
+                String phase = info.getPhase();
                 UwsStage stage = UwsStage.forPhase( phase );
                 switch ( stage ) {
                     case UNSTARTED:
@@ -642,7 +642,7 @@ public class JobStage implements Stage {
                         throw new AssertionError();
                 }
                 try {
-                    job.readPhase();
+                    info = job.readInfo();
                 }
                 catch ( IOException e ) {
                     reporter_.report( FixedCode.E_RDPH,
@@ -724,16 +724,11 @@ public class JobStage implements Stage {
          */
         private UwsJobInfo readJobInfo( UwsJob job ) {
             try {
-                return job.readJob();
+                return job.readInfo();
             }
             catch ( IOException e ) {
                 reporter_.report( FixedCode.E_JBIO,
                                   "Error reading job info", e );
-                return null;
-            }
-            catch ( SAXException e ) {
-                reporter_.report( FixedCode.E_JBSP,
-                                  "Error parsing job info", e );
                 return null;
             }
         }
@@ -747,10 +742,11 @@ public class JobStage implements Stage {
         private UwsJob createJob( String adql ) {
             Map<String,String> paramMap = new LinkedHashMap<String,String>();
             paramMap.put( "RUNID", runId1_ );
-            TapQuery tq = new TapQuery( serviceUrl_, adql, paramMap );
+            TapQuery tq = new TapQuery( endpointSet_, adql, paramMap );
             UwsJob job;
             try {
-                job = UwsJob.createJob( tq.getServiceUrl() + "/async",
+                job = UwsJob.createJob( endpointSet_.getAsyncEndpoint()
+                                                    .toString(),
                                         tq.getStringParams(),
                                         tq.getStreamParams() );
             }
@@ -832,7 +828,7 @@ public class JobStage implements Stage {
          * @return   content string (assumed UTF-8), or null
          */
         private String readTextContent( URL url, boolean mustExist ) {
-            byte[] buf = readContent( url, ContentType.PLAIN, mustExist );
+            byte[] buf = readContent( url, CTYPE_PLAIN, mustExist );
             if ( buf == null ) {
                 return null;
             }
@@ -926,83 +922,6 @@ public class JobStage implements Stage {
                 reqType.checkType( reporter_, hconn.getContentType(), url );
             }
             return buf;
-        }
-    }
-
-    /**
-     * Defines a permitted class of MIME types.
-     */
-    private static class ContentType {
-
-        private final String[] permittedTypes_;
-   
-        /** ContentType instance for plain text. */
-        public static final ContentType PLAIN =
-            new ContentType( new String[] { "text/plain", } );
-
-        /** ContentType instance for XML. */
-        public static final ContentType XML =
-            new ContentType( new String[] { "text/xml", "application/xml", } );
-
-        /**
-         * Constructor.
-         *
-         * @param  permittedTypes  array of MIME type/subtype strings allowed
-         */
-        ContentType( String[] permittedTypes ) {
-            permittedTypes_ = permittedTypes;
-        }
-
-        /**
-         * Checks a declared Content-Type string against the permitted
-         * values for this object.  Validation messages are reported in
-         * case of non-compliance.
-         *
-         * @param  reporter  destination for validation messages
-         * @param  declaredType  Content-Type to assess
-         * @param  url  source of content, used for report messages
-         */
-        public void checkType( Reporter reporter, String declaredType,
-                               URL url ) {
-            if ( declaredType == null || declaredType.trim().length() == 0 ) {
-                reporter.report( FixedCode.W_NOCT,
-                                 "No Content-Type header for " + url );
-            }
-            else if ( ! isPermitted( declaredType ) ) {
-                StringBuffer sbuf = new StringBuffer();
-                sbuf.append( "Incorrect Content-Type \"" )
-                    .append( declaredType )
-                    .append( "\"" )
-                    .append( ", should be " );
-                if ( permittedTypes_.length == 1 ) {
-                    sbuf.append( permittedTypes_[ 0 ] );
-                }
-                else {
-                    sbuf.append( "one of " )
-                        .append( Arrays.asList( permittedTypes_ ) );
-                }
-                sbuf.append( " for " )
-                    .append( url );
-                reporter.report( FixedCode.E_GMIM, sbuf.toString() );
-            }
-        }
-
-        /**
-         * Indicates whether the given content-type matches one of the
-         * ones permitted for this object.  Matching is currently startsWith,
-         * so parameter assignments (and possibly illegal suffixes)
-         * are ignored.
-         *
-         * @param  declaredType  content-type to assess
-         * @return  isPermitted  true iff it's OK
-         */
-        private boolean isPermitted( String declaredType ) {
-            for ( String typ : permittedTypes_ ) {
-                if ( declaredType.startsWith( typ ) ) {
-                    return true;
-                }
-            }
-            return false;
         }
     }
 }

@@ -1,27 +1,24 @@
 package uk.ac.starlink.ttools.task;
 
-import java.io.PrintStream;
-import java.net.URL;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Collection;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
-import uk.ac.starlink.task.BooleanParameter;
 import uk.ac.starlink.task.Environment;
 import uk.ac.starlink.task.Executable;
 import uk.ac.starlink.task.IntegerParameter;
 import uk.ac.starlink.task.Parameter;
 import uk.ac.starlink.task.ParameterValueException;
-import uk.ac.starlink.task.StringParameter;
 import uk.ac.starlink.task.Task;
 import uk.ac.starlink.task.TaskException;
-import uk.ac.starlink.task.URLParameter;
-import uk.ac.starlink.ttools.taplint.ReportType;
-import uk.ac.starlink.ttools.taplint.Reporter;
+import uk.ac.starlink.ttools.taplint.OutputReporter;
 import uk.ac.starlink.ttools.taplint.Stage;
+import uk.ac.starlink.ttools.taplint.TextOutputReporter;
 import uk.ac.starlink.ttools.taplint.TapLinter;
+import uk.ac.starlink.vo.EndpointSet;
 
 /**
  * TAP Validator task.
@@ -32,13 +29,10 @@ import uk.ac.starlink.ttools.taplint.TapLinter;
 public class TapLint implements Task {
 
     private final TapLinter tapLinter_;
-    private final URLParameter urlParam_;
+    private final OutputReporterParameter reporterParam_;
+    private final TapEndpointParams endpointParams_;
     private final StringMultiParameter stagesParam_;
-    private final IntegerParameter repeatParam_;
-    private final IntegerParameter truncParam_;
     private final IntegerParameter maxtableParam_;
-    private final BooleanParameter debugParam_;
-    private final StringParameter reportParam_;
     private final Parameter[] params_;
 
     /**
@@ -47,15 +41,10 @@ public class TapLint implements Task {
     public TapLint() {
         List<Parameter> paramList = new ArrayList<Parameter>();
 
-        urlParam_ = new URLParameter( "tapurl" );
-        urlParam_.setPosition( 1 );
-        urlParam_.setPrompt( "Base URL of TAP service" );
-        urlParam_.setDescription( new String[] {
-            "<p>The base URL of a Table Access Protocol service.",
-            "This is the bare URL without a trailing \"/[a]sync\".",
-            "</p>",
-        } );
-        paramList.add( urlParam_ );
+        endpointParams_ = new TapEndpointParams( "tapurl" );
+        Parameter urlParam = endpointParams_.getBaseParameter();
+        urlParam.setPosition( 1 );
+        paramList.add( urlParam );
 
         stagesParam_ = new StringMultiParameter( "stages", ' ' );
         stagesParam_.setPrompt( "Codes for validation stages to run" );
@@ -108,62 +97,6 @@ public class TapLint implements Task {
         } );
         paramList.add( stagesParam_ );
 
-        reportParam_ = new StringParameter( "report" );
-        reportParam_.setPrompt( "Message types to report" );
-        ReportType[] types = ReportType.values();
-        StringBuilder dbuf = new StringBuilder();
-        StringBuilder cbuf = new StringBuilder();
-        dbuf.append( "Each character of the string is one of the letters " );
-        for ( int it = 0; it < types.length; it++ ) {
-            char tchr = types[ it ].getChar();
-            if ( it > 0 ) {
-                dbuf.append( ", " );
-            }
-            cbuf.append( tchr );
-        }
-        String tchrs = cbuf.toString();
-        dbuf.append( " with the following meanings:\n" )
-            .append( "<ul>\n" );
-        for ( int it = 0; it < types.length; it++ ) {
-            ReportType type = types[ it ];
-            dbuf.append( "<li><code>" )
-                .append( type.getChar() )
-                .append( "</code>: " )
-                .append( type.getDescription() )
-                .append( "</li>\n" );
-        }
-        dbuf.append( "</ul>" );
-        reportParam_.setUsage( "[" + tchrs + "]+" );
-        reportParam_.setDescription( new String[] {
-            "<p>Letters indicating which message types should be listed.",
-            dbuf.toString(),
-            "</p>",
-        } );
-        reportParam_.setStringDefault( tchrs );
-        paramList.add( reportParam_ );
-
-        repeatParam_ = new IntegerParameter( "maxrepeat" );
-        repeatParam_.setPrompt( "Maximum repeat count per message" );
-        repeatParam_.setDescription( new String[] {
-            "<p>Puts a limit on the number of times that a single message",
-            "will be repeated.",
-            "By setting this to some reasonably small number, you can ensure",
-            "that the output does not get cluttered up by millions of",
-            "repetitions of essentially the same error.",
-            "</p>",
-        } );
-        repeatParam_.setIntDefault( 9 );
-        paramList.add( repeatParam_ );
-
-        truncParam_ = new IntegerParameter( "truncate" );
-        truncParam_.setPrompt( "Maximum number of characters per line" );
-        truncParam_.setDescription( new String[] {
-            "<p>Limits the line length written to the output.",
-            "</p>",
-        } );
-        truncParam_.setIntDefault( 640 );
-        paramList.add( truncParam_ );
-
         maxtableParam_ = new IntegerParameter( "maxtable" );
         maxtableParam_.setPrompt( "Maximum number of tables "
                                 + "tested individually" );
@@ -181,15 +114,13 @@ public class TapLint implements Task {
         maxtableParam_.setNullPermitted( true );
         paramList.add( maxtableParam_ );
 
-        debugParam_ = new BooleanParameter( "debug" );
-        debugParam_.setPrompt( "Emit debugging output?" );
-        debugParam_.setDescription( new String[] {
-            "<p>If true, debugging output including stack traces will be",
-            "output along with the normal validation messages.",
-            "</p>",
-        } );
-        debugParam_.setBooleanDefault( false );
-        paramList.add( debugParam_ );
+        reporterParam_ = new OutputReporterParameter( "format" );
+
+        paramList.add( reporterParam_ );
+        paramList.addAll( Arrays.asList( reporterParam_
+                                        .getReporterParameters() ) );
+        paramList.addAll( Arrays.asList( endpointParams_
+                                        .getOtherParameters() ) );
 
         params_ = paramList.toArray( new Parameter[ 0 ] );
     }
@@ -203,26 +134,10 @@ public class TapLint implements Task {
     }
 
     public Executable createExecutable( Environment env ) throws TaskException {
-        URL serviceUrl = urlParam_.objectValue( env );
-        PrintStream out = env.getOutputStream();
-        String typeStr = reportParam_.stringValue( env );
-        List<ReportType> typeList = new ArrayList<ReportType>();
-        for ( int ic = 0; ic < typeStr.length(); ic++ ) {
-            char c = typeStr.charAt( ic );
-            ReportType type = ReportType.forChar( c );
-            if ( type == null ) {
-                throw new ParameterValueException( reportParam_,
-                                                   "Bad message type character"
-                                                 + " '" + c + "'" );
-            }
-            typeList.add( type );
-        }
-        ReportType[] types = typeList.toArray( new ReportType[ 0 ] );
-        int maxRepeat = repeatParam_.intValue( env );;
+        EndpointSet endpointSet = endpointParams_.getEndpointSet( env );
+
         Integer maxTablesObj = maxtableParam_.objectValue( env );
         int maxTestTables = maxTablesObj == null ? -1 : maxTablesObj.intValue();
-        boolean debug = debugParam_.booleanValue( env );
-        int maxChar = truncParam_.intValue( env );
         Set<String> stageSet = new HashSet<String>();
         Collection<String> knownStages = tapLinter_.getKnownStages().keySet();
         for ( String s : knownStages ) {
@@ -237,9 +152,8 @@ public class TapLint implements Task {
             }
             stageSet.add( sc );
         }
-        Reporter reporter =
-            new Reporter( out, types, maxRepeat, debug, maxChar );
-        return tapLinter_.createExecutable( reporter, serviceUrl, stageSet,
+        OutputReporter reporter = reporterParam_.objectValue( env );
+        return tapLinter_.createExecutable( reporter, endpointSet, stageSet,
                                             maxTestTables );
     }
 }

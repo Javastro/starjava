@@ -19,6 +19,7 @@ import uk.ac.starlink.ttools.DocUtils;
 import uk.ac.starlink.ttools.TableConsumer;
 import uk.ac.starlink.ttools.cone.ConeQueryRowSequence;
 import uk.ac.starlink.ttools.cone.JELQuerySequenceFactory;
+import uk.ac.starlink.ttools.cone.MocFormat;
 import uk.ac.starlink.ttools.cone.PixtoolsHealpix;
 import uk.ac.starlink.ttools.cone.QuerySequenceFactory;
 import uk.ac.starlink.ttools.task.SkyCoordParameter;
@@ -40,6 +41,22 @@ public class MocMode implements ProcessingMode {
     private final OutputStreamParameter outParam_;
     private static final Logger logger_ =
         Logger.getLogger( "uk.ac.starlink.ttools.mode" );
+
+    /** MocFormat implementation that writes MOC 1.0-compliant FITS files. */
+    public static final MocFormat FITS_FORMAT = new CdsMocFormat( "fits" ) {
+        protected void doWrite( HealpixMoc moc, OutputStream out )
+                throws Exception {
+            moc.writeFits( out );
+        }
+    };
+
+    /** MocFormat implementation that writes JSON files. */
+    public static final MocFormat JSON_FORMAT = new CdsMocFormat( "json" ) {
+        protected void doWrite( HealpixMoc moc, OutputStream out )
+                throws Exception {
+            moc.writeJSON( out );
+        }
+    };
 
     /**
      * Constructor.
@@ -81,13 +98,16 @@ public class MocMode implements ProcessingMode {
         radiusParam_.setStringDefault( "0" );
 
         mocfmtParam_ =
-            new ChoiceParameter<MocFormat>( "mocfmt", MocFormat.getFormats() );
+            new ChoiceParameter<MocFormat>( "mocfmt", MocFormat.class,
+                                            new MocFormat[] {
+                                                FITS_FORMAT, JSON_FORMAT,
+                                            } );
         mocfmtParam_.setPrompt( "Output format for MOC file" );
         mocfmtParam_.setDescription( new String[] {
             "<p>Determines the output format for the MOC file.",
             "</p>",
         } );
-        mocfmtParam_.setDefaultOption( MocFormat.FITS );
+        mocfmtParam_.setDefaultOption( FITS_FORMAT );
 
         outParam_ = new OutputStreamParameter( "out" );
         outParam_.setPreferExplicit( true );
@@ -109,7 +129,7 @@ public class MocMode implements ProcessingMode {
         return DocUtils.join( new String[] {
             "<p>Generates a Multi-Order Coverage map from the sky positions",
             "associated with the rows of the input table,",
-            "and writes it out to a FITS or ASCII file.",
+            "and writes it out to a FITS or JSON file.",
             "</p>",
         } );
     }
@@ -222,38 +242,36 @@ public class MocMode implements ProcessingMode {
     }
 
     /**
-     * Output strategy for a MOC.
+     * Partial MocFormat implementation.
      */
-    private static class MocFormat {
+    private static abstract class CdsMocFormat implements MocFormat {
 
         private final String name_;
-        private final int outMode_;
-        static final MocFormat FITS =
-            new MocFormat( "fits", HealpixMoc.FITS );
-        static final MocFormat ASCII =
-            new MocFormat( "ascii", HealpixMoc.ASCII );
 
         /**
          * Constructor.
          *
          * @param   format name
-         * @param   output mode key known to HealpixMoc class
          */
-        private MocFormat( String name, int outMode ) {
+        CdsMocFormat( String name ) {
             name_ = name;
-            outMode_ = outMode;
         }
 
         /**
-         * Outputs a given MOC to a given stream.
+         * Does the write.
+         * This method throws Exception, which is what the corresponding
+         * CDS MOC library write methods do.
          *
          * @param  moc  MOC
          * @param  out  destination stream
          */
+        protected abstract void doWrite( HealpixMoc moc, OutputStream out )
+                throws Exception;
+
         public void writeMoc( HealpixMoc moc, OutputStream out )
                 throws IOException {
             try {
-                moc.write( out, outMode_ );
+                doWrite( moc, out );
             }
             catch ( Exception e ) {
                 throw (IOException) new IOException( "MOC write error" )
@@ -261,17 +279,9 @@ public class MocMode implements ProcessingMode {
             }
         }
 
+        @Override
         public String toString() {
             return name_;
-        }
-
-        /**
-         * Returns all known instances.
-         *
-         * @return  instance array
-         */
-        public static MocFormat[] getFormats() {
-            return new MocFormat[] { FITS, ASCII };
         }
     }
 }

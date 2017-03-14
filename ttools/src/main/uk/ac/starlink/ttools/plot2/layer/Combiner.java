@@ -2,6 +2,8 @@ package uk.ac.starlink.ttools.plot2.layer;
 
 import java.util.Arrays;
 import java.util.BitSet;
+import uk.ac.starlink.table.DefaultValueInfo;
+import uk.ac.starlink.table.ValueInfo;
 import uk.ac.starlink.ttools.plot2.Equality;
 
 /**
@@ -19,6 +21,7 @@ public abstract class Combiner {
 
     private final String name_;
     private final String description_;
+    private final boolean hasBigBin_;
 
     /** Report the number of submitted values. */
     public static final Combiner COUNT;
@@ -32,8 +35,8 @@ public abstract class Combiner {
     /** Calculate the median of all submitted values (slow). */
     public static final Combiner MEDIAN;
 
-    /** Calculate the sample variance of all submitted values. */
-    public static final Combiner SAMPLE_VARIANCE;
+    /** Calculate the sample standard deviation of all submitted values. */
+    public static final Combiner SAMPLE_STDEV;
 
     /** Calculate the minimum of all submitted values. */
     public static final Combiner MIN;
@@ -50,7 +53,7 @@ public abstract class Combiner {
         MEDIAN = new MedianCombiner(),
         MIN = new MinCombiner(),
         MAX = new MaxCombiner(),
-        SAMPLE_VARIANCE = new VarianceCombiner( true ),
+        SAMPLE_STDEV = new StdevCombiner( true ),
         COUNT = new CountCombiner(),
         HIT = new HitCombiner(),
     };
@@ -60,10 +63,14 @@ public abstract class Combiner {
      *
      * @param   name  name
      * @param   description  short textual description
+     * @param   hasBigBin  indicates whether the bins used by this combiner
+     *                     are large
+     *                     (take more memory than a <code>double</code>)
      */
-    protected Combiner( String name, String description ) {
+    protected Combiner( String name, String description, boolean hasBigBin ) {
         name_ = name;
         description_ = description;
+        hasBigBin_ = hasBigBin;
     }
 
     /**
@@ -121,6 +128,27 @@ public abstract class Combiner {
         return description_;
     }
 
+    /**
+     * Indicates whether the bin objects used by this combiner are large.
+     * Large means, roughly, take more memory than a <code>double</code>.
+     * This flag may be used to decide whether to compact bin list results.
+     *
+     * @return   true if this combiner uses big bins
+     */
+    public boolean hasBigBin() {
+        return hasBigBin_;
+    }
+
+    /**
+     * Returns a metadata object that describes the result of applying
+     * this combiner to data described by a given metadata object.
+     *
+     * @param  info  metadata for values to be combined, usually numeric
+     * @return  metadata for combined values; the content class must be
+     *          be a primitive numeric wrapper class
+     */
+    public abstract ValueInfo createCombinedInfo( ValueInfo info );
+
     @Override
     public String toString() {
         return name_;
@@ -133,6 +161,49 @@ public abstract class Combiner {
      */
     public static Combiner[] getKnownCombiners() {
         return COMBINERS.clone();
+    }
+
+    /**
+     * Utility method to return a string describing the content of a ValueInfo.
+     * It will come up with something, even if the description member is empty.
+     *
+     * @param  info  metadata item
+     * @return   some text describing it, suitable for inclusion in the
+     *           description member of another ValueInfo based on it
+     */
+    private static String getInfoDescription( ValueInfo info ) {
+        String descrip = info.getDescription();
+        return descrip != null && descrip.trim().length() > 0 
+             ? descrip
+             : info.getName();
+    }
+
+    /**
+     * Modifies a UCD by appending a given modifier word, if possible.
+     *
+     * @param   ucd   base UCD
+     * @param   word  modifier UCD word
+     * @param   isPrimary   true if word is marked P[rimary] in the UCD list,
+     *                      false if word is marked S[econdary] in the UCD list
+     *                      (note other options exist in the UCD list,
+     *                      but are not currently catered for here)
+     * @return  modified UCD
+     * @see   <a href="http://www.ivoa.net/documents/latest/UCDlist.html"
+     *           >UCDlist</a>
+     */
+    private static String modifyUcd( String ucd, String word,
+                                     boolean isPrimary ) {
+        if ( isPrimary ) {
+            return word;
+        }
+        else {
+            if ( ucd == null || ucd.trim().length() == 0 ) {
+                return ucd;
+            }
+            else {
+                return ucd + ";" + word;
+            }
+        }
     }
 
     /**
@@ -164,25 +235,21 @@ public abstract class Combiner {
      * This just handles the isCopyResult flag.
      */
     private static abstract class AbstractCombiner extends Combiner {
-        final boolean isCopyResult_;
 
         /**
          * Constructor.
          *
          * @param   name  name
          * @param   description  short textual description
-         * @param   isCopyResult  whether to use a copy for Result creation;
-         *                        set true for bins using more than 8 bytes,
-         *                        false otherwise
+         * @param   hasBigBin  true if combiner has big bins
          */
         AbstractCombiner( String name, String description,
-                          boolean isCopyResult ) {
-            super( name, description );
-            isCopyResult_ = isCopyResult;
+                          boolean hasBigBin ) {
+            super( name, description, hasBigBin );
         }
 
         public BinList createHashBinList( long size ) {
-            return new HashBinList( size, this, isCopyResult_ );
+            return new HashBinList( size, this );
         }
     }
 
@@ -201,7 +268,7 @@ public abstract class Combiner {
         public BinList createArrayBinList( int size ) {
             final int[] counts = new int[ size ];
             final double[] sums = new double[ size ];
-            return new ArrayBinList( size, this, isCopyResult_ ) {
+            return new ArrayBinList( size, this ) {
                 public void submitToBinInt( int index, double value ) {
                     counts[ index ]++;
                     sums[ index ] += value;
@@ -216,6 +283,15 @@ public abstract class Combiner {
 
         public Container createContainer() {
             return new MeanContainer();
+        }
+
+        public ValueInfo createCombinedInfo( ValueInfo dataInfo ) {
+            DefaultValueInfo info = new DefaultValueInfo( dataInfo );
+            info.setContentClass( Double.class );
+            info.setDescription( getInfoDescription( dataInfo )
+                               + ", mean value in bin" );
+            info.setUCD( modifyUcd( dataInfo.getUCD(), "stat.mean", false ) );
+            return info;
         }
 
         /**
@@ -260,55 +336,77 @@ public abstract class Combiner {
                        }
                    } );
         }
+
+        public ValueInfo createCombinedInfo( ValueInfo dataInfo ) {
+            DefaultValueInfo info = new DefaultValueInfo( dataInfo );
+            info.setContentClass( Double.class );
+            info.setDescription( getInfoDescription( dataInfo )
+                               + ", median value in bin" );
+            info.setUCD( modifyUcd( dataInfo.getUCD(), "stat.median", false ) );
+            return info;
+        }
     }
 
     /**
-     * Combiner implementation that calculates the variance.
+     * Combiner implementation that calculates the standard deviation.
      */
-    private static class VarianceCombiner extends AbstractCombiner {
-        private final boolean isSampleVariance_;
+    private static class StdevCombiner extends AbstractCombiner {
+        private final boolean isSampleStdev_;
 
         /**
          * Constructor.
          *
-         * @param  isSampleVariance  false for population variance,
-         *                           true for sample variance,
+         * @param  isSampleStdev  false for population standard deviation,
+         *                        true for sample standard deviation
          */
-        public VarianceCombiner( boolean isSampleVariance ) {
-            super( "variance",
-                   "the " + ( isSampleVariance ? "sample" : "population" )
-                          + " variance of the combined values",
+        public StdevCombiner( boolean isSampleStdev ) {
+            super( "stdev",
+                   "the " + ( isSampleStdev ? "sample" : "population" )
+                          + " standard deviation of the combined values",
                    true );
-            isSampleVariance_ = isSampleVariance;
+            isSampleStdev_ = isSampleStdev;
         }
 
         public BinList createArrayBinList( int size ) {
             final int[] counts = new int[ size ];
             final double[] sum1s = new double[ size ];
             final double[] sum2s = new double[ size ];
-            return new ArrayBinList( size, this, isCopyResult_ ) {
+            return new ArrayBinList( size, this ) {
                 public void submitToBinInt( int index, double value ) {
                     counts[ index ]++;
                     sum1s[ index ] += value;
                     sum2s[ index ] += value * value;
                 }
                 public double getBinResultInt( int index ) {
-                    return getVariance( isSampleVariance_, counts[ index ],
-                                        sum1s[ index ], sum2s[ index ] );
+                    return getStdev( isSampleStdev_, counts[ index ],
+                                     sum1s[ index ], sum2s[ index ] );
                 }
             };
         }
 
         public Container createContainer() {
-            return isSampleVariance_ ? new SampleVarianceContainer()
-                                     : new PopulationVarianceContainer();
+            return isSampleStdev_ ? new SampleStdevContainer()
+                                  : new PopulationStdevContainer();
+        }
+
+        public ValueInfo createCombinedInfo( ValueInfo dataInfo ) {
+            DefaultValueInfo info =
+                new DefaultValueInfo( dataInfo.getName() + "_stdev",
+                                      Double.class,
+                                      ( isSampleStdev_ ? "Sample "
+                                                       : "Population " )
+                                    + "standard deviation of "
+                                    + getInfoDescription( dataInfo ) );
+            info.setUnitString( dataInfo.getUnitString() );
+            info.setUCD( modifyUcd( dataInfo.getUCD(), "stat.stdev", true ) );
+            return info;
         }
 
         /**
-         * Partial Container implementation for calculating variance-like
-         * quantities.
+         * Partial Container implementation for calculating
+         * standard deviation-like quantities.
          */
-        private static abstract class VarianceContainer implements Container {
+        private static abstract class StdevContainer implements Container {
             int count_;
             double sum1_;
             double sum2_;
@@ -320,49 +418,48 @@ public abstract class Combiner {
         }
 
         /**
-         * Container to calculate a population variance.
+         * Container to calculate a population standard deviation.
          * Note that this is a static class with no unnecessary members
          * to keep memory usage down if there are many instances.
          */
-        private static class PopulationVarianceContainer
-                extends VarianceContainer {
+        private static class PopulationStdevContainer extends StdevContainer {
             public double getResult() {
-                return getVariance( false, count_, sum1_, sum2_ );
+                return getStdev( false, count_, sum1_, sum2_ );
             }
         }
 
         /**
-         * Container to calculate a sample variance.
+         * Container to calculate a sample standard deviation.
          * Note that this is a static class with no unnecessary members
          * to keep memory usage down if there are many instances.
          */
-        private static class SampleVarianceContainer
-                extends VarianceContainer {
+        private static class SampleStdevContainer extends StdevContainer {
             public double getResult() {
-                return getVariance( true, count_, sum1_, sum2_ );
+                return getStdev( true, count_, sum1_, sum2_ );
             }
         }
 
         /**
-         * Utility method to calculate a population or sample variance
-         * from the relevant accumulated quantities.
+         * Utility method to calculate a population or sample
+         * standard deviation from the relevant accumulated quantities.
          *
-         * @param  isSampleVariance   false for population variance,
-         *                            true for sample variance
+         * @param  isSampleStdev   false for population standard deviation,
+         *                         true for sample standard deviation
          * @param  count  number of accumulated values
          * @param  sum1   sum of accumulated values
          * @param  sum2   sum of squares of accumulated values
-         * @return  variance, or NaN if insufficient data
+         * @return  standard deviation, or NaN if insufficient data
          */
-        private static double getVariance( boolean isSampleVariance, int count,
+        private static double getStdev( boolean isSampleStdev, int count,
                                            double sum1, double sum2 ) {
-            if ( count < ( isSampleVariance ? 2 : 1 ) ) {
+            if ( count < ( isSampleStdev ? 2 : 1 ) ) {
                 return Double.NaN;
             }
             else {
                 double dcount = (double) count;
                 double nvar = sum2 - sum1 * sum1 / dcount;
-                return nvar / ( isSampleVariance ? ( dcount - 1 ) : dcount );
+                double divisor = isSampleStdev ? ( dcount - 1 ) : dcount;
+                return Math.sqrt( nvar / divisor );
             }
         }
     }
@@ -383,7 +480,7 @@ public abstract class Combiner {
 
         public BinList createArrayBinList( int size ) {
             final int[] counts = new int[ size ];
-            return new ArrayBinList( size, this, isCopyResult_ ) {
+            return new ArrayBinList( size, this ) {
                 public void submitToBinInt( int index, double value ) {
                     counts[ index ]++;
                 }
@@ -396,6 +493,14 @@ public abstract class Combiner {
 
         public Container createContainer() {
             return new CountContainer();
+        }
+
+        public ValueInfo createCombinedInfo( ValueInfo inInfo ) {
+            DefaultValueInfo outInfo = 
+                new DefaultValueInfo( "count", Integer.class,
+                                      "Number of items counted per bin" );
+            outInfo.setUCD( "meta.number" );
+            return outInfo;
         }
 
         /**
@@ -441,7 +546,7 @@ public abstract class Combiner {
         public BinList createArrayBinList( int size ) {
             final double[] sums = new double[ size ];
             Arrays.fill( sums, Double.NaN );
-            return new ArrayBinList( size, this, isCopyResult_ ) {
+            return new ArrayBinList( size, this ) {
                 public void submitToBinInt( int index, double datum ) {
                     sums[ index ] = combineSum( sums[ index ], datum );
                 }
@@ -453,6 +558,16 @@ public abstract class Combiner {
 
         public Container createContainer() {
             return new SumContainer();
+        }
+
+        public ValueInfo createCombinedInfo( ValueInfo dataInfo ) {
+            DefaultValueInfo info =
+                new DefaultValueInfo( dataInfo.getName() + "_sum",
+                                      Double.class,
+                                      getInfoDescription( dataInfo )
+                                    + ", sum in bin" );
+            info.setUnitString( dataInfo.getUnitString() );
+            return info;
         }
 
         /**
@@ -499,7 +614,7 @@ public abstract class Combiner {
         public BinList createArrayBinList( int size ) {
             final double[] mins = new double[ size ];
             Arrays.fill( mins, Double.NaN );
-            return new ArrayBinList( size, this, isCopyResult_ ) {
+            return new ArrayBinList( size, this ) {
                 public void submitToBinInt( int index, double datum ) {
                     mins[ index ] = combineMin( mins[ index ], datum );
                 }
@@ -511,6 +626,17 @@ public abstract class Combiner {
 
         public Container createContainer() {
             return new MinContainer();
+        }
+
+        public ValueInfo createCombinedInfo( ValueInfo dataInfo ) {
+            DefaultValueInfo info =
+                new DefaultValueInfo( dataInfo.getName() + "_min",
+                                      dataInfo.getContentClass(),
+                                      getInfoDescription( dataInfo )
+                                    + ", minimum value in bin" );
+            info.setUnitString( dataInfo.getUnitString() );
+            info.setUCD( modifyUcd( dataInfo.getUCD(), "stat.min", false ) );
+            return info;
         }
 
         /**
@@ -557,7 +683,7 @@ public abstract class Combiner {
         public BinList createArrayBinList( int size ) {
             final double[] maxs = new double[ size ];
             Arrays.fill( maxs, Double.NaN );
-            return new ArrayBinList( size, this, isCopyResult_ ) {
+            return new ArrayBinList( size, this ) {
                 public void submitToBinInt( int index, double datum ) {
                     maxs[ index ] = combineMax( maxs[ index ], datum );
                 }
@@ -569,6 +695,17 @@ public abstract class Combiner {
 
         public Container createContainer() {
             return new MaxContainer();
+        }
+
+        public ValueInfo createCombinedInfo( ValueInfo dataInfo ) {
+            DefaultValueInfo info =
+                new DefaultValueInfo( dataInfo.getName() + "_max",
+                                      dataInfo.getContentClass(),
+                                      getInfoDescription( dataInfo )
+                                    + ", maximum value in bin" );
+            info.setUnitString( dataInfo.getUnitString() );
+            info.setUCD( modifyUcd( dataInfo.getUCD(), "stat.max", false ) );
+            return info;
         }
 
         /**
@@ -603,7 +740,7 @@ public abstract class Combiner {
 
         public BinList createArrayBinList( int size ) {
             final BitSet mask = new BitSet();
-            return new ArrayBinList( size, this, false ) {
+            return new ArrayBinList( size, this ) {
                 public void submitToBinInt( int index, double datum ) {
                     mask.set( index );
                 }
@@ -615,6 +752,11 @@ public abstract class Combiner {
 
         public Container createContainer() {
             return new HitContainer();
+        }
+
+        public ValueInfo createCombinedInfo( ValueInfo dataInfo ) {
+            return new DefaultValueInfo( "hit", Short.class,
+                                         "1 if bin contains data, 0 if not" );
         }
 
         private static class HitContainer implements Container {

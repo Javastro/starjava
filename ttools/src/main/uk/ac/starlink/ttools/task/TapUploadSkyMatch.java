@@ -1,10 +1,11 @@
 package uk.ac.starlink.ttools.task;
 
 import java.io.IOException;
-import java.net.URL;
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.logging.Logger;
 import uk.ac.starlink.table.JoinFixAction;
 import uk.ac.starlink.table.StarTable;
@@ -14,10 +15,10 @@ import uk.ac.starlink.task.BooleanParameter;
 import uk.ac.starlink.task.ChoiceParameter;
 import uk.ac.starlink.task.Environment;
 import uk.ac.starlink.task.IntegerParameter;
+import uk.ac.starlink.task.LongParameter;
 import uk.ac.starlink.task.Parameter;
 import uk.ac.starlink.task.StringParameter;
 import uk.ac.starlink.task.TaskException;
-import uk.ac.starlink.task.URLParameter;
 import uk.ac.starlink.ttools.cone.BlockUploader;
 import uk.ac.starlink.ttools.cone.JELQuerySequenceFactory;
 import uk.ac.starlink.ttools.cone.QuerySequenceFactory;
@@ -25,6 +26,7 @@ import uk.ac.starlink.ttools.cone.ServiceFindMode;
 import uk.ac.starlink.ttools.cone.TapUploadMatcher;
 import uk.ac.starlink.ttools.cone.UploadMatcher;
 import uk.ac.starlink.util.ContentCoding;
+import uk.ac.starlink.vo.EndpointSet;
 
 /**
  * Upload matcher that uses an external TAP service.
@@ -37,7 +39,7 @@ public class TapUploadSkyMatch extends SingleMapperTask {
     private final StringParameter inlonParam_;
     private final StringParameter inlatParam_;
     private final StringParameter srParam_;
-    private final URLParameter urlParam_;
+    private final TapEndpointParams endpointParams_;
     private final StringParameter taptableParam_;
     private final StringParameter taplonParam_;
     private final StringParameter taplatParam_;
@@ -46,6 +48,7 @@ public class TapUploadSkyMatch extends SingleMapperTask {
     private final IntegerParameter chunkParam_;
     private final IntegerParameter maxrecParam_;
     private final BooleanParameter syncParam_;
+    private final LongParameter tapmaxrecParam_;
     private final ContentCodingParameter codingParam_;
     private final JoinFixActionParameter fixcolsParam_;
     private final StringParameter insuffixParam_;
@@ -89,14 +92,17 @@ public class TapUploadSkyMatch extends SingleMapperTask {
         } );
         paramList.add( inlatParam_ );
 
-        urlParam_ = new URLParameter( "tapurl" );
-        urlParam_.setPrompt( "Base URL of TAP service" );
-        urlParam_.setDescription( new String[] {
-            "<p>The base URL of a Table Access Protocol service.",
-            "This is the bare URL without a trailing \"/[a]sync\".",
-            "</p>",
-        } );
-        paramList.add( urlParam_ );
+        endpointParams_ = new TapEndpointParams( "tapurl" );
+        paramList.add( endpointParams_.getBaseParameter() );
+
+        /* For now don't report the other endpoint parameters,
+         * since most of them will have no effect in practice,
+         * and they would confuse the documentation.
+         * But they are present undocumented if necessary. */
+        if ( false ) {
+            paramList.addAll( Arrays.asList( endpointParams_
+                                            .getOtherParameters() ) );
+        }
 
         taptableParam_ = new StringParameter( "taptable" );
         taptableParam_.setUsage( "<name>" );
@@ -241,6 +247,27 @@ public class TapUploadSkyMatch extends SingleMapperTask {
         syncParam_.setBooleanDefault( true );
         paramList.add( syncParam_ );
 
+        tapmaxrecParam_ = new LongParameter( "blockmaxrec" );
+        tapmaxrecParam_.setPrompt( "MAXREC limit per block" );
+        tapmaxrecParam_.setDescription( new String[] {
+            "<p>Sets the MAXREC parameter passed to the TAP service",
+            "for each uploaded block.",
+            "This allows you to request that the service overrides its",
+            "default limit for the number of rows output from a single query.",
+            "The service may still impose some \"hard\" limit beyond which",
+            "the output row count cannot be increased.",
+            "</p>",
+            "<p>Note this differs from the",
+            "<code>" + maxrecParam_.getName() + "</code>",
+            "parameter, which gives the maximum total number of rows",
+            "to be returned from this command.",
+            "</p>",
+        } );
+        tapmaxrecParam_.setUsage( "<nrow>" );
+        tapmaxrecParam_.setMinimum( 0L );
+        tapmaxrecParam_.setNullPermitted( true );
+        paramList.add( tapmaxrecParam_ );
+
         codingParam_ = new ContentCodingParameter();
         paramList.add( codingParam_ );
 
@@ -265,7 +292,7 @@ public class TapUploadSkyMatch extends SingleMapperTask {
         /* Interrogate environment for parameter values. */
         final String inlonString = inlonParam_.stringValue( env );
         final String inlatString = inlatParam_.stringValue( env );
-        URL tapurl = urlParam_.objectValue( env );
+        EndpointSet endpointSet = endpointParams_.getEndpointSet( env );
         String taptable = taptableParam_.stringValue( env );
         String taplonString = taplonParam_.stringValue( env );
         String taplatString = taplatParam_.stringValue( env );
@@ -280,11 +307,17 @@ public class TapUploadSkyMatch extends SingleMapperTask {
         int blocksize = chunkParam_.intValue( env );
         final long maxrec = maxrecParam_.intValue( env );
         boolean isSync = syncParam_.booleanValue( env );
+        Map<String,String> extraParams = new LinkedHashMap<String,String>();
+        Long tapmaxrec = tapmaxrecParam_.objectValue( env );
+        if ( tapmaxrec != null ) {
+            extraParams.put( "MAXREC", tapmaxrec.toString() );
+        }
         ContentCoding coding = codingParam_.codingValue( env );
         TapUploadMatcher umatcher =
-            new TapUploadMatcher( tapurl, taptable, taplonString, taplatString,
-                                  srString, isSync, tapcols, serviceMode,
-                                  coding );
+            new TapUploadMatcher( endpointSet, taptable,
+                                  taplonString, taplatString, srString,
+                                  isSync, tapcols, serviceMode,
+                                  extraParams, coding );
         final String adql = umatcher.getAdql( maxrec );
         final QuerySequenceFactory qsFact =
             new JELQuerySequenceFactory( inlonString, inlatString, "0" );
@@ -301,6 +334,9 @@ public class TapUploadSkyMatch extends SingleMapperTask {
             new BlockUploader( umatcher, blocksize, maxrec, tableName,
                                inFixAct, tapFixAct, serviceMode, oneToOne,
                                uploadEmpty );
+        blocker.setTruncationAdvice( "Reduce " + chunkParam_.getName() + "? "
+                                   + "Increase " + tapmaxrecParam_.getName()
+                                   + "?" );
 
         /* Create and return an object which will produce the result. */
         return new TableProducer() {

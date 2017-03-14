@@ -27,15 +27,15 @@ public class KnnKernelDensityPlotter extends AbstractKernelDensityPlotter {
 
     /** Report key for actual minimum smoothing width. */
     public static final ReportKey<Double> MINWIDTH_RKEY =
-        new ReportKey<Double>( new ReportMeta( "minwidth",
-                                               "Minimum smoothing width" ),
-                               Double.class, false );
+        ReportKey.createDoubleKey( new ReportMeta( "minwidth",
+                                                   "Minimum smoothing width" ),
+                                   false );
 
     /** Report key for actual maximum smoothing width. */
     public static final ReportKey<Double> MAXWIDTH_RKEY =
-        new ReportKey<Double>( new ReportMeta( "maxwidth",
-                                               "Maximum smoothing width" ),
-                               Double.class, false );
+        ReportKey.createDoubleKey( new ReportMeta( "maxwidth",
+                                                   "Maximum smoothing width" ),
+                                   false );
 
     /** Config key for number of nearest neighbours. */
     public static final ConfigKey<Double> KNN_CKEY =
@@ -88,15 +88,20 @@ public class KnnKernelDensityPlotter extends AbstractKernelDensityPlotter {
     public static final ConfigKey<BinSizer> MAXSIZER_CKEY =
         createLimitSizerKey( true );
 
+    /** No bin size rounding here. */
+    private static final Rounding ROUNDING = null;
+
     /**
      * Constructor.
      *
      * @param   xCoord  X axis coordinate
      * @param   hasWeight   true to permit histogram weighting
+     * @param   normKey   config key for normalisation options
      */
     public KnnKernelDensityPlotter( FloatingCoord xCoord,
-                                    boolean hasWeight ) {
-        super( xCoord, hasWeight, "Knn", ResourceIcon.FORM_KNN );
+                                    boolean hasWeight,
+                                    ConfigKey<Normalisation> normKey ) {
+        super( xCoord, hasWeight, normKey, "Knn", ResourceIcon.FORM_KNN );
     }
 
     public String getPlotterDescription() {
@@ -143,8 +148,8 @@ public class KnnKernelDensityPlotter extends AbstractKernelDensityPlotter {
         boolean isSymmetric = config.get( SYMMETRIC_CKEY );
         BinSizer minSizer = config.get( MINSIZER_CKEY );
         BinSizer maxSizer = config.get( MAXSIZER_CKEY );
-        if ( minSizer.getWidth( false, 0, 1 ) >
-             maxSizer.getWidth( false, 0, 1 ) ) {
+        if ( minSizer.getWidth( false, 0, 1, ROUNDING ) >
+             maxSizer.getWidth( false, 0, 1, ROUNDING ) ) {
             throw new ConfigException( MINSIZER_CKEY,
                                        "Smoothing min/max are "
                                      + "the wrong way round" );
@@ -179,10 +184,9 @@ public class KnnKernelDensityPlotter extends AbstractKernelDensityPlotter {
         } );
         ReportKey<Double> reportKey = isMax ? MAXWIDTH_RKEY : MINWIDTH_RKEY;
         int dfltNbin = isMax ? 100 : 0;
-        boolean rounding = false;
         boolean allowZero = true;
         return BinSizer.createSizerConfigKey( meta, reportKey, dfltNbin,
-                                              rounding, allowZero );
+                                              allowZero );
     }
 
     /**
@@ -222,8 +226,10 @@ public class KnnKernelDensityPlotter extends AbstractKernelDensityPlotter {
 
         public ReportMap getReportMap( boolean xLog, double dlo, double dhi ) {
             ReportMap report = new ReportMap();
-            report.put( MINWIDTH_RKEY, minSizer_.getWidth( xLog, dlo, dhi ) );
-            report.put( MAXWIDTH_RKEY, maxSizer_.getWidth( xLog, dlo, dhi ) );
+            report.put( MINWIDTH_RKEY,
+                        minSizer_.getWidth( xLog, dlo, dhi, ROUNDING ) );
+            report.put( MAXWIDTH_RKEY,
+                        maxSizer_.getWidth( xLog, dlo, dhi, ROUNDING ) );
             return report;
         }
 

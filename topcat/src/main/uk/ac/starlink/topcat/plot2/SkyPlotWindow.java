@@ -5,16 +5,15 @@ import java.awt.Component;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
-import javax.swing.Box;
-import javax.swing.JComponent;
 import uk.ac.starlink.table.ColumnData;
 import uk.ac.starlink.table.ValueInfo;
 import uk.ac.starlink.topcat.ColumnDataComboBoxModel;
-import uk.ac.starlink.topcat.LineBox;
 import uk.ac.starlink.topcat.TopcatModel;
 import uk.ac.starlink.ttools.plot2.DataGeom;
+import uk.ac.starlink.ttools.plot2.GangerFactory;
 import uk.ac.starlink.ttools.plot2.PlotType;
 import uk.ac.starlink.ttools.plot2.PlotUtil;
+import uk.ac.starlink.ttools.plot2.SingleGanger;
 import uk.ac.starlink.ttools.plot2.config.ConfigKey;
 import uk.ac.starlink.ttools.plot2.config.ConfigMeta;
 import uk.ac.starlink.ttools.plot2.config.Specifier;
@@ -64,7 +63,7 @@ public class SkyPlotWindow
         }
 
         public AxisController<SkySurfaceFactory.Profile,SkyAspect>
-                createAxisController( ControlStack stack ) {
+                createAxisController() {
             return axisController_;
         }
 
@@ -79,6 +78,18 @@ public class SkyPlotWindow
         public boolean hasPositions() {
             return true;
         }
+
+        public GangerFactory getGangerFactory() {
+            return SingleGanger.FACTORY;
+        }
+
+        public ZoneFactory createZoneFactory() {
+            return ZoneFactories.FIXED;
+        } 
+
+        public String getNavigatorHelpId() {
+            return "skyNavigation";
+        }
     }
 
     /**
@@ -92,7 +103,6 @@ public class SkyPlotWindow
             extends PositionCoordPanel {
 
         private final Specifier<SkySys> dataSysSpecifier_;
-        private final JComponent panel_;
 
         /**
          * Constructor.
@@ -101,21 +111,10 @@ public class SkyPlotWindow
          */
         SkyPositionCoordPanel( int npos ) {
             super( multiplyCoords( SkyDataGeom.createGeom( null, null )
-                                              .getPosCoords(), npos ) );
-
-            /* But add a data sky system selector. */
-            ConfigSpecifier cspec =
-                new ConfigSpecifier( new ConfigKey[] { DATASYS_KEY } );
-            dataSysSpecifier_ = cspec.getSpecifier( DATASYS_KEY );
-            dataSysSpecifier_.addActionListener( getActionForwarder() );
-            panel_ = Box.createVerticalBox();
-            panel_.add( new LineBox( null, cspec.getComponent(), true ) );
-            panel_.add( super.getComponent() );
-        }
-
-        @Override
-        public JComponent getComponent() {
-            return panel_;
+                                              .getPosCoords(), npos ),
+                   new ConfigKey[] { DATASYS_KEY } );
+            dataSysSpecifier_ =
+                getConfigSpecifier().getSpecifier( DATASYS_KEY );
         }
 
         /**
@@ -144,7 +143,6 @@ public class SkyPlotWindow
         public void autoPopulate() {
             ColumnDataComboBoxModel lonModel = getColumnSelector( 0, 0 );
             ColumnDataComboBoxModel latModel = getColumnSelector( 0, 1 );
-            ColPopulator cp = new ColPopulator( lonModel, latModel );
             SkySys currentSys = dataSysSpecifier_.getSpecifiedValue();
             SkySys sys = new ColPopulator( lonModel, latModel )
                         .attemptPopulate( currentSys );
@@ -232,11 +230,10 @@ public class SkyPlotWindow
         private static boolean populate( ColumnDataComboBoxModel model,
                                          ValueInfo info ) {
             for ( int i = 0; i < model.getSize(); i++ ) {
-                Object item = model.getElementAt( i );
-                if ( item instanceof ColumnData &&
-                     infoMatches( ((ColumnData) item).getColumnInfo(),
-                                  info ) ) {
-                    model.setSelectedItem( item );
+                ColumnData cdata = model.getColumnDataAt( i );
+                if ( cdata != null &&
+                     infoMatches( cdata.getColumnInfo(), info ) ) {
+                    model.setSelectedItem( cdata );
                     return true;
                 }
             }
@@ -253,9 +250,9 @@ public class SkyPlotWindow
         private static ValueInfo[] getInfos( ColumnDataComboBoxModel model ) {
             List<ValueInfo> list = new ArrayList<ValueInfo>();
             for ( int i = 0; i < model.getSize(); i++ ) {
-                Object item = model.getElementAt( i );
-                if ( item instanceof ColumnData ) {
-                    ValueInfo info = ((ColumnData) item).getColumnInfo();
+                ColumnData cdata = model.getColumnDataAt( i );
+                if ( cdata != null ) {
+                    ValueInfo info = cdata.getColumnInfo();
                     if ( info != null ) {
                         list.add( info );
                     }

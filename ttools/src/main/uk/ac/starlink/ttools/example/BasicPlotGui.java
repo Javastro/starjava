@@ -32,6 +32,7 @@ import uk.ac.starlink.task.TaskException;
 import uk.ac.starlink.ttools.plot.Range;
 import uk.ac.starlink.ttools.plot.Style;
 import uk.ac.starlink.ttools.plot2.DataGeom;
+import uk.ac.starlink.ttools.plot2.Padding;
 import uk.ac.starlink.ttools.plot2.PlotLayer;
 import uk.ac.starlink.ttools.plot2.PlotType;
 import uk.ac.starlink.ttools.plot2.Plotter;
@@ -56,6 +57,7 @@ import uk.ac.starlink.ttools.plot2.paper.Compositor;
 import uk.ac.starlink.ttools.plot2.paper.PaperTypeSelector;
 import uk.ac.starlink.ttools.plot2.task.CoordValue;
 import uk.ac.starlink.ttools.plot2.task.JELDataSpec;
+import uk.ac.starlink.ttools.plot2.task.PlotCaching;
 import uk.ac.starlink.ttools.plot2.task.PlotDisplay;
 import uk.ac.starlink.ttools.plot2.task.PointSelectionEvent;
 import uk.ac.starlink.ttools.plot2.task.PointSelectionListener;
@@ -215,9 +217,10 @@ public class BasicPlotGui<P,A,S extends Style> extends JPanel {
         Range shadeFixRange = null;
         PaperTypeSelector ptSel = plotType_.getPaperTypeSelector();
         Compositor compositor = Compositor.SATURATION;
+        Padding padding = new Padding();
         boolean surfaceAuxRange = true;
         boolean navigable = true;
-        boolean caching = true;
+        PlotCaching caching = PlotCaching.createFullyCached();
 
         /* Create and return the live, navigable plot display object.
          * See the implementation in that class for the various bits of
@@ -226,8 +229,7 @@ public class BasicPlotGui<P,A,S extends Style> extends JPanel {
               .createPlotDisplay( layers, sfact_, config,
                                   legend, legPos, title, shadeFact,
                                   shadeFixRange, ptSel, compositor,
-                                  dataStore, surfaceAuxRange,
-                                  navigable, caching );
+                                  padding, dataStore, navigable, caching );
     }
 
     /**
@@ -240,10 +242,13 @@ public class BasicPlotGui<P,A,S extends Style> extends JPanel {
         long irow = evt.getClosestRows()[ 0 ];  // only one layer
         String txt = irow >= 0 ? ( "Point #" + irow ) : "(no point)";
         Point gpos = evt.getPoint();
-        Surface surface = plotDisplay_.getSurface();
-        double[] dpos = surface.graphicsToData( gpos, null );
-        if ( dpos != null ) {
-            txt += " at (" + surface.formatPosition( dpos ) + ")";
+        int isurf = evt.getSurfaceIndex();
+        Surface surface = plotDisplay_.getSurfaces()[ isurf ];
+        if ( surface != null ) {
+            double[] dpos = surface.graphicsToData( gpos, null );
+            if ( dpos != null ) {
+                txt += " at (" + surface.formatPosition( dpos ) + ")";
+            }
         }
         System.err.println( "\t" + txt );
     }

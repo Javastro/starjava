@@ -68,7 +68,7 @@
   <property name="star.archive.dir" value="${basedir}"/>
 
   <!-- URL and package-list for linking against full Java docs -->
-  <property name="javaapi.url" value="http://java.sun.com/j2se/1.5.0/docs/api/"/>
+  <property name="javaapi.url" value="http://docs.oracle.com/javase/6/docs/api/"/>
   <property name="javaapi.lis" value="${star.build.dir}/src/docs/javaapi/"/>
 
   <!--
@@ -80,24 +80,16 @@
   <!-- Define the package name and current versions -->
   <property name="Name" value="TTOOLS"/>
   <property name="name" value="ttools"/>
-  <property name="version" value="3.0-6"/>
+  <property name="version" value="3.1"/>
 
   <!-- The Java package name -->
   <property name="package.name" value="uk.ac.starlink.ttools"/>
 
   <!-- Compilation options -->
   <property name="debug" value="true"/>
-  <property name="deprecation" value="false"/>
+  <property name="deprecation" value="true"/>
   <property name="optimize" value="true"/>
   <property name="source.version" value="1.5"/>
-
-  <!-- JVM binary to use for certain forked tasks.  This may be different
-   !   from that used to run ant.  This is a bit of a hack; in some
-   !   cases we want to run the build on a 1.5 JDK to generate Java1.5 classes,
-   !   but 1.6 needs to be used for some documentation tasks to avoid
-   !   1.5-specific xerces bugs.  An alternative approach would be
-   !   cross-compilation of all packages. -->
-  <property name="alt.java" value="java"/>
 
   <!-- Extra task options, if any -->
   <property name="chmod.fail" value="false"/>
@@ -107,6 +99,15 @@
   <property name="junit.filtertrace" value="on"/>
   <property name="junit.summary" value="no"/>
   <property name="junit.assertions" value="-enableassertions"/>
+
+  <!-- Local directory and remote URL containing example plot data files.
+   !   Note you can override these using system properties -
+   !   it may be a good idea to reset plot2.figdata.dir to some
+   !   external directory if you have multiple starjava builds. -->
+  <property name="plot2.figdata.dir"
+            value="${basedir}/plot2data/"/>
+  <property name="plot2.figdata.url"
+            value="http://www.starlink.ac.uk/stilts/plot2data/"/>
 
   <!-- Directory containing the package source -->
   <property name="src.dir" value="${basedir}/src"/>
@@ -118,7 +119,7 @@
   <property name="src.docs" value="${src.dir}/docs"/>
   <property name="src.docs.examp" value="${src.docs}/examp"/>
   <property name="user.doc" value="sun256"/>
-  <property name="coverimage" value="ttools2.gif"/>
+  <property name="coverimage" value="ttools2.png"/>
   <property name="xdoc.etc" value="${star.dir}/etc/xdoc"/>
 
   <!-- Directory containing any script required to execute or setup package-->
@@ -436,7 +437,6 @@
            source="${source.version}"
            optimize="${optimize}">
 
-      <compilerarg value="-proc:none" compiler="javac1.6"/>
       <classpath refid="classpath"/>
 
       <!-- Exclude any files in the source tree that should not be
@@ -550,9 +550,8 @@
       <arg value="-xjar"/><arg value="org.mortbay.jmx.jar"/>
       <arg value="-xjar"/><arg value="jasper-combined.jar"/>
       <arg value="-file"/><arg value="${star.bin}/stilts"/>
-      <arg value="-file"/><arg value="${star.build.dir}/src/etc/LICENCE.txt"/>
-      <arg value="-file"/><arg value="${star.docs.pkg}/README.cea"/>
       <arg value="-file"/><arg value="${star.etc.pkg}/stilts.py"/>
+      <arg value="-file"/><arg value="${src.docs}/LICENSE.txt"/>
       <arg value="${star.lib.pkg}/stilts-app.jar"/>
       <arg value="${dist.lib.pkg}/stilts-version.zip"/>
     </java>
@@ -712,7 +711,7 @@
      !   are generated from the source-->
     <copy todir="${dist.docs.pkg}">
       <fileset dir="${build.docs}"
-               includes="${user.doc}/* *.pdf README.*"/>
+               includes="${user.doc}/* *.pdf README.* LICENSE.txt"/>
     </copy>
 
     <!-- Copy extra files. -->
@@ -1121,12 +1120,14 @@
     <copy todir="${build.docs}">
       <fileset dir="${src.docs}" includes="${user.doc}.xml"/>
       <fileset dir="${xdoc.etc}" includes="docs.dtd"/>
-      <fileset dir="${src.docs}" includes="README.*"/>
+      <fileset dir="${src.docs}" includes="README.* LICENSE.txt"/>
       <fileset dir="${src.docs.examp}" includes="*.xml"/>
     </copy>
     <copy todir="${build.docs}/${user.doc}">
       <fileset dir="${src.docs.examp}"
                includesfile="${src.docs.examp}/plot-example-files.txt"/>
+      <fileset dir="${src.docs.examp}"
+               includesfile="${src.docs.examp}/plot2-figs.lis"/>
     </copy>
 
     <!-- Construct XML documentation for the JEL-accessible classes.
@@ -1267,8 +1268,7 @@
           dir="${src.docs}"
           classname="uk.ac.starlink.xdoc.MultiXML"
           failonerror="yes"
-          fork="yes"
-          jvm="${alt.java}">
+          fork="yes">
       <sysproperty key="java.awt.headless" value="true"/>
       <arg value="-style"/> <arg value="${xdoc.etc}/toHTML.xslt"/>
       <arg value="-param"/> <arg value="VERSION=${version}"/>
@@ -1285,6 +1285,7 @@
           style="${xdoc.etc}/toFo.xslt">
       <param name="VERSION" expression="${version}"/>
       <param name="BASEDIR" expression="${build.docs}/${user.doc}"/>
+      <param name="FIGDIR" expression="${build.docs}/${user.doc}"/>
       <param name="COVERIMAGE" expression="${coverimage}"/>
     </xslt>
     <java classname="org.apache.fop.apps.Fop"
@@ -1294,6 +1295,10 @@
         <fileset dir="${star.jar.dir}/xdoc" includes="*.jar"/>
       </classpath>
       <sysproperty key="java.awt.headless" value="true"/>
+      <!-- This classpath tweaking may be required if PNGs are present
+       !   and an old version of FOP is in use - see discussion in
+       !   topcat/build.xml. -->
+      <sysproperty key="java.ext.dirs" value=""/>
       <arg value="-q"/>
       <arg value="-fo"/> <arg value="${build.docs}/${user.doc}.fo"/>
       <arg value="-pdf"/> <arg value="${build.docs}/${user.doc}.pdf"/>
@@ -1313,15 +1318,77 @@
    !   =======================
    !
    !   This target is not called by any of the standard targets, but may
+   !   be invoked by hand to write example plot graphics output files
+   !   into the source tree.
+   !
+   !   These plots are not generated as part of the standard build process
+   !   because (a) they are somewhat time-consuming to produce and
+   !   (b) they require large binary data input files that ought not to be
+   !   checked into the source archive.  But this target should be executed
+   !   by hand from time to time (including before a release) when
+   !   plotting code might have changed.
+   !-->
+  <target name="plot2-examples"
+          description="-> generate example graphics for plot2 commands"
+          depends="build,plot2-figdata">
+    <echo message="Writing plot2 example files to ${src.docs.examp}"/>
+    <echo message="Input data from ${plot2.figdata.dir}"/>
+    <java classpathref="classpath"
+          classname="uk.ac.starlink.ttools.build.Plot2Example"
+          failonerror="yes"
+          fork="yes">
+      <arg value="-dataDir"/>
+      <arg value="${plot2.figdata.dir}"/>
+      <arg value="-outDir"/>
+      <arg value="${src.docs.examp}"/>
+      <arg value="-mode"/>
+      <arg value="write"/>
+      <sysproperty key="java.awt.headless" value="true"/>
+    </java>
+  </target>
+
+  <!--
+   !   =====================================
+   !   Acquires data files for example plots
+   !   =====================================
+   !
+   !   Copies missing data files required for generating plot2 example
+   !   graphics from an external URL to a local directory.
+   !-->
+  <target name="plot2-figdata"
+          depends="build">
+    <mkdir dir="${plot2.figdata.dir}"/>
+    <java classpathref="classpath"
+          classname="uk.ac.starlink.ttools.build.Plot2Example"
+          failonerror="yes"
+          fork="yes">
+      <arg value="-dataDir"/>
+      <arg value="${plot2.figdata.dir}"/>
+      <arg value="-dataUrl"/>
+      <arg value="${plot2.figdata.url}"/>
+      <arg value="-mode"/>
+      <arg value="copydata"/>
+    </java>
+  </target>
+
+  <!--
+   !   ===================================
+   !   Generates example plots (old-style)
+   !   ===================================
+   !
+   !   This target is not called by any of the standard targets, but may
    !   be invoked by hand to write example plot files and associated
    !   descriptions into the source tree.  This approach may be changed
    !   at a later date, but for now it's more convenient than generating
    !   these plots at build time, since (a) the plotting is somewhat
    !   time-consuming and (b) some input datasets are large (not ideal for 
    !   checking into source archive).
+   !
+   !   These examples refer to the old-style plotting framework,
+   !   so are more or less obsolete.
    !-->
   <target name="plot-examples"
-          description="-> generate example text and graphics for plot commands "
+          description="-> generate example old-style plots (obsolete)"
           depends="build">
     <echo message="Writing plot example files to source dir ${src.docs.examp}"/>
     <java classpathref="classpath"
@@ -1423,6 +1490,7 @@
       <sysproperty key="tests.withnet" value="${tests.withnet}"/>
       <sysproperty key="basedir" value="${basedir}"/>
       <sysproperty key="xdoc.etc" value="${xdoc.etc}"/>
+      <sysproperty key="plot2.figdata.dir" value="${plot2.figdata.dir}"/>
 
       <formatter type="brief" usefile="false"/>
 
@@ -1480,6 +1548,8 @@
       <sysproperty key="tests.withnet" value="${tests.withnet}"/>
       <sysproperty key="basedir" value="${basedir}"/>
       <sysproperty key="xdoc.etc" value="${xdoc.etc}"/>
+      <sysproperty key="plot2.figdata.dir" value="${plot2.figdata.dir}"/>
+
       <classpath refid="tests-classpath"/>
       <jvmarg value="${junit.assertions}"/>
       <formatter type="plain" usefile="false"/>

@@ -13,9 +13,10 @@ import uk.ac.starlink.task.TaskException;
  */
 public class TilingParameter extends Parameter<SkyTiling> {
 
-    private static final String HTM_PREFIX = "htm";
-    private static final String HEALPIX_RING_PREFIX = "healpixring";
+    private static final String HEALPIX_NEST_PREFIX2 = "hpx";
     private static final String HEALPIX_NEST_PREFIX = "healpixnest";
+    private static final String HEALPIX_RING_PREFIX = "healpixring";
+    private static final String HTM_PREFIX = "htm";
 
     /**
      * Constructor.
@@ -25,24 +26,36 @@ public class TilingParameter extends Parameter<SkyTiling> {
     public TilingParameter( String name ) {
         super( name, SkyTiling.class, true );
         setPrompt( "Sky tiling scheme" );
-        setUsage( HTM_PREFIX + "<level>" + "|"
-                + HEALPIX_NEST_PREFIX + "<nside>" + "|"
-                + HEALPIX_RING_PREFIX + "<nside>" );
+        setUsage( HEALPIX_NEST_PREFIX2 + "<K>" + "|"
+                + HEALPIX_NEST_PREFIX + "<K>" + "|"
+                + HEALPIX_RING_PREFIX + "<K>" + "|"
+                + HTM_PREFIX + "<K>" );
         setNullPermitted( true );
         setDescription( new String[] {
             "<p>Describes the sky tiling scheme that is in use.",
             "One of the following values may be used:",
             "<ul>",
-            "<li><code>" + HTM_PREFIX + "&lt;level&gt;</code>:",
-                "Hierarchical Triangular Mesh with a level value of",
-                "<code>level</code>.</li>",
-            "<li><code>" + HEALPIX_NEST_PREFIX + "&lt;nside&gt;</code>:",
-                "HEALPix using the Nest scheme with an nside value of",
-                "<code>nside</code>.</li>",
-            "<li><code>" + HEALPIX_RING_PREFIX + "&lt;nside&gt;</code>:",
-                "HEALPix using the Ring scheme with an nside value of",
-                "<code>nside</code>.</li>",
+            "<li><code>" + HEALPIX_NEST_PREFIX2 + "K</code>:",
+                "alias for <code>" + HEALPIX_NEST_PREFIX
+                                   + "K</code></li>",
+            "<li><code>" + HEALPIX_NEST_PREFIX + "K</code>:",
+                "HEALPix using the Nest scheme at order <code>K</code></li>",
+            "<li><code>" + HEALPIX_RING_PREFIX + "K</code>:",
+                "HEALPix using the Ring scheme at order <code>K</code></li>",
+            "<li><code>" + HTM_PREFIX + "K</code>:",
+                "Hierarchical Triangular Mesh at level <code>K</code></li>",
             "</ul>",
+            "So for instance",
+            "<code>" + HEALPIX_NEST_PREFIX2 + "5</code> or",
+            "<code>" + HEALPIX_NEST_PREFIX + "5</code>",
+            "would both indicate the HEALPix NEST tiling scheme at order 5.",
+            "</p>",
+            "<p>At level K, there are 12*4^K HEALPix pixels,",
+            "or 8*4^K HTM pixels on the sky.",
+            "More information about these tiling schemes can be found at",
+            "the <webref url='http://healpix.jpl.nasa.gov/'>HEALPix</webref>",
+            "and <webref url='http://www.skyserver.org/htm/'>HTM</webref>",
+            "web sites.",
             "</p>",
         } );
     }
@@ -50,17 +63,21 @@ public class TilingParameter extends Parameter<SkyTiling> {
     public SkyTiling stringToObject( Environment env, String svalue )
             throws TaskException {
         String lvalue = svalue.toLowerCase();
-        if ( lvalue.startsWith( HTM_PREFIX ) ) {
-            int level = getNumberSuffix( svalue, HTM_PREFIX );
-            return new HtmTiling( level );
+        if ( lvalue.startsWith( HEALPIX_NEST_PREFIX2 ) ) {
+            int k = getNumberSuffix( svalue, HEALPIX_NEST_PREFIX2 );
+            return new HealpixTiling( k, true );
         }
         else if ( lvalue.startsWith( HEALPIX_NEST_PREFIX ) ) {
-            int nside = getNumberSuffix( svalue, HEALPIX_NEST_PREFIX );
-            return new HealpixTiling( nside, true );
+            int k = getNumberSuffix( svalue, HEALPIX_NEST_PREFIX );
+            return new HealpixTiling( k, true );
         }
         else if ( lvalue.startsWith( HEALPIX_RING_PREFIX ) ) {
-            int nside = getNumberSuffix( svalue, HEALPIX_RING_PREFIX );
-            return new HealpixTiling( nside, false );
+            int k = getNumberSuffix( svalue, HEALPIX_RING_PREFIX );
+            return new HealpixTiling( k, false );
+        }
+        else if ( lvalue.startsWith( HTM_PREFIX ) ) {
+            int level = getNumberSuffix( svalue, HTM_PREFIX );
+            return new HtmTiling( level );
         }
         else {
             throw new ParameterValueException( this, "Unknown tiling scheme \""
@@ -76,6 +93,16 @@ public class TilingParameter extends Parameter<SkyTiling> {
      */
     public SkyTiling tilingValue( Environment env ) throws TaskException {
         return objectValue( env );
+    }
+
+    /**
+     * Sets the default value of this parameter to a HEALPix NEST instance
+     * of a given order.
+     *
+     * @param  k  healpix order, or -1 for no default
+     */
+    public void setHealpixNestDefault( int k ) {
+        setStringDefault( k >= 0 ? ( HEALPIX_NEST_PREFIX2 + k ) : null );
     }
 
     /**

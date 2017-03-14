@@ -29,7 +29,7 @@ import uk.ac.starlink.ttools.plot2.data.DataSpec;
 import uk.ac.starlink.ttools.plot2.data.DataStore;
 import uk.ac.starlink.ttools.plot2.data.FloatingCoord;
 import uk.ac.starlink.ttools.plot2.data.TupleSequence;
-import uk.ac.starlink.ttools.plot2.geom.PlaneSurface;
+import uk.ac.starlink.ttools.plot2.geom.PlanarSurface;
 import uk.ac.starlink.ttools.plot2.geom.SliceDataGeom;
 import uk.ac.starlink.ttools.plot2.paper.Paper;
 import uk.ac.starlink.ttools.plot2.paper.PaperType;
@@ -37,7 +37,7 @@ import uk.ac.starlink.ttools.plot2.paper.PaperType;
 /**
  * Abstract superclass for histogram-like plotters that have pixel-sized
  * bins with optional smoothing.
- * Only works with PlaneSurfaces.
+ * Only works with PlanarSurfaces.
  *
  * @author   Mark Taylor
  * @since    20 Feb 2015
@@ -59,9 +59,9 @@ public abstract class Pixel1dPlotter<S extends Style> implements Plotter<S> {
 
     /** Report key for smoothing width. */
     public static final ReportKey<Double> SMOOTHWIDTH_KEY =
-        new ReportKey<Double>( new ReportMeta( "smoothwidth",
-                                               "Smoothing Width" ),
-                               Double.class, false );
+        ReportKey.createDoubleKey( new ReportMeta( "smoothwidth",
+                                                   "Smoothing Width" ),
+                                   false );
 
     /** Config key for smoothing width configuration. */
     public static final ConfigKey<BinSizer> SMOOTHSIZER_KEY =
@@ -77,7 +77,7 @@ public abstract class Pixel1dPlotter<S extends Style> implements Plotter<S> {
                 "</p>",
                 BinSizer.getConfigKeyDescription(),
             } )
-        , SMOOTHWIDTH_KEY, 100, false, true );
+        , SMOOTHWIDTH_KEY, 100, true );
 
     /** Config key for smoothing kernel shape. */
     public static final ConfigKey<Kernel1dShape> KERNEL_KEY =
@@ -170,7 +170,7 @@ public abstract class Pixel1dPlotter<S extends Style> implements Plotter<S> {
      * @param  surf   plotting surface
      * @return   padding in pixels required in bin array
      */
-    protected abstract int getPixelPadding( S style, PlaneSurface surf );
+    protected abstract int getPixelPadding( S style, PlanarSurface surf );
 
     /** 
      * Draws the graphical representation of a given array of counts per
@@ -181,7 +181,7 @@ public abstract class Pixel1dPlotter<S extends Style> implements Plotter<S> {
      * @param  style   plotting style
      * @param  g  graphics context
      */                                      
-    protected abstract void paintBins( PlaneSurface surface, BinArray binArray,
+    protected abstract void paintBins( PlanarSurface surface, BinArray binArray,
                                        S style, Graphics2D g );
 
     /**
@@ -251,11 +251,11 @@ public abstract class Pixel1dPlotter<S extends Style> implements Plotter<S> {
             public Drawing createDrawing( Surface surface,
                                           Map<AuxScale,Range> auxRanges,
                                           final PaperType paperType ) {
-                if ( ! ( surface instanceof PlaneSurface ) ) {
-                    throw new IllegalArgumentException( "Not plane surface "
+                if ( ! ( surface instanceof PlanarSurface ) ) {
+                    throw new IllegalArgumentException( "Not planar surface "
                                                       + surface );
                 }
-                final PlaneSurface pSurf = (PlaneSurface) surface;
+                final PlanarSurface pSurf = (PlanarSurface) surface;
                 final Axis xAxis = pSurf.getAxes()[ 0 ];
                 final boolean xLog = pSurf.getLogFlags()[ 0 ];
                 final int xpad = getPixelPadding( style, pSurf );
@@ -420,7 +420,7 @@ public abstract class Pixel1dPlotter<S extends Style> implements Plotter<S> {
             boolean xflip = xAxis.dataToGraphics( dlimits[ 0 ] )
                           > xAxis.dataToGraphics( dlimits[ 1 ] );
             double[] cbins = new double[ nb ];
-            double sum = binArray.getLowerSum( xflip );
+            double sum = scale * binArray.getLowerSum( xflip );
             for ( int ib = 0; ib < nb; ib++ ) {
                 int jb = xflip ? nb - ib - 1 : ib;
                 sum += bins[ jb ];
@@ -475,7 +475,8 @@ public abstract class Pixel1dPlotter<S extends Style> implements Plotter<S> {
     public static double getPixelWidth( BinSizer sizer, Axis xAxis,
                                         boolean xLog ) {
         double[] dLimits = xAxis.getDataLimits();
-        double dWidth = sizer.getWidth( xLog, dLimits[ 0 ], dLimits[ 1 ] );
+        double dWidth = sizer.getWidth( xLog, dLimits[ 0 ], dLimits[ 1 ],
+                                        (Rounding) null );
         double gx0 = xAxis.dataToGraphics( dLimits[ 0 ] );
         double gx1 = xAxis.dataToGraphics( xLog ? dLimits[ 0 ] * dWidth
                                                 : dLimits[ 0 ] + dWidth );

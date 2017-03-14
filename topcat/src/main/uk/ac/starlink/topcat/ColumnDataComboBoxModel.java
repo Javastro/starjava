@@ -147,6 +147,17 @@ public class ColumnDataComboBoxModel
         return activeColumns_.get( index );
     }
 
+    /**
+     * Returns the element at a given index as a typed object.
+     *
+     * @param   index   requested index
+     * @return   value at index as a ColumnData, or null
+     */
+    public ColumnData getColumnDataAt( int index ) {
+        Object el = getElementAt( index );
+        return el instanceof ColumnData ? (ColumnData) el : null;
+    }
+
     public int getSize() {
         return activeColumns_.size();
     }
@@ -175,13 +186,13 @@ public class ColumnDataComboBoxModel
          * then case-insensitive. */
         int ncol = getSize();
         for ( int i = 0; i < ncol; i++ ) {
-            ColumnData item = (ColumnData) getElementAt( i );
+            ColumnData item = getColumnDataAt( i );
             if ( item != null && txt.equals( item.toString() ) ) {
                 return item;
             }
         }
         for ( int i = 0; i < ncol; i++ ) {
-            ColumnData item = (ColumnData) getElementAt( i );
+            ColumnData item = getColumnDataAt( i );
             if ( item != null && txt.equalsIgnoreCase( item.toString() ) ) {
                 return item;
             }
@@ -220,13 +231,12 @@ public class ColumnDataComboBoxModel
      * @return   object suitable for selection in this model which matches
      *           <code>info</code>, or null if nothing suitable can be found
      */
-    public ColumnData getColumnData( ValueInfo info ) {
+    public ColumnData getBestMatchColumnData( ValueInfo info ) {
         int bestScore = 0;
         ColumnData bestData = null;
         for ( int i = 0; i < getSize(); i++ ) {
-            Object item = getElementAt( i );
-            if ( item instanceof ColumnData ) {
-                ColumnData cdata = (ColumnData) item;
+            ColumnData cdata = getColumnDataAt( i );
+            if ( cdata != null ) {
                 int score = match( info, cdata.getColumnInfo() );
                 if ( score > bestScore ) {
                     bestScore = score;
@@ -283,6 +293,80 @@ public class ColumnDataComboBoxModel
             }
         }
         return score;
+    }
+
+    /**
+     * Attempts to locate and return a member of this model which
+     * is the only match for a given <code>info</code>.
+     * If no good match can be found, or if multiple equally good matches
+     * are found, null is returned.
+     * Exactly how the matching is done is
+     * not defined - presumably grubbing about with UCDs or column names etc.
+     *
+     * @param  info  metadata item to match
+     * @return   object suitable for selection in this model which matches
+     *           <code>info</code>, or null if nothing suitable can be found
+     */
+    public ColumnData getUniqueMatchColumnData( ValueInfo info ) {
+        int nc = getSize();
+        ColumnInfo[] infos0 = new ColumnInfo[ nc ];
+        for ( int i = 0; i < nc; i++ ) {
+            ColumnData cdata = getColumnDataAt( i );
+            ColumnInfo info0 = cdata == null ? null : cdata.getColumnInfo();
+            infos0[ i ] = info0 == null ? new ColumnInfo( (String) null )
+                                        : info0;
+        }
+
+        /* Try to find unique matched name. */
+        String name1 = info.getName();
+        if ( name1 != null ) {
+            int imatch = 0;
+            int nmatch = 0;
+            for ( int i = 0; i < nc; i++ ) {
+                if ( name1.equalsIgnoreCase( infos0[ i ].getName() ) ) {
+                    imatch = i;
+                    nmatch++;
+                }
+            }
+            if ( nmatch == 1 ) {
+                return getColumnDataAt( imatch );
+            }
+        }
+
+        /* Try to find unique matched UCD. */
+        String ucd1 = info.getUCD();
+        if ( ucd1 != null ) {
+            int imatch = 0;
+            int nmatch = 0;
+            for ( int i = 0; i < nc; i++ ) {
+                if ( ucd1.equalsIgnoreCase( infos0[ i ].getUCD() ) ) {
+                    imatch = i;
+                    nmatch++;
+                }
+            }
+            if ( nmatch == 1 ) {
+                return getColumnDataAt( imatch );
+            }
+        }
+
+        /* Try to find unique matched Utype. */
+        String utype1 = info.getUtype();
+        if ( utype1 != null ) {
+            int imatch = 0;
+            int nmatch = 0;
+            for ( int i = 0; i < nc; i++ ) {
+                if ( ucd1.equalsIgnoreCase( infos0[ i ].getUtype() ) ) {
+                    imatch = i;
+                    nmatch++;
+                }
+            }
+            if ( nmatch == 1 ) {
+                return getColumnDataAt( imatch );
+            }
+        }
+
+        /* No luck. */
+        return null;
     }
 
     /*
@@ -377,6 +461,21 @@ public class ColumnDataComboBoxModel
         };
         comboBox.setEditable( true );
         return comboBox;
+    }
+
+
+    /**
+     * Creates a ColumnData object simply representing a single column
+     * of a table.
+     * Behaviour is undefined if tcol is not associated with the model.
+     *
+     * @param  tcModel  topcat model
+     * @param   tcol   column in model
+     * @return   column data object
+     */
+    public static ColumnData createSimpleColumnData( TopcatModel tcModel,
+                                                     StarTableColumn tcol ) {
+        return new SelectedColumnData( tcModel, tcol );
     }
 
     /**

@@ -123,6 +123,6 @@ public abstract class ChoiceConfigKey<T> extends ConfigKey<T> {
         if ( sval != null ) {
             return sval;
         }
-        return sval.toString();
+        return null;
     }
 }

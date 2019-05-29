@@ -12,11 +12,14 @@ import java.util.Arrays;
 import java.util.BitSet;
 import java.util.Collections;
 import java.util.HashMap;
-import java.util.Iterator;
+import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.WeakHashMap;
+import java.util.concurrent.ConcurrentHashMap;
 import java.util.logging.Logger;
+import javax.swing.AbstractListModel;
 import javax.swing.Icon;
 import javax.swing.ListModel;
 import javax.swing.SwingUtilities;
@@ -75,8 +78,9 @@ public class TopcatSampControl {
 
     private final HubConnector hubConnector_;
     private final ControlWindow controlWindow_;
-    private final Map idMap_;
-    private final Map highlightMap_;
+    private final Map<String,TableWithRows> idMap_;
+    private final Map<TopcatModel,Long> highlightMap_;
+    private final TableIdListModel idListModel_;
     private int idCount_;
     private static final Logger logger_ =
         Logger.getLogger( "uk.ac.starlink.topcat.interop" );
@@ -91,8 +95,10 @@ public class TopcatSampControl {
             throws IOException {
         hubConnector_ = hubConnector;
         controlWindow_ = controlWindow;
-        idMap_ = Collections.synchronizedMap( new HashMap() );
-        highlightMap_ = Collections.synchronizedMap( new WeakHashMap() );
+        idMap_ = new ConcurrentHashMap<String,TableWithRows>();
+        highlightMap_ = Collections
+                       .synchronizedMap( new WeakHashMap<TopcatModel,Long>() );
+        idListModel_ = new TableIdListModel();
 
         /* Declare metadata. */
         Metadata meta = new Metadata();
@@ -137,24 +143,31 @@ public class TopcatSampControl {
     }
 
     /**
-     * Returns a public reference ID which may be used to the current state
-     * of a given TOPCAT table.  For now, "state" refers to the combination
+     * Returns a public reference ID indicating the current state
+     * of a given TOPCAT table which will be used to send it in a
+     * SAMP message.  For now, "state" refers to the combination
      * of the table and its row sequence, though other items may become 
      * important if SAMP messages arise which require consistency of
      * other attributes.
      *
+     * <strong>Note:</strong> this method may update the list of tables
+     * known to have been sent via SAMP, which can be used to determine
+     * what tables are potentially referencable by other SAMP messages.
+     * For this reason, this method should not be invoked speculatively,
+     * but only if the intention is to actually send a message using
+     * the returned identifier.
+     *
      * @param    tcModel   table to identify
      * @return   opaque ID string
      */
-    public String getTableId( TopcatModel tcModel ) {
+    public String getTableIdForSending( TopcatModel tcModel ) {
         int[] rowMap = tcModel.getViewModel().getRowMap();
 
         /* If the table model and row map is the same as an existing entry
          * in the map, return the ID for that one. */
-        for ( Iterator it = idMap_.entrySet().iterator(); it.hasNext(); ) {
-            Map.Entry entry = (Map.Entry) it.next();
-            String id = (String) entry.getKey();
-            TableWithRows tr = (TableWithRows) entry.getValue();
+        for ( Map.Entry<String,TableWithRows> entry : idMap_.entrySet() ) {
+            String id = entry.getKey();
+            TableWithRows tr = entry.getValue();
             if ( tr.getTable() == tcModel &&
                  Arrays.equals( tr.rowMap_, rowMap ) ) {
                 return id;
@@ -173,6 +186,7 @@ public class TopcatSampControl {
             id = createId();
         }
         idMap_.put( id, new TableWithRows( tcModel, rowMap ) );
+        idListModel_.update();
         return id;
     }
 
@@ -197,10 +211,9 @@ public class TopcatSampControl {
          * for one of them.  Just pick the first (i.e. a random) one. */
         TableWithRows tr = new TableWithRows( tcModel, null );
         String tableId = null;
-        for ( Iterator it = idMap_.entrySet().iterator(); it.hasNext(); ) {
-            Map.Entry entry = (Map.Entry) it.next();
-            String id = (String) entry.getKey();
-            TableWithRows twr = (TableWithRows) entry.getValue();
+        for ( Map.Entry<String,TableWithRows> entry : idMap_.entrySet() ) {
+            String id = entry.getKey();
+            TableWithRows twr = entry.getValue();
             if ( twr.getTable() == tcModel ) {
                 tableId = id;
                 tr = twr;
@@ -258,6 +271,25 @@ public class TopcatSampControl {
     }
 
     /**
+     * Returns a ListModel listing the TopcatModels that can reasonably
+     * be used in SAMP messages that reference a table using the
+     * <code>table-id</code>/<code>url</code> message parameter
+     * (<code>table.highlight.row</code>, <code>table.select.rowList</code>).
+     * Elements of the returned list are
+     * {@link uk.ac.starlink.topcat.TopcatModel}s.
+     *
+     * TopcatModels may be added to this list when they have been involved
+     * in a relevant SAMP message (usually <code>table.load.*</code>).
+     * Code can register a listener on this list to be notified when
+     * the identifiability status of tables change.
+     *
+     * @return  listmodel of identifiable tables 
+     */
+    public ListModel getIdentifiableTableListModel() {
+        return idListModel_;
+    }
+
+    /**
      * Creates a message suitable for sending a row highlight SAMP message
      * to other clients.
      *
@@ -271,10 +303,9 @@ public class TopcatSampControl {
         /* Get a table id. */
         TableWithRows tr = new TableWithRows( tcModel, null );
         String tableId = null;
-        for ( Iterator it = idMap_.entrySet().iterator(); it.hasNext(); ) {
-            Map.Entry entry = (Map.Entry) it.next();
-            String id = (String) entry.getKey();
-            TableWithRows twr = (TableWithRows) entry.getValue();
+        for ( Map.Entry<String,TableWithRows> entry : idMap_.entrySet() ) {
+            String id = entry.getKey();
+            TableWithRows twr = entry.getValue();
             if ( twr.getTable() == tcModel ) {
                 tableId = id;
                 tr = twr;
@@ -450,7 +481,7 @@ public class TopcatSampControl {
          * The purpose of this is to avoid the possibility of
          * eternal SAMP ping-pong between two (or more)
          * applications.  It doesn't completely work though. */
-        Long lastHigh = (Long) highlightMap_.get( tcModel );
+        Long lastHigh = highlightMap_.get( tcModel );
         if ( lastHigh == null || lastHigh.longValue() != lrow ) {
             SwingUtilities.invokeLater( new Runnable() {
                 public void run() {
@@ -538,7 +569,7 @@ public class TopcatSampControl {
 
         /* Examine the tableId. */
         if ( tableId != null && idMap_.containsKey( tableId ) ) {
-            return (TableWithRows) idMap_.get( tableId );
+            return idMap_.get( tableId );
         }
 
         /* If that fails, examine the URL. */
@@ -633,6 +664,18 @@ public class TopcatSampControl {
                                 Message message, String msgId )
                 throws IOException {
 
+            /* Check we do not already have a table with the given table-id. */
+            String tableId = (String) message.getParam( "table-id" );
+            if ( tableId != null && idMap_.containsKey( tableId ) ) {
+                String errTxt = new StringBuffer()
+                    .append( "Duplicate table-id: " )
+                    .append( "table '" )
+                    .append( tableId )
+                    .append( "' has already been received" )
+                    .toString();
+                throw new IllegalArgumentException( errTxt );
+            }
+
             /* Get sender information. */
             final String senderName = getClientName( senderId );
             Client sender =
@@ -724,6 +767,7 @@ public class TopcatSampControl {
             String tableId = (String) message_.getParam( "table-id" );
             if ( tableId != null && tableId.trim().length() > 0 ) {
                 idMap_.put( tableId, new TableWithRows( tcModel, null ) );
+                idListModel_.update();
             }
             return false;
         }
@@ -978,6 +1022,61 @@ public class TopcatSampControl {
          */
         int[] getRowMap() {
             return rowMap_;
+        }
+    }
+
+    /**
+     * ListModel listing tables that can be identified for use in a SAMP
+     * table message.  That means they have a table-id or URL.
+     * Listeners to this list will be notified when the contents
+     * may have changed.
+     */
+    private class TableIdListModel extends AbstractListModel {
+        volatile TopcatModel[] list_;
+
+        TableIdListModel() {
+            list_ = createList();
+        }
+
+        /**
+         * Must be called when the contents of this list may have changed.
+         */
+        void update() {
+            list_ = createList();
+            final int n = list_.length;
+            SwingUtilities.invokeLater( new Runnable() {
+                public void run() {
+                    fireContentsChanged( this, 0, n - 1 );
+                }
+            } );
+        }
+        public int getSize() {
+            return list_.length;
+        }
+        public TopcatModel getElementAt( int i ) {
+            return list_[ i ];
+        }
+
+        /**
+         * Assembles list contents from current state.
+         *
+         * @return  list contents
+         */
+        private TopcatModel[] createList() {
+            Set<TopcatModel> set = new LinkedHashSet<TopcatModel>();
+            for ( TableWithRows twr : idMap_.values() ) {
+                set.add( twr.getTable() );
+            }
+            ListModel tlist = controlWindow_.getTablesListModel();
+            for ( int i = 0; i < tlist.getSize(); i++ ) {
+                TopcatModel tcm = (TopcatModel) tlist.getElementAt( i );
+                if ( ! set.contains( tcm ) &&
+                     tcm.getViewModel().getRowMap() == null &&
+                     tcm.getDataModel().getBaseTable().getURL() != null ) {
+                    set.add( tcm );
+                }
+            }
+            return set.toArray( new TopcatModel[ 0 ] );
         }
     }
 }

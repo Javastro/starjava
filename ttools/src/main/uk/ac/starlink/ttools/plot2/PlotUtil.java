@@ -10,24 +10,26 @@ import java.awt.event.MouseWheelEvent;
 import java.awt.geom.Point2D;
 import java.lang.reflect.Array;
 import java.text.DecimalFormat;
+import java.text.DecimalFormatSymbols;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.HashSet;
-import java.util.Iterator;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
 import java.util.logging.Level;
 import java.util.logging.Logger;
 import javax.swing.Icon;
+import uk.ac.starlink.table.ValueInfo;
 import uk.ac.starlink.ttools.plot.PdfGraphicExporter;
 import uk.ac.starlink.ttools.plot.Picture;
 import uk.ac.starlink.ttools.plot.Range;
+import uk.ac.starlink.ttools.plot2.config.ConfigKey;
 import uk.ac.starlink.ttools.plot2.config.ConfigMap;
 import uk.ac.starlink.ttools.plot2.data.DataStore;
 import uk.ac.starlink.ttools.plot2.data.TupleSequence;
-import uk.ac.starlink.ttools.plot2.layer.BinList;
 import uk.ac.starlink.ttools.plot2.paper.PaperType;
 
 /**
@@ -62,10 +64,16 @@ public class PlotUtil {
         public int getIntValue( int icol ) {
             throw new IllegalStateException();
         }
+        public long getLongValue( int icol ) {
+            throw new IllegalStateException();
+        }
         public boolean getBooleanValue( int icol ) {
             throw new IllegalStateException();
         }
     };
+
+    /** Span instance not initialised with any data. */
+    public static final Span EMPTY_SPAN = new BasicRanger( true ).createSpan();
 
     /** Relative location of latex font location list. */
     private static final String LATEX_FONT_PATHS = "latex_fonts.txt";
@@ -91,6 +99,9 @@ public class PlotUtil {
     /** Amount of padding added to data ranges for axis scaling. */
     private static final double PAD_FRACTION = 0.02;
 
+    /** Amount of padding added to data ranges for axis scaling near zero. */
+    private static final double TINY_FRACTION = 1e-7;
+
     /** Level at which plot reports are logged. */
     private static final Level REPORT_LEVEL = Level.INFO;
 
@@ -109,6 +120,19 @@ public class PlotUtil {
      */
     public static boolean equals( Object o1, Object o2 ) {
         return o1 == null ? o2 == null : o1.equals( o2 );
+    }
+
+    /**
+     * Indicates whether two double values are equivalent.
+     * Unlike the == operator, this function returns true if both are NaN.
+     *
+     * @param  d1  first value
+     * @param  d2  second value
+     * @return   true iff inputs are both equal or both NaN
+     */
+    public static boolean doubleEquals( double d1, double d2 ) {
+        return Double.isNaN( d1 ) ? Double.isNaN( d2 )
+                                  : d1 == d2;
     }
 
     /**
@@ -183,22 +207,37 @@ public class PlotUtil {
     }
 
     /**
-     * Writes message through the logging system
-     * about the time a named step has taken.
+     * Writes a message through the logging system
+     * about the supplied elapsed time a named step has taken.
+     * If the elapsed time is zero, nothing is logged.
+     *
+     * @param  logger   log message destination
+     * @param  phase  name of step to log time of
+     * @param  elapsed   elapsed time to report (generally milliseconds)
+     */
+    public static void logTimeElapsed( Logger logger, String phase,
+                                       long elapsed ) {
+        if ( elapsed > 0 ) {
+            logger.info( phase + " time: " + elapsed );
+        }
+    }
+
+    /**
+     * Writes a message through the logging system
+     * about the elapsed time a named step has taken given a start time.
      * The elapsed time is presumed to be the time between the supplied
      * time and the time when this method is called.
-     * If the elapsed time is zero, nothing is logged.
+     * If the elapsed time is zero (to the nearest millisecond),
+     * nothing is logged.
      *
      * @param  logger   log message destination
      * @param  phase  name of step to log time of
      * @param  start   start {@link java.lang.System#currentTimeMillis
      *                              currentTimeMillis}
      */
-    public static void logTime( Logger logger, String phase, long start ) {
-        long time = System.currentTimeMillis() - start;
-        if ( time > 0 ) {
-            logger.info( phase + " time: " + time );
-        }
+    public static void logTimeFromStart( Logger logger, String phase,
+                                         long start ) {
+        logTimeElapsed( logger, phase, System.currentTimeMillis() - start );
     }
 
     /**
@@ -413,34 +452,26 @@ public class PlotUtil {
     }
 
     /**
-     * Determines range information for a set of layers which have
-     * Cartesian (or similar) coordinates.
-     *
-     * <p>The <code>logFlags</code> array can flag whether
-     * some of the data dimensions have logarithmic scaling.
-     * This may not make sense in all cases, if not, supply null.
+     * Extends existing range objects using range information
+     * for a set of layers which have Cartesian (or similar) coordinates.
      *
      * @param   layers   plot layers
-     * @param   nDataDim  dimensionality of data points
+     * @param   ranges   <code>nDataDim</code>-element array of range objects
+     *                   to extend
      * @param   logFlags  <code>nDataDim</code>-element array indicating
      *                    whether data dimensions are
-     *                    linear (false) or logarithmic (true)
+     *                    linear (false) or logarithmic (true),
+     * @param   doPad    whether to add a small standard amount of padding
+     *                   to the result
      * @param   dataStore  data storage
-     * @return   <code>nDataDim</code>-element array of ranges, each containing
-     *           the range of data position coordinate values for
-     *           the corresponding dimension
      */
     @Slow
-    public static Range[] readCoordinateRanges( PlotLayer[] layers,
-                                                int nDataDim,
-                                                boolean[] logFlags,
-                                                DataStore dataStore ) {
-
-        /* Set up an array of range objects, one for each data dimension. */
-        Range[] ranges = new Range[ nDataDim ];
-        for ( int idim = 0; idim < nDataDim; idim++ ) {
-            ranges[ idim ] = new Range();
-        }
+    public static void extendCoordinateRanges( PlotLayer[] layers,
+                                               Range[] ranges,
+                                               boolean[] logFlags,
+                                               boolean doPad,
+                                               DataStore dataStore ) {
+        int nDataDim = ranges.length;
 
         /* Create a point cloud containing all the data coordinates
          * represented by the supplied layers.  If there are several
@@ -464,26 +495,23 @@ public class PlotUtil {
 
         /* If any of the layers wants to supply non-data-position points
          * to mark out additional space, take account of those too. */
-        boolean[] lflags = logFlags == null ? new boolean[ nDataDim ]
-                                            : logFlags;
         for ( int il = 0; il < layers.length; il++ ) {
-            layers[ il ].extendCoordinateRanges( ranges, lflags, dataStore );
+            layers[ il ].extendCoordinateRanges( ranges, logFlags, dataStore );
         }
 
         /* Pad the ranges with a bit of space. */
-        for ( int idim = 0; idim < nDataDim; idim++ ) {
-            padRange( ranges[ idim ], logFlags[ idim ] );
+        if ( doPad ) {
+            for ( int idim = 0; idim < nDataDim; idim++ ) {
+                padRange( ranges[ idim ], logFlags[ idim ] );
+            }
         }
-
-        /* Return the ranges. */
-        return ranges;
     }
 
     /**
-     * Pads a data range to provide a bit of extra space at each end.
-     * If one of the limits is near to zero, it is padded to zero
-     * instead of adding a fixed amount.
-     * A standard padding fraction is used.
+     * Pads a data range to provide a bit of extra space at each end
+     * using a standard padding fraction.
+     * If one of the limits extends nearly or exactly to zero,
+     * it is padded to (very nearly) zero instead of adding a fixed amount.
      *
      * @param  range  range to pad
      * @param  logFlag  true for logarithmic scaling, false for linear
@@ -494,6 +522,7 @@ public class PlotUtil {
         double hi = bounds[ 1 ];
         if ( lo < hi ) {
             double padFrac = PAD_FRACTION;
+            double tinyFrac = TINY_FRACTION;
             final boolean loNearZero;
             final boolean hiNearZero;
             if ( logFlag ) {
@@ -506,26 +535,65 @@ public class PlotUtil {
                 loNearZero = 0 - zfrac >= 0 && 0 - zfrac <= ztol;
                 hiNearZero = zfrac - 1 >= 0 && zfrac - 1 <= ztol;
             }
-            range.submit( loNearZero
-                          ? 0
-                          : scaleValue( lo, hi, 0 - padFrac, logFlag ) );
-            range.submit( hiNearZero
-                          ? 0
-                          : scaleValue( lo, hi, 1 + padFrac, logFlag ) );
+
+            /* Always add at least a tiny amount, even if we are trying to
+             * set the bound to a round number (zero).
+             * If you don't do that, then points with exactly the values
+             * on the boundary range may not get plotted (since calling
+             * Surface.dataToGraphics with visibleOnly=true may exclude them),
+             * so you can end up with an autoranged plot that does not
+             * include all the values from which the range was generated. */
+            double loPadFrac = loNearZero ? tinyFrac : padFrac; 
+            double hiPadFrac = hiNearZero ? tinyFrac : padFrac;
+            range.submit( scaleValue( lo, hi, 0 - loPadFrac, logFlag ) );
+            range.submit( scaleValue( lo, hi, 1 + hiPadFrac, logFlag ) );
         }
     }
 
     /**
-     * Modifies a supplied range object by submitting the values in the
-     * bins of a given BinList.Result.
-     * 
-     * @param  range  range to extend
-     * @param  binResult  bin data
+     * Attempts to return input-level metadata about an aux value that may
+     * be referenced in a given list of plot layers.
+     *
+     * @param   layers   list of layers
+     * @param   scale    aux item of interest
+     * @return   input metadata for scale, or null if nothing suitable can
+     *           be found
      */
-    public static void extendRange( Range range, BinList.Result binResult ) {
-        for ( Iterator<Long> it = binResult.indexIterator(); it.hasNext(); ) {
-            range.submit( binResult.getBinValue( it.next().longValue() ) );
+    public static ValueInfo getScaleInfo( PlotLayer[] layers, AuxScale scale ) {
+        for ( PlotLayer layer : layers ) {
+            AuxReader rdr = layer.getAuxRangers().get( scale );
+            if ( rdr != null ) {
+                ValueInfo info = rdr.getAxisInfo( layer.getDataSpec() );
+                if ( info != null ) {
+                    return info;
+                }
+            }
         }
+        return null;
+    }
+
+    /**
+     * Attempts to return a suitable label for an aux axis that may
+     * be referenced in a given list of plot layers.
+     *
+     * @param   layers   list of layers
+     * @param   scale    aux item of interest
+     * @return   scale axis label, or null if nothing suitable could be found
+     */
+    public static String getScaleAxisLabel( PlotLayer[] layers,
+                                            AuxScale scale ) {
+        ValueInfo info = getScaleInfo( layers, scale );
+        if ( info != null ) {
+            String name = info.getName();
+            String unit = info.getUnitString();
+            if ( name != null && unit != null ) {
+                return name + " / " + unit;
+            }
+            else if ( name != null ) {
+                return name;
+            }
+        }
+        return null;
     }
 
     /**
@@ -573,7 +641,7 @@ public class PlotUtil {
      *
      * @param  placer  plot placement
      * @param  layers   layers constituting plot content
-     * @param  auxRanges  requested range information calculated from data
+     * @param  auxSpans   requested range information calculated from data
      * @param  dataStore  data storage object
      * @param  paperType  rendering type
      * @param  cached  whether to cache pixels for future use
@@ -582,7 +650,7 @@ public class PlotUtil {
      */ 
     @Slow
     public static Icon createPlotIcon( PlotPlacement placer, PlotLayer[] layers,
-                                       Map<AuxScale,Range> auxRanges,
+                                       Map<AuxScale,Span> auxSpans,
                                        DataStore dataStore, PaperType paperType,
                                        boolean cached,
                                        Collection<Object> storedPlans ) {
@@ -595,15 +663,13 @@ public class PlotUtil {
         if ( storedPlans != null ) {
             knownPlans.addAll( storedPlans );
         }
-        long t1 = System.currentTimeMillis();
         for ( int il = 0; il < nl; il++ ) {
             drawings[ il ] = layers[ il ]
-                            .createDrawing( surface, auxRanges, paperType );
+                            .createDrawing( surface, auxSpans, paperType );
             plans[ il ] = drawings[ il ].calculatePlan( knownPlans.toArray(),
                                                         dataStore );
             knownPlans.add( plans[ il ] );
         }
-        PlotUtil.logTime( logger_, "Plans", t1 );
         if ( storedPlans != null ) {
             storedPlans.clear();
             storedPlans.addAll( new HashSet<Object>( Arrays.asList( plans ) ) );
@@ -795,8 +861,23 @@ public class PlotUtil {
     public static double scaleValue( double min, double max, double frac,
                                      boolean isLog ) {
         return isLog
-             ? min * Math.pow( ( max / min ), frac )
-             : min + ( max - min ) * frac;
+             ? Math.exp( Math.log( min ) * ( 1. - frac )
+                       + Math.log( max ) * frac )
+             : min * ( 1. - frac ) + max * frac;
+    }
+
+    /**
+     * Does linear scaling between two values.
+     * This convenience method just calls
+     * <code>scaleValue(min, max, frac, false)</code>
+     *
+     * @param  min  minimum of range
+     * @param  max  maximum of range
+     * @param  frac  fractional scale point
+     * @return   data value corresponding to fractional scale point
+     */
+    public static double scaleValue( double min, double max, double frac ) {
+        return scaleValue( min, max, frac, false );
     }
 
     /**
@@ -838,6 +919,17 @@ public class PlotUtil {
     }
 
     /**
+     * Returns a basic span instance with a given lower and upper bound.
+     *
+     * @param  lo  lower bound, may be NaN
+     * @param  hi  upper bound, may be NaN
+     * @return  new span
+     */
+    public static Span createSpan( double lo, double hi ) {
+        return EMPTY_SPAN.limit( lo, hi );
+    }
+
+    /**
      * Indicates whether two floating point numbers are approximately equal
      * to each other.
      * Exact semantics are intentionally not well-defined by this contract.
@@ -858,6 +950,8 @@ public class PlotUtil {
 
     /**
      * Numeric formatting utility function.
+     * The output is not Locale-sensitive, so is suitable for formatting
+     * numbers that may be re-parsed as numbers (by non-Locale-sensitive code).
      *
      * @param  value  numeric value to format
      * @param  baseFmt  format string as for {@link java.text.DecimalFormat}
@@ -866,10 +960,15 @@ public class PlotUtil {
      */
     public static String formatNumber( double value, String baseFmt,
                                        int nFracDigits ) {
-        DecimalFormat fmt = new DecimalFormat( baseFmt );
+        DecimalFormat fmt =
+           new DecimalFormat( baseFmt,
+                              DecimalFormatSymbols.getInstance( Locale.UK ) );
         fmt.setMaximumFractionDigits( nFracDigits );
         fmt.setMinimumFractionDigits( nFracDigits );
-        return fmt.format( value );
+        String out = fmt.format( value );
+        return out.matches( "-0+\\.0+" )
+             ? out.substring( 1 )
+             : out;
     }
 
     /**
@@ -885,6 +984,9 @@ public class PlotUtil {
      * @return  formatted value
      */
     public static String formatNumber( double value, double epsilon ) {
+        if ( epsilon == 0 || Double.isNaN( epsilon ) ) {
+            return Double.toString( value );
+        }
         epsilon = Math.abs( epsilon );
 
         /* Work out the number of significant figures. */
@@ -893,6 +995,9 @@ public class PlotUtil {
             Math.max( 0, (int) Math.round( -Math.log10( epsilon / aval ) ) );
 
         /* Return a formatted string on this basis. */
+        if ( aval <= Double.MIN_NORMAL ) {
+            return "0";
+        }
         if ( aval >= 1e6 || aval <= 1e-4 ) {
             return formatNumber( value, "0.#E0", nsf );
         }
@@ -905,6 +1010,59 @@ public class PlotUtil {
                  ? Long.toString( (long) Math.round( value ) )
                  : formatNumber( value, "0.0", ndp );
         }
+    }
+
+    /**
+     * Rounds a number to a decimal round value.
+     * The number of decimal places is determined by the size of
+     * a supplied value, epsilon.
+     * When turned into a string, the final digit should be about
+     * the same size as epsilon.   Given decimal-&gt;binary conversions
+     * and uncertain behaviour of library stringification methods like
+     * Double.toDouble() this isn't bulletproof and may require some
+     * adjustment, but it seems to work as desired most of the time.
+     *
+     * @param   x  input value
+     * @param  epsilon  indicates desired rounding amount
+     * @return  output value, presumably destined for stringification
+     */
+    public static double roundNumber( double x, double epsilon ) {
+        if ( Double.isNaN( x ) ) {
+            return x;
+        }
+        else {
+            try {
+                return Double.parseDouble( formatNumber( x, epsilon ) );
+            }
+            catch ( NumberFormatException e ) {
+                assert false : formatNumber( x, epsilon ) + " -> " + e;
+                return x;
+            }
+        }
+    }
+
+    /**
+     * Utility method to set a minimum/maximum config key pair
+     * to a given pair of minimum/maximum values.
+     * This handles suitable rounding for presentation.
+     *
+     * @param   minKey  config key for minimum value
+     * @param   maxKey  config key for maximum value
+     * @param   min     minimum value
+     * @param   max     maximum value
+     * @param   npix    number of pixels (quanta) between min and max;
+     *                  this is used to determine at what level of
+     *                  precision to round the config values
+     */
+    public static ConfigMap configLimits( ConfigKey<Double> minKey,
+                                          ConfigKey<Double> maxKey,
+                                          double min, double max,
+                                          int npix ) {
+        double epsilon = ( max - min ) / npix;
+        ConfigMap config = new ConfigMap();
+        config.put( minKey, roundNumber( min, epsilon ) );
+        config.put( maxKey, roundNumber( max, epsilon ) );
+        return config;
     }
 
     /**

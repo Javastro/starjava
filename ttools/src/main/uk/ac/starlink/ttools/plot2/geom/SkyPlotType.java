@@ -11,13 +11,15 @@ import uk.ac.starlink.ttools.plot2.layer.ContourPlotter;
 import uk.ac.starlink.ttools.plot2.layer.HealpixPlotter;
 import uk.ac.starlink.ttools.plot2.layer.LabelPlotter;
 import uk.ac.starlink.ttools.plot2.layer.MarkForm;
-import uk.ac.starlink.ttools.plot2.layer.MultiPointForm;
 import uk.ac.starlink.ttools.plot2.layer.PairLinkForm;
+import uk.ac.starlink.ttools.plot2.layer.PolygonForms;
 import uk.ac.starlink.ttools.plot2.layer.SizeForm;
 import uk.ac.starlink.ttools.plot2.layer.ShapeForm;
 import uk.ac.starlink.ttools.plot2.layer.ShapeMode;
 import uk.ac.starlink.ttools.plot2.layer.ShapePlotter;
+import uk.ac.starlink.ttools.plot2.layer.SkyCorrelationCoordSet;
 import uk.ac.starlink.ttools.plot2.layer.SkyDensityPlotter;
+import uk.ac.starlink.ttools.plot2.layer.SkyGridPlotter;
 import uk.ac.starlink.ttools.plot2.layer.SkyVectorCoordSet;
 import uk.ac.starlink.ttools.plot2.layer.SkyEllipseCoordSet;
 import uk.ac.starlink.ttools.plot2.layer.SizeXyForm;
@@ -59,22 +61,24 @@ public class SkyPlotType implements PlotType {
             MarkForm.SINGLE,
             SizeForm.getInstance(),
             SizeXyForm.getInstance(),
-            MultiPointForm.createVectorForm( "SkyVector",
-                                             new SkyVectorCoordSet( true ),
-                                             true ),
-            MultiPointForm.createEllipseForm( "SkyEllipse",
-                                              new SkyEllipseCoordSet(), true ),
+            SkyVectorCoordSet.createForm(),
+            SkyEllipseCoordSet.createForm(),
+            SkyCorrelationCoordSet.createForm(),
             PairLinkForm.getInstance(),
             MarkForm.PAIR,
+            PolygonForms.QUAD,
+            MarkForm.QUAD,
+            PolygonForms.ARRAY,
         };
         Plotter[] shapePlotters =
             ShapePlotter.createShapePlotters( forms, ShapeMode.MODES_2D );
         list.addAll( Arrays.asList( shapePlotters ) );
         list.addAll( Arrays.asList( new Plotter[] {
             new LabelPlotter(),
-            new ContourPlotter(),
+            new ContourPlotter( true ),
             new SkyDensityPlotter( true, true ),
             new HealpixPlotter( true ),
+            new SkyGridPlotter(),
         } ) );
         return list.toArray( new Plotter[ 0 ] );
     }

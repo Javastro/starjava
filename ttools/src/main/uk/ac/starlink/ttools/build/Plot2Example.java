@@ -36,10 +36,12 @@ import uk.ac.starlink.task.Task;
 import uk.ac.starlink.task.TaskException;
 import uk.ac.starlink.ttools.Stilts;
 import uk.ac.starlink.ttools.plot.GraphicExporter;
+import uk.ac.starlink.ttools.plot.PdfGraphicExporter;
 import uk.ac.starlink.ttools.plot.Picture;
 import uk.ac.starlink.ttools.plot.PictureImageIcon;
 import uk.ac.starlink.ttools.plot2.PlotUtil;
 import uk.ac.starlink.ttools.plot2.task.AbstractPlot2Task;
+import uk.ac.starlink.ttools.task.FilterParameter;
 import uk.ac.starlink.ttools.task.MapEnvironment;
 import uk.ac.starlink.util.FileDataSource;
 import uk.ac.starlink.util.IOUtils;
@@ -326,14 +328,23 @@ public class Plot2Example {
                 Pair pair = toPair( param );
                 String key = pair.key_;
                 String value = pair.value_;
-                if ( map.containsKey( key ) ) {
-                    throw new IllegalArgumentException( "Multiple values "
-                                                      + "for key " + key );
-                }
                 StarTable table = context.getTable( value );
                 final Object item;
                 if ( table != null ) {
                     item = table;
+                }
+                else if ( map.containsKey( key ) ) {
+                    if ( key.startsWith( "cmd" ) ||
+                         key.startsWith( "icmd" ) ) {
+                        item = ((String) map.get( key ))
+                             + new FilterParameter( "dummy" )
+                                  .getValueSeparator()
+                             + value;
+                    }
+                    else {
+                        throw new IllegalArgumentException( "Multiple values "
+                                                          + "for key " + key );
+                    }
                 }
                 else {
                     item = value;
@@ -559,11 +570,20 @@ public class Plot2Example {
             }
         },
 
-        /** Writes plot files and auxiliary text files to outDir. */
-        write( true ) {
+        /** Writes PNG plot files and auxiliary text files to outDir. */
+        png( true ) {
             public void execute( Context context, Plot2Example[] examples )
                     throws Exception {
-                writeExamples( context, examples, GraphicExporter.PNG, false );
+                writeExamples( context, examples, GraphicExporter.PNG, ".png" );
+            }
+        },
+
+        /** Writes PDF plot files and auxiliary text files to outDir. */
+        pdf( true ) {
+            public void execute( Context context, Plot2Example[] examples )
+                    throws Exception {
+                writeExamples( context, examples,
+                               PdfGraphicExporter.BASIC, ".pdf" );
             }
         },
 
@@ -635,15 +655,15 @@ public class Plot2Example {
          * @param  context  plot execution context
          * @param  examples  examples to write
          * @param  exporter   graphic format exporter
-         * @param  isVector   true iff exporter is a vector format
          */
         private static void writeExamples( Context context,
                                            Plot2Example[] examples,
                                            GraphicExporter exporter,
-                                           boolean isVector )
+                                           String suffix )
                 throws Exception {
-            String[] extraParams = isVector ? new String[ 0 ] : FORCEBITMAP;
-            String suffix = exporter.getFileSuffixes()[ 0 ];
+            String[] extraParams = exporter.isVector()
+                                 ? new String[ 0 ]
+                                 : FORCEBITMAP;
             File outDir = context.outDir_;
             int nex = examples.length;
 
@@ -778,6 +798,9 @@ public class Plot2Example {
         /** Crossmatch of NGC346 with Gaia DR1. */
         public static final String NGC346_GAIA;
 
+        /** Planetary data obtained from Batiste Rousseau. */
+        public static final String VIRVIS;
+
         /** All tables used for these examples. */
         public static final String[] NAMES = {
             RR = "rrlyrae.fits",
@@ -795,6 +818,7 @@ public class Plot2Example {
             LRS = "LRS_NPW_V010_20071101.cdf",
             NGC346 = "ngc346.fits",
             NGC346_GAIA = "ngc346xGaiadr1.fits",
+            VIRVIS = "big_tab_VIR_VIS_CSA_public.fits",
         };
     }
 
@@ -893,7 +917,8 @@ public class Plot2Example {
             new Plot2Example( "layer-xyvector", c, PlotTask.PLANE,
                               new String[] {
                 "*layer1=xyvector", "*in1=" + TName.GAVO2, null,
-                "*x1=x", "*y1=y", "*xdelta1=velX", "*ydelta1=velY", null,
+                "*x1=x", "*y1=y", "*xdelta1=velX", "*ydelta1=velY",
+                "*autoscale1=true", null,
                 "xmin=9", "xmax=11", "ymin=12", "ymax=13.5",
             } ),
             new Plot2Example( "layer-xyerror", c, PlotTask.PLANE, new String[] {
@@ -921,19 +946,67 @@ public class Plot2Example {
                               new String[] {
                 "*in=" + TName.MGC, null,
                 "*lon=mgc_alpha_j2000", "*lat=mgc_delta_j2000", null,
-                "*ra=bulge_re/3600.", "*rb=bulge_re*bulge_e/3600.",
+                "*ra=bulge_re", "*rb=bulge_re*bulge_e", "*unit=arcsec",
                 "*posang=bulge_pa", null,
-                "*autoscale=false", "*scale=10", "*color=#cc00ff", null,
+                "*scale=10", "*color=#cc00ff", null,
                 "*layer1=skyellipse", "*ellipse1=filled_ellipse",
                 "*shading1=transparent", "*opaque1=4", null,
                 "*layer2=skyellipse", "*ellipse2=crosshair_ellipse", null,
                 "clon=180.1", "clat=0", "radius=0.25",
+            } ),
+            new Plot2Example( "layer-xycorr", c, PlotTask.PLANE, new String[] {
+                "*in=" + TName.TGAS,
+                "*icmd='select skyDistanceDegrees(ra,dec,56.9,23.9)<0.4'",
+                null,
+                "*x=pmra", "*y=pmdec", null,
+                "layer1=mark", null,
+                "xerrhi2=pmra_error", "yerrhi2=pmdec_error", null,
+                "color2=cyan", "shading2=transparent", null,
+                "layer2a=xyerror",
+                "errorbar2a=filled_rectangle", "opaque2a=10", null,
+                "layer2b=xyerror",
+                "errorbar2b=crosshair_rectangle", "opaque2b=4", null,
+                "*layer3=xycorr", "*autoscale3=false", null,
+                "*xerr3=pmra_error", "*yerr3=pmdec_error",
+                "*xycorr3=pmra_pmdec_corr", null,
+                "*ellipse3=crosshair_ellipse", null,
+                "aspect=1", null,
+                "xmin=17", "xmax=24", "ymin=-48", "ymax=-42",
+            } ),
+            new Plot2Example( "layer-skycorr", c, PlotTask.SKY, new String[] {
+                "*in=" + TName.TGAS, null,
+                "*lon=ra", "*lat=dec", null,
+                "icmd='select ra>245.1&&ra<245.9&&dec>-17.8&&dec<-17.2'", null,
+                "color=blue", null,
+                "layer1=mark", null,
+                "*unit=mas", "*scale=2e5", null,
+                "ra2=ra_error", "rb2=dec_error", "posang2=90", null,
+                "color2=orange", "shading2=transparent", null,
+                "layer2a=skyellipse", "ellipse2a=filled_rectangle",
+                "opaque2a=6", null,
+                "layer2b=skyellipse", "ellipse2b=crosshair_rectangle",
+                "opaque2b=2", null,
+                "*layer3=skycorr", null,
+                "*lonerr3=ra_error", "*laterr3=dec_error",
+                "*corr3=ra_dec_corr", null,
+                "*ellipse3=crosshair_ellipse",
             } ),
             new Plot2Example( "layer-line", c, PlotTask.TIME, new String[] {
                 "*in=" + TName.ACE, "*t=epoch", null,
                 "*layer1=line", "*y1=Br", "zone1=A", null,
                 "*layer2=line", "*y2=Bt", "zone2=B", null,
                 "*layer3=line", "*y3=Bn", "zone3=C",
+            } ),
+            new Plot2Example( "layer-line3d", c, PlotTask.CUBE, new String[] {
+                "*in=" + TName.IERS, "*x=x", "*y=y", "*z=LOD", null,
+                "*layer1=line3d",
+                "*icmd1='select decYear>1963&&decYear<1964.5'",
+                "*thick1=3", "*aux1=LOD", null,
+                "layer2=mark", "shading2=translucent", "color2=cccc00",
+                "translevel2=0.35", null,
+                "auxmap=cyan-magenta", "auxvisible=false", "legend=false", null,
+                "phi=-150", "theta=25", "psi=180",
+                "xpix=400", "ypix=400",
             } ),
             new Plot2Example( "layer-linearfit", c, PlotTask.PLANE,
                               new String[] {
@@ -949,7 +1022,7 @@ public class Plot2Example {
                 "*x=phot_g_mean_mag", "*y=phot_g_mean_flux_error", null,
                 "ylog=true", "xmax=14", "ymin=10", null,
                 "layer1=mark", "shading1=density", "densemap1=greyscale", null,
-                "*layer2=contour", "*scaling2=log",
+                "*layer2=contour", "*scaling2=log", "*nlevel=6",
             } ),
             new Plot2Example( "layer-grid", c, PlotTask.PLANE, new String[] {
                 "*layer1=grid", "*in1=" + TName.HESS,
@@ -980,7 +1053,8 @@ public class Plot2Example {
             new Plot2Example( "layer-skyvector", c, PlotTask.SKY, new String[] {
                 "*in=" + TName.TGAS, "*lon=ra", "*lat=dec", null,
                 "layer1=mark", null,
-                "*layer2=skyvector", "*dlon2=pmra", "*dlat2=pmdec",
+                "*layer2=skyvector", null,
+                "*dlon2=pmra", "*dlat2=pmdec", "*unit2=scaled",
                 "*arrow2=medium_arrow", null,
                 "clon=56.75", "clat=24.10", "radius=1.5",
             } ),
@@ -989,7 +1063,7 @@ public class Plot2Example {
                 "*layer1=histogram", "*in1=" + TName.RR, "*x1=p1",
             } ),
             new Plot2Example( "layer-kde", c, PlotTask.PLANE, new String[] {
-                "*layer1=kde", "*in1=" + TName.RR, "*x1=p1",
+                "ymin=0", "*layer1=kde", "*in1=" + TName.RR, "*x1=p1",
             } ),
             new Plot2Example( "layer-knn", c, PlotTask.PLANE, new String[] {
                 "*layer1=knn", "*in1=" + TName.RR, "*x1=p1",
@@ -999,7 +1073,8 @@ public class Plot2Example {
                 "*in=" + TName.TGAS, "*x=hypot(pmra_error,pmdec_error)", null,
                 "xlog=true", "*normalise=maximum", null,
                 "color=grey", "layer1=histogram", "layer2=kde", null,
-                "*layer3=densogram", "*densemap3=sron", "*densefunc3=log",
+                "*layer3=densogram", "*densemap3=skyblue-yellow-hotpink",
+                "*densefunc3=log", null,
                 "*size3=50", "*pos3=0.5",
             } ),
             new Plot2Example( "layer-gaussian", c, PlotTask.PLANE,
@@ -1012,27 +1087,29 @@ public class Plot2Example {
             new Plot2Example( "layer-skydensity", c, PlotTask.SKY,
                               new String[] { 
                 "*in=" + TName.TGAS, "*lon=l", "*lat=b", null,
-                "*layer1=skydensity", "*weight1=astrometric_excess_noise",
+                "*layer1=skydensity", "*weight1=parallax",
                 "*combine1=mean", "*level1=4", null,
-                "projection=aitoff", "auxmap=cubehelix", "auxfunc=log", null,
-                "xpix=580", "ypix=250",
+                "projection=aitoff", "auxmap=PuRd", "auxfunc=histogram", null,
+                "xpix=540", "ypix=250",
             } ),
             new Plot2Example( "layer-healpix", c, PlotTask.SKY, new String[] {
                 "*layer1=healpix", "*in1=" + TName.SIMBAD_HPX,
                 "*healpix1=HPX8", "*value1=NBREF", null,
-                "*datalevel1=8", "*degrade1=2", null,
+                "*datalevel1=8", "*degrade1=2",
+                "*combine=sum-per-unit", "*perunit=arcmin2", null,
                 "projection=aitoff", "*datasys1=equatorial", "viewsys=galactic",
                 "labelpos=none",
                 null,
                 "auxfunc=log", "auxmap=cold", "auxflip=true",
-                "auxvisible=false", "auxclip=0,1", null,
-                "xpix=500", "ypix=250",
+                "auxclip=0,1", null,
+                "xpix=600", "ypix=280",
             } ),
             new Plot2Example( "layer-xyzvector", c, PlotTask.CUBE,
                               new String[] {
                 "*in=" + TName.GAVO2, null,
                 "*x=x", "*y=y", "*z=z",
-                "*xdelta=velX", "*ydelta=velY", "*zdelta=velZ", null,
+                "*xdelta=velX", "*ydelta=velY", "*zdelta=velZ",
+                "*autoscale=true", null,
                 "*color=BlueViolet", "*scale=1.5", null,
                 "*layer1=xyzvector", "*shading1=transparent", "*opaque1=5",
                 "*arrow1=medium_filled_dart", null,
@@ -1107,10 +1184,65 @@ public class Plot2Example {
                 "leglabel_h=HST", "leglabel_g='Gaia DR1'",
                 "legseq=_h,_g", "legpos=0.95,0.95",
             } ),
+            new Plot2Example( "layer-poly4", c, PlotTask.SKY, new String[] {
+                "in=" + TName.VIRVIS, "icmd='every 32'",
+                null,
+                "*lon1=LON_CORNER_1", "*lat1=LAT_CORNER_1", null,
+                "*lon2=LON_CORNER_2", "*lat2=LAT_CORNER_2", null,
+                "*lon3=LON_CORNER_3", "*lat3=LAT_CORNER_3", null,
+                "*lon4=LON_CORNER_4", "*lat4=LAT_CORNER_4", null,
+                "*aux=RADIUS", null,
+                "*layer_o=poly4", "*polymode_o=outline", "*shading_o=aux",
+                null,
+                "*layer_f=poly4", "*polymode_f=fill", "*shading_f=aux",
+                "*opaque_f=4", null,
+                "auxmap=rainbow", "auxvisible=false",
+                "xpix=300", "ypix=300", "labelpos=none",
+            } ),
+            new Plot2Example( "layer-mark4", c, PlotTask.PLANE, new String[] {
+                "in=" + TName.VIRVIS, null,
+                "icmd='select IOF_055<0.005'", null,
+                "icmd='select lon_center>250&&lon_center<300&&"
+                           + "lat_center>-65&&lat_center<-16'", null,
+                "*x1=LON_CORNER_1", "*y1=LAT_CORNER_1", null,
+                "*x2=LON_CORNER_2", "*y2=LAT_CORNER_2", null,
+                "*x3=LON_CORNER_3", "*y3=LAT_CORNER_3", null,
+                "*x4=LON_CORNER_4", "*y4=LAT_CORNER_4", null,
+                "layer_q=poly4", "polymode_q=fill",
+                "shading_q=transparent", "opaque_q=4", null,
+                "*layer_m=mark4", "*color_m=404040", "*shape_m=open_circle",
+                "*size_m=3",
+            } ),
+            new Plot2Example( "layer-polygon", c, PlotTask.SKY, new String[] {
+                "in=" + TName.VIRVIS, null,
+                "icmd='select ALTITUDE>4e4&&ALTITUDE<4.3e4'", null,
+                "*layer=polygon", "*polymode=fill", null,
+                "*lon=LON_CENTER", "*lat=LAT_CENTER", null,
+                "*otherpoints=array(lon_corner_1,lat_corner_1,"
+                                 + "lon_corner_2,lat_corner_2)", null,
+                "shading=weighted", "weight=IR_TEMPERATURE",
+                "auxmap=plasma", null,
+                "clon=83", "clat=34", "radius=11",
+            } ),
             new Plot2Example( "layer-function", c, PlotTask.PLANE,
                               new String[] {
                 "*layer1=function", "*fexpr1=sin(x)/x", "*thick1=3", null,
                 "xmin=0", "xmax=30", "ymin=-0.25", "ymax=0.25",
+            } ),
+            new Plot2Example( "layer-skygrid", c, PlotTask.SKY,
+                              new String[] {
+                "xpix=500", "ypix=250", "projection=aitoff", null,
+                "*viewsys=ecliptic", null,
+                "*layer1=skygrid", "*gridsys1=galactic",
+                "*gridcolor1=HotPink", "*labelpos1=none",
+            } ),
+            new Plot2Example( "layer-spheregrid", c, PlotTask.SPHERE,
+                              new String[] {
+                "legend=false", "xpix=350", "ypix=350", null,
+                "layer1=mark", "in1=" + TName.TGAS,
+                "lon1=ra", "lat1=dec", "r1=1", null,
+                "shading1=transparent", "opaque1=850", "color1=orange", null,
+                "*layer2=spheregrid", "*gridcolor2=green", "*thick2=2",
             } ),
             createShadingExample( "flat", c, new String[ 0 ] ),
             createShadingExample( "auto", c, new String[ 0 ] ),
@@ -1120,10 +1252,10 @@ public class Plot2Example {
                 "*densemap1=viridis",
             } ),
             createShadingExample( "aux", c, new String[] {
-                "*aux1=z",
+                "*aux1=z", "*auxmap=plasma",
             } ),
             createShadingExample( "weighted", c, new String[] {
-                "*weight1=z",
+                "*weight1=z", "*auxmap=plasma",
             } ),
         };
     }

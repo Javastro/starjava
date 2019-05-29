@@ -3,7 +3,7 @@ package uk.ac.starlink.ttools.plot2.geom;
 import uk.ac.starlink.ttools.plot2.DataGeom;
 import uk.ac.starlink.ttools.plot2.data.Coord;
 import uk.ac.starlink.ttools.plot2.data.SkyCoord;
-import uk.ac.starlink.ttools.plot2.data.TupleSequence;
+import uk.ac.starlink.ttools.plot2.data.Tuple;
 
 /**
  * Defines positional data coordinates used by a sky plot.
@@ -14,6 +14,7 @@ import uk.ac.starlink.ttools.plot2.data.TupleSequence;
 public abstract class SkyDataGeom implements DataGeom {
 
     private final String variantName_;
+    private final SkySys viewSys_;
 
     private static final SkyCoord SKY_COORD =
         SkyCoord.createCoord( SkyCoord.SkyVariant.SURFACE, true );
@@ -25,9 +26,12 @@ public abstract class SkyDataGeom implements DataGeom {
      * Constructor.
      *
      * @param  variantName  name for this data geom
+     * @param  viewSys   nominal sky coordinate system of view;
+     *                   if unknown or not applicable, may be null
      */
-    protected SkyDataGeom( String variantName ) {
+    protected SkyDataGeom( String variantName, SkySys viewSys ) {
         variantName_ = variantName;
+        viewSys_ = viewSys;
     }
 
     /**
@@ -49,8 +53,34 @@ public abstract class SkyDataGeom implements DataGeom {
         return new Coord[] { SKY_COORD };
     }
 
-    public boolean readDataPos( TupleSequence tseq, int ic, double[] dpos ) {
-        return SKY_COORD.readSkyCoord( tseq, ic, dpos );
+    public boolean readDataPos( Tuple tuple, int ic, double[] dpos ) {
+        return SKY_COORD.readSkyCoord( tuple, ic, dpos );
+    }
+
+    /**
+     * Rotates a 3-vector in place from this geom's data coordinate system
+     * to its view coordinate system.
+     *
+     * @param  dpos  (x,y,z) vector to be rotated in place
+     */
+    public abstract void rotate( double[] dpos );
+
+    /**
+     * Rotates a 3-vector in place from this geom's view coordinate system
+     * to its data coordinate system.
+     *
+     * @param  dpos  (x,y,z) vector to be rotated in place
+     */
+    public abstract void unrotate( double[] dpos );
+
+    /**
+     * Returns the nominal sky coordinate system of this geom's view,
+     * if available.
+     *
+     * @return   nominal sky view system, or null if not known or applicable
+     */
+    public SkySys getViewSystem() {
+        return viewSys_;
     }
 
     public abstract int hashCode();
@@ -67,13 +97,13 @@ public abstract class SkyDataGeom implements DataGeom {
      */
     public static SkyDataGeom createGeom( SkySys userSys, SkySys viewSys ) {
         if ( userSys == null || viewSys == null ) {
-            return new UnitSkyDataGeom( "generic" );
+            return new UnitSkyDataGeom( "generic", null );
         }
         else if ( userSys == viewSys ) {
-            return new UnitSkyDataGeom( userSys.toString() );
+            return new UnitSkyDataGeom( userSys.toString(), viewSys );
         }
         else {
-            return new RotateSkyDataGeom( userSys + "-" + viewSys,
+            return new RotateSkyDataGeom( userSys + "-" + viewSys, viewSys,
                                           Rotation
                                          .createRotation( userSys, viewSys ) );
         }
@@ -88,9 +118,16 @@ public abstract class SkyDataGeom implements DataGeom {
          * Constructor.
          *
          * @param  variantName  name for this data geom
+         * @param  viewSys  nominal view coordinate system, or null
          */
-        UnitSkyDataGeom( String variantName ) {
-            super( variantName );
+        UnitSkyDataGeom( String variantName, SkySys viewSys ) {
+            super( variantName, viewSys );
+        }
+
+        public void rotate( double[] dpos ) {
+        }
+
+        public void unrotate( double[] dpos ) {
         }
 
         @Override
@@ -117,27 +154,38 @@ public abstract class SkyDataGeom implements DataGeom {
      */
     private static class RotateSkyDataGeom extends SkyDataGeom {
         private final Rotation rotation_;
+        private final Rotation inverseRotation_;
 
         /**
          * Constructor.
          *
          * @param  variantName  name for this data geom
+         * @param  viewSys  nominal view coordinate system, or null
          * @param  rotation  sky rotation
          */
-        RotateSkyDataGeom( String variantName, Rotation rotation ) {
-            super( variantName );
+        RotateSkyDataGeom( String variantName, SkySys viewSys,
+                           Rotation rotation ) {
+            super( variantName, viewSys );
             rotation_ = rotation;
+            inverseRotation_ = rotation.invert();
         }
 
-        public boolean readDataPos( TupleSequence tseq, int ic,
-                                    double[] dpos ) {
-            if ( super.readDataPos( tseq, ic, dpos ) ) {
+        public boolean readDataPos( Tuple tuple, int ic, double[] dpos ) {
+            if ( super.readDataPos( tuple, ic, dpos ) ) {
                 rotation_.rotate( dpos );
                 return true;
             }
             else {
                 return false;
             }
+        }
+
+        public void rotate( double[] dpos ) {
+            rotation_.rotate( dpos );
+        }
+
+        public void unrotate( double[] dpos ) {
+            inverseRotation_.rotate( dpos );
         }
 
         @Override

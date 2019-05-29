@@ -12,12 +12,14 @@ import java.util.logging.Logger;
 import javax.swing.Action;
 import javax.swing.Icon;
 import uk.ac.starlink.table.ColumnData;
+import uk.ac.starlink.table.HealpixTableInfo;
 import uk.ac.starlink.topcat.BasicAction;
 import uk.ac.starlink.topcat.ColumnDataComboBoxModel;
 import uk.ac.starlink.topcat.ResourceIcon;
 import uk.ac.starlink.topcat.RowSubset;
 import uk.ac.starlink.topcat.TopcatListener;
 import uk.ac.starlink.topcat.TopcatModel;
+import uk.ac.starlink.topcat.TypedListModel;
 import uk.ac.starlink.ttools.plot.Styles;
 import uk.ac.starlink.ttools.plot2.PlotType;
 import uk.ac.starlink.ttools.plot2.PlotUtil;
@@ -31,6 +33,8 @@ import uk.ac.starlink.ttools.plot2.data.Coord;
 import uk.ac.starlink.ttools.plot2.data.CoordGroup;
 import uk.ac.starlink.ttools.plot2.data.FloatingCoord;
 import uk.ac.starlink.ttools.plot2.data.Input;
+import uk.ac.starlink.ttools.plot2.layer.HealpixPlotter;
+import uk.ac.starlink.util.Loader;
 
 /**
  * Control manager that uses FormLayerControls to provide
@@ -46,6 +50,7 @@ public class GroupControlManager implements ControlManager {
     private final ControlStack stack_;
     private final PlotType plotType_;
     private final PlotTypeGui plotTypeGui_;
+    private final TypedListModel<TopcatModel> tablesModel_;
     private final ZoneFactory zfact_;
     private final MultiConfigger baseConfigger_;
     private final TopcatListener tcListener_;
@@ -57,11 +62,21 @@ public class GroupControlManager implements ControlManager {
         Logger.getLogger( "uk.ac.starlink.topcat.plot2" );
 
     /**
+     * System property that may contain a colon-separated list of
+     * Plotter implementation class names (with no-arg constructors)
+     * to plug in at runtime.
+     * This is a bit scrappy - they will show up in all plot types,
+     * which probably is not appropriate.
+     */
+    public static final String PLOTTERS_PROP = "plot2.plotters";
+
+    /**
      * Constructor.
      *
      * @param   stack  control stack which this object will manage
      * @param   plotType  defines basic plot characteristics
      * @param   plotTypeGui  defines GUI-specific plot characteristics
+     * @param   tablesModel   list of available tables
      * @param   zfact   zone id factory
      * @param   baseConfigger  configuration source for some global config
      *                        options
@@ -70,12 +85,14 @@ public class GroupControlManager implements ControlManager {
      *                     selected TopcatModel
      */
     public GroupControlManager( ControlStack stack, PlotType plotType,
-                                PlotTypeGui plotTypeGui, ZoneFactory zfact,
-                                MultiConfigger baseConfigger,
+                                PlotTypeGui plotTypeGui,
+                                TypedListModel<TopcatModel> tablesModel,
+                                ZoneFactory zfact, MultiConfigger baseConfigger,
                                 TopcatListener tcListener ) {
         stack_ = stack;
         plotType_ = plotType;
         plotTypeGui_ = plotTypeGui;
+        tablesModel_ = tablesModel;
         zfact_ = zfact;
         baseConfigger_ = baseConfigger;
         tcListener_ = tcListener;
@@ -90,9 +107,12 @@ public class GroupControlManager implements ControlManager {
         for ( CoordsType ctyp : CoordsType.values() ) {
             plotterMap_.put( ctyp, new ArrayList<Plotter>() );
         }
-        Plotter[] plotters = plotType_.getPlotters();
-        for ( int i = 0; i < plotters.length; i++ ) {
-            Plotter plotter = plotters[ i ];
+        for ( Plotter plotter : plotType_.getPlotters() ) {
+            CoordsType ctyp = CoordsType.getInstance( plotter );
+            plotterMap_.get( ctyp ).add( plotter );
+        }
+        for ( Plotter plotter :
+              Loader.getClassInstances( PLOTTERS_PROP, Plotter.class ) ) {
             CoordsType ctyp = CoordsType.getInstance( plotter );
             plotterMap_.get( ctyp ).add( plotter );
         }
@@ -108,6 +128,7 @@ public class GroupControlManager implements ControlManager {
                 stackActList.add( new LayerControlAction( actName,
                                                           ctyp.getIcon(),
                                                           actDescrip,
+                                                          (Plotter) null,
                                                           stack_ ) {
                     public LayerControl createLayerControl() {
                         return createGroupControl( ctyp0, true );
@@ -121,8 +142,9 @@ public class GroupControlManager implements ControlManager {
         for ( Plotter plotter : plotterMap_.get( CoordsType.MISC ) ) {
             Action stackAct =
                 LayerControlAction
-               .createPlotterAction( plotter, stack, zfact_, nextSupplier_,
-                                     tcListener_, baseConfigger_ );
+               .createPlotterAction( plotter, stack, tablesModel_, zfact_,
+                                     nextSupplier_, tcListener_,
+                                     baseConfigger_ );
             if ( stackAct != null ) {
                 stackActList.add( stackAct );
             }
@@ -139,11 +161,35 @@ public class GroupControlManager implements ControlManager {
     }
 
     public Control createDefaultControl( TopcatModel tcModel ) {
-        Action act0 = stackActs_[ 0 ];
-        for ( int ia = 0; ia < stackActs_.length; ia++ ) {
-            if ( stackActs_[ ia ] instanceof LayerControlAction ) {
-                LayerControlAction cact = (LayerControlAction) stackActs_[ ia ];
-                LayerControl control = cact.createLayerControl();
+
+        /* For the special case where the table is known to contain HEALPix
+         * indices, and one of the layer controls can plot those, use that
+         * control.  In most cases, the other controls will not be appropriate
+         * for such a table. */
+        if ( tcModel != null &&
+             HealpixTableInfo.isHealpix( tcModel.getDataModel()
+                                                .getParameters() ) ) {
+            for ( Action stackAct : stackActs_ ) {
+                if ( stackAct instanceof LayerControlAction ) {
+                    LayerControlAction cact = (LayerControlAction) stackAct;
+                    if ( cact.getPlotter() instanceof HealpixPlotter ) {
+                        LayerControl control = cact.createLayerControl();
+                        assert control instanceof HealpixLayerControl;
+                        if ( control instanceof HealpixLayerControl ) {
+                            ((HealpixLayerControl) control)
+                                                  .setTopcatModel( tcModel );
+                            return control;
+                        }
+                    }
+                }
+            }
+        }
+
+        /* Otherwise, just pick the first control. */
+        for ( Action stackAct : stackActs_ ) {
+            if ( stackAct instanceof LayerControlAction ) {
+                LayerControl control =
+                    ((LayerControlAction) stackAct).createLayerControl();
                 if ( control instanceof FormLayerControl ) {
                     ((FormLayerControl) control).setTopcatModel( tcModel );
                 }
@@ -322,8 +368,8 @@ public class GroupControlManager implements ControlManager {
             Specifier<ZoneId> zsel = zfact_.isSingleZone() ? null : zs0;
             boolean autoPop = ctyp.isAutoPopulate();
             MultiFormLayerControl control = 
-                new MultiFormLayerControl( coordPanel, zsel, autoPop,
-                                           nextSupplier_, tcListener_,
+                new MultiFormLayerControl( coordPanel, tablesModel_, zsel,
+                                           autoPop, nextSupplier_, tcListener_,
                                            ctyp.getIcon(),
                                            plotterList
                                           .toArray( new Plotter[ 0 ] ),
@@ -355,11 +401,20 @@ public class GroupControlManager implements ControlManager {
         },
 
         /** Plotter with two positional coordinates. */
-        DOUBLE_POS( ResourceIcon.PLOT_PAIR, "Pair", "pair position", false ) {
+        DOUBLE_POS( ResourceIcon.PLOT_PAIR, "Pair", "pair position", true ) {
             public PositionCoordPanel
                     createPositionCoordPanel( PlotType plotType,
                                               PlotTypeGui plotTypeGui ) {
                 return plotTypeGui.createPositionCoordPanel( 2 );
+            }
+        },
+
+        /** Plotter with four positional coordinates. */
+        QUAD_POS( ResourceIcon.PLOT_QUAD, "Quad", "quadrilateral", true ) {
+            public PositionCoordPanel
+                    createPositionCoordPanel( PlotType plotType,
+                                              PlotTypeGui plotTypeGui ) {
+                return plotTypeGui.createPositionCoordPanel( 4 );
             }
         },
 
@@ -463,11 +518,30 @@ public class GroupControlManager implements ControlManager {
         public static CoordsType getInstance( Plotter plotter ) {
             CoordGroup cgrp = plotter.getCoordGroup();
             int npos = cgrp.getPositionCount();
-            if ( npos == 1 ) {
+
+            /* Treat HealpixPlotter as a special case since although it has
+             * positional coordinates, they are not the standard coordinates
+             * for its plot type (it's a pixel index, not a lon/lat pair).
+             * This special handling is a bit messy and should really be
+             * generalised, but since it's the only such special case so far,
+             * it's not clear how best to do that generalisation.
+             * If other instances of this kind of requirement come up,
+             * consider this more carefully and generalise the handling
+             * as appropriate. */
+            if ( plotter instanceof HealpixPlotter ) {
+                return CoordsType.MISC;
+            }
+
+            /* For other layer types, examine their declared characteristics
+             * to decide how they are categorised. */
+            else if ( npos == 1 ) {
                 return CoordsType.SINGLE_POS;
             }
             else if ( npos == 2 ) {
                 return CoordsType.DOUBLE_POS;
+            }
+            else if ( npos == 4 ) {
+                return CoordsType.QUAD_POS;
             }
             else if ( cgrp.isSinglePartialPosition() &&
                       cgrp.getExtraCoords().length == 2 &&

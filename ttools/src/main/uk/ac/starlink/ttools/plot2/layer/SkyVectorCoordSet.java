@@ -1,9 +1,14 @@
 package uk.ac.starlink.ttools.plot2.layer;
 
+import uk.ac.starlink.ttools.gui.ResourceIcon;
+import uk.ac.starlink.ttools.plot2.DataGeom;
+import uk.ac.starlink.ttools.plot2.PlotUtil;
+import uk.ac.starlink.ttools.plot2.config.StyleKeys;
 import uk.ac.starlink.ttools.plot2.data.Coord;
 import uk.ac.starlink.ttools.plot2.data.FloatingCoord;
 import uk.ac.starlink.ttools.plot2.data.InputMeta;
-import uk.ac.starlink.ttools.plot2.data.TupleSequence;
+import uk.ac.starlink.ttools.plot2.data.Tuple;
+import uk.ac.starlink.ttools.plot2.geom.SkyDataGeom;
 
 /**
  * MultiPointCoordSet for vectors on the sky.
@@ -33,12 +38,12 @@ public class SkyVectorCoordSet implements MultiPointCoordSet {
            .setXmlDescription( new String[] {
                 "<p>Change in the longitude coordinate represented by",
                 "the plotted vector.",
-                "The supplied value is an angle in degrees, and",
+                "The supplied value",
                 "<strong>" + ( preMultCosLat ? "is" : "is not" ) + "</strong>",
                 "considered to be premultiplied by cos(Latitude).",
+                SkyMultiPointForm.getCoordUnitText(),
                 "</p>",
             } )
-           .setValueUsage( "deg" )
         , true );
         dlatCoord_ = FloatingCoord.createCoord(
             new InputMeta( "dlat", "Delta Latitude" )
@@ -46,10 +51,9 @@ public class SkyVectorCoordSet implements MultiPointCoordSet {
            .setXmlDescription( new String[] {
                 "<p>Change in the latitude coordinate represented by",
                 "the plotted vector.",
-                "The supplied value is an angle in degrees.",
+                SkyMultiPointForm.getCoordUnitText(),
                 "</p>",
             } )
-           .setValueUsage( "deg" )
         , true );
     }
 
@@ -61,12 +65,12 @@ public class SkyVectorCoordSet implements MultiPointCoordSet {
         return 1;
     }
 
-    public boolean readPoints( TupleSequence tseq, int icol, double[] xyz0,
-                               double[][] xyzExtras ) {
+    public boolean readPoints( Tuple tuple, int icol, DataGeom geom,
+                               double[] xyz0, double[][] xyzExtras ) {
         double dLon =
-            Math.toRadians( dlonCoord_.readDoubleCoord( tseq, icol ) );
+            Math.toRadians( dlonCoord_.readDoubleCoord( tuple, icol ) );
         double dLat =
-            Math.toRadians( dlatCoord_.readDoubleCoord( tseq, icol + 1 ) );
+            Math.toRadians( dlatCoord_.readDoubleCoord( tuple, icol + 1 ) );
         if ( Double.isNaN( dLon ) || Double.isNaN( dLat ) ) {
             return false;
         }
@@ -74,13 +78,44 @@ public class SkyVectorCoordSet implements MultiPointCoordSet {
             return false;
         }
         else {
-            double theta = Math.asin( xyz0[ 2 ] );
-            double xi = preMultCosLat_ ? dLon
-                                       : dLon * Math.cos( theta );
+            final double xi;
+            if ( preMultCosLat_ ) {
+                xi = dLon;
+            }
+            else {
+                double z = xyz0[ 2 ];
+                double cosTheta = Math.sqrt( 1 - z * z );
+                xi = dLon * cosTheta;
+            }
             double eta = dLat;
             double[] xyz1 = xyzExtras[ 0 ];
-            new TangentPlaneTransformer( xyz0 ).displace( xi, eta, xyz1 );
+            new TangentPlaneTransformer( xyz0, (SkyDataGeom) geom )
+               .displace( xi, eta, xyz1 );
             return true;
         }
+    }
+
+    /**
+     * Creates a MultiPointform that can plot vectors on the sky,
+     * corresponding to this coordset.
+     *
+     * @return  new form
+     */
+    public static MultiPointForm createForm() {
+        SkyVectorCoordSet coordSet = new SkyVectorCoordSet( true );
+        String descrip = PlotUtil.concatLines( new String[] {
+            "<p>Plots directed lines from the data position",
+            "given delta values for the coordinates",
+            "The plotted markers are typically little arrows,",
+            "but there are other options.",
+            "</p>",
+            SkyMultiPointForm
+           .getScalingDescription( new FloatingCoord[] { coordSet.dlonCoord_,
+                                                         coordSet.dlatCoord_ },
+                                   "vector" ),
+        } );
+        return new SkyMultiPointForm( "SkyVector", ResourceIcon.FORM_VECTOR,
+                                      descrip, coordSet,
+                                      StyleKeys.VECTOR_SHAPE );
     }
 }

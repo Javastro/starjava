@@ -9,6 +9,14 @@ import uk.ac.starlink.ttools.plot2.Equality;
 /**
  * Defines the combination mode for accumulating values into a bin.
  *
+ * <p>Instances of this class can produce <code>Container</code>
+ * and <code>BinList</code> objects into which values can be accumulated.
+ * Once populated, those objects can be interrogated to find
+ * combined values.
+ * <strong>Note</strong> that in general those accumulated results
+ * should be multiplied by the result of calling
+ * {@link Type#getBinFactor} before use.
+ *
  * <p>Note that the {@link #SUM} mode is usually sensible for unweighted values,
  * but if the values are weighted it may be more revealing to use
  * one of the others (like {@link #MEAN}).
@@ -21,13 +29,20 @@ public abstract class Combiner {
 
     private final String name_;
     private final String description_;
+    private final Type type_;
     private final boolean hasBigBin_;
 
-    /** Report the number of submitted values. */
+    /** Calculate the number of submitted values. */
     public static final Combiner COUNT;
+
+    /** Calculate the density of all submitted values. */
+    public static final Combiner DENSITY;
 
     /** Calculate the sum of all submitted values. */
     public static final Combiner SUM;
+
+    /** Calculate the weighted density of all submitted values. */
+    public static final Combiner WEIGHTED_DENSITY;
 
     /** Calculate the mean of all submitted values. */
     public static final Combiner MEAN;
@@ -49,12 +64,14 @@ public abstract class Combiner {
 
     private static final Combiner[] COMBINERS = new Combiner[] {
         SUM = new SumCombiner(),
+        WEIGHTED_DENSITY = new WeightedDensityCombiner(),
+        COUNT = new CountCombiner(),
+        DENSITY = new DensityCombiner(),
         MEAN = new MeanCombiner(),
         MEDIAN = new MedianCombiner(),
         MIN = new MinCombiner(),
         MAX = new MaxCombiner(),
         SAMPLE_STDEV = new StdevCombiner( true ),
-        COUNT = new CountCombiner(),
         HIT = new HitCombiner(),
     };
 
@@ -63,13 +80,21 @@ public abstract class Combiner {
      *
      * @param   name  name
      * @param   description  short textual description
+     * @param   type    defines the kind of aggregation performed;
+     *                  note the implementation of this class does not
+     *                  use this value to affect the bin results
+     *                  calculated by this combiner, but users of this
+     *                  class should make use of it to interpret the
+     *                  bin results
      * @param   hasBigBin  indicates whether the bins used by this combiner
      *                     are large
      *                     (take more memory than a <code>double</code>)
      */
-    protected Combiner( String name, String description, boolean hasBigBin ) {
+    protected Combiner( String name, String description, Type type,
+                        boolean hasBigBin ) {
         name_ = name;
         description_ = description;
+        type_ = type;
         hasBigBin_ = hasBigBin;
     }
 
@@ -99,16 +124,7 @@ public abstract class Combiner {
      * @param  size   index range of required bin list
      * @return   array-based bin list, or null
      */
-    public abstract BinList createArrayBinList( int size );
-
-    /**
-     * Creates a generaly purpose bin list, which may be especially
-     * suitable for sparse index ranges.
-     *
-     * @param  size   index range of required bin list
-     * @return   array-based bin list, not null
-     */
-    public abstract BinList createHashBinList( long size );
+    public abstract ArrayBinList createArrayBinList( int size );
 
     /**
      * Returns this combiner's name.
@@ -129,6 +145,16 @@ public abstract class Combiner {
     }
 
     /**
+     * Indicates the aggregation type.  This value should be used to make
+     * sense of the output bin list results.
+     *
+     * @return  aggregation type
+     */
+    public Type getType() {
+        return type_;
+    }
+
+    /**
      * Indicates whether the bin objects used by this combiner are large.
      * Large means, roughly, take more memory than a <code>double</code>.
      * This flag may be used to decide whether to compact bin list results.
@@ -143,11 +169,16 @@ public abstract class Combiner {
      * Returns a metadata object that describes the result of applying
      * this combiner to data described by a given metadata object.
      *
-     * @param  info  metadata for values to be combined, usually numeric
+     * @param  info  metadata for values to be combined, usually numeric;
+     *               may be null if metadata unknown
+     * @param  scaleUnit      unit of bin extent by which bin values
+     *                        are divided for density-like combiners;
+     *                        may be null for unknown/natural units
      * @return  metadata for combined values; the content class must be
      *          be a primitive numeric wrapper class
      */
-    public abstract ValueInfo createCombinedInfo( ValueInfo info );
+    public abstract ValueInfo createCombinedInfo( ValueInfo info,
+                                                  Unit scaleUnit );
 
     @Override
     public String toString() {
@@ -161,6 +192,30 @@ public abstract class Combiner {
      */
     public static Combiner[] getKnownCombiners() {
         return COMBINERS.clone();
+    }
+
+    /**
+     * Returns a BinList implementation suitable for a given number of
+     * bins and a given combiner.
+     * This may return an implementation based on a hash, or an array,
+     * or some combination.
+     *
+     * @param  combiner  combiner
+     * @param  size    maximum number of bins
+     */
+    public static BinList createDefaultBinList( Combiner combiner, long size ) {
+        if ( size < 1e6 ) {
+            BinList binList = combiner.createArrayBinList( (int) size );
+            if ( binList != null ) {
+                return binList;
+            }
+        }
+        if ( size < Integer.MAX_VALUE ) {
+            return new AdaptiveBinList( (int) size, combiner, 8 );
+        }
+        else {
+            return new HashBinList( size, combiner );
+        }
     }
 
     /**
@@ -207,6 +262,72 @@ public abstract class Combiner {
     }
 
     /**
+     * Defines the scaling properties of a combiner.
+     * This also provides information on how the results of the
+     * populated bin list should be interpreted.
+     */
+    public enum Type {
+
+        /**
+         * Sum-like aggregation.
+         * To first order, the bin result quantities scale linearly
+         * with the number of values submitted.
+         * If a bin value is NaN because no values have been submitted,
+         * it can be interpreted as zero.
+         */
+        EXTENSIVE( true, false ),
+
+        /**
+         * Average-like aggregation.
+         * To first order, the bin result quantities are not dependent on
+         * the number of values submitted.
+         * No numeric value can be assumed if a bin value is NaN because
+         * no values have been submitted.
+         */
+        INTENSIVE( false, false ),
+
+        /**
+         * Density-like aggregation.  This is like {@link #EXTENSIVE},
+         * but results should be divided by bin size;
+         * the {@link #getBinFactor getBinFactor} method in general will
+         * return a value that is not unity.
+         */
+        DENSITY( true, true );
+
+        private final boolean isExtensive_;
+        private final boolean isScaling_;
+
+        /**
+         * Constructor.
+         */
+        Type( boolean isExtensive, boolean isScaling ) {
+            isExtensive_ = isExtensive;
+            isScaling_ = isScaling;
+        }
+
+        /**
+         * Indicates whether the bin values scale to first order
+         * with the number of submitted values per bin.
+         *
+         * @return  true iff no submitted values corresponds to a zero bin value
+         */
+        public boolean isExtensive() {
+            return isExtensive_;
+        }
+
+        /**
+         * Returns a scaling factor which ought to be applied to bin values.
+         * This may be unity, or it may depend on the supplied bin extent.
+         *
+         * @param  binExtent  bin size in some natural units
+         * @return   factor to multiply bin contents by before use
+         */
+        public double getBinFactor( double binExtent ) {
+            return isScaling_ ? 1.0 / binExtent : 1.0;
+        }
+    }
+
+    /**
      * Defines an object that can be used to accumulate values and
      * retrieve a result.
      */
@@ -227,45 +348,23 @@ public abstract class Combiner {
          *
          * @return  combined value of all submitted data
          */
-        double getResult();
-    }
-
-    /**
-     * Utility partial implementation of Combiner.
-     * This just handles the isCopyResult flag.
-     */
-    private static abstract class AbstractCombiner extends Combiner {
-
-        /**
-         * Constructor.
-         *
-         * @param   name  name
-         * @param   description  short textual description
-         * @param   hasBigBin  true if combiner has big bins
-         */
-        AbstractCombiner( String name, String description,
-                          boolean hasBigBin ) {
-            super( name, description, hasBigBin );
-        }
-
-        public BinList createHashBinList( long size ) {
-            return new HashBinList( size, this );
-        }
+        double getCombinedValue();
     }
 
     /**
      * Combiner implementation that calculates the mean.
      */
-    private static class MeanCombiner extends AbstractCombiner {
+    private static class MeanCombiner extends Combiner {
 
         /**
          * Constructor.
          */
         public MeanCombiner() {
-            super( "mean", "the mean of the combined values", true );
+            super( "mean", "the mean of the combined values", Type.INTENSIVE,
+                   true );
         }
 
-        public BinList createArrayBinList( int size ) {
+        public ArrayBinList createArrayBinList( int size ) {
             final int[] counts = new int[ size ];
             final double[] sums = new double[ size ];
             return new ArrayBinList( size, this ) {
@@ -278,6 +377,11 @@ public abstract class Combiner {
                     return count == 0 ? Double.NaN
                                       : sums[ index ] / (double) count;
                 }
+                public void copyBin( int index, Container bin ) {
+                    MeanContainer container = (MeanContainer) bin;
+                    counts[ index ] = container.count_;
+                    sums[ index ] = container.sum_;
+                }
             };
         }
 
@@ -285,7 +389,8 @@ public abstract class Combiner {
             return new MeanContainer();
         }
 
-        public ValueInfo createCombinedInfo( ValueInfo dataInfo ) {
+        public ValueInfo createCombinedInfo( ValueInfo dataInfo,
+                                             Unit scaleUnit ) {
             DefaultValueInfo info = new DefaultValueInfo( dataInfo );
             info.setContentClass( Double.class );
             info.setDescription( getInfoDescription( dataInfo )
@@ -306,7 +411,7 @@ public abstract class Combiner {
                 count_++;
                 sum_ += datum;
             }
-            public double getResult() {
+            public double getCombinedValue() {
                 return count_ == 0 ? Double.NaN : sum_ / (double) count_;
             }
         }
@@ -337,7 +442,8 @@ public abstract class Combiner {
                    } );
         }
 
-        public ValueInfo createCombinedInfo( ValueInfo dataInfo ) {
+        public ValueInfo createCombinedInfo( ValueInfo dataInfo,
+                                             Unit scaleUnit ) {
             DefaultValueInfo info = new DefaultValueInfo( dataInfo );
             info.setContentClass( Double.class );
             info.setDescription( getInfoDescription( dataInfo )
@@ -350,7 +456,7 @@ public abstract class Combiner {
     /**
      * Combiner implementation that calculates the standard deviation.
      */
-    private static class StdevCombiner extends AbstractCombiner {
+    private static class StdevCombiner extends Combiner {
         private final boolean isSampleStdev_;
 
         /**
@@ -363,11 +469,11 @@ public abstract class Combiner {
             super( "stdev",
                    "the " + ( isSampleStdev ? "sample" : "population" )
                           + " standard deviation of the combined values",
-                   true );
+                   Type.INTENSIVE, true );
             isSampleStdev_ = isSampleStdev;
         }
 
-        public BinList createArrayBinList( int size ) {
+        public ArrayBinList createArrayBinList( int size ) {
             final int[] counts = new int[ size ];
             final double[] sum1s = new double[ size ];
             final double[] sum2s = new double[ size ];
@@ -381,6 +487,12 @@ public abstract class Combiner {
                     return getStdev( isSampleStdev_, counts[ index ],
                                      sum1s[ index ], sum2s[ index ] );
                 }
+                public void copyBin( int index, Container bin ) {
+                    StdevContainer container = (StdevContainer) bin;
+                    counts[ index ] = container.count_;
+                    sum1s[ index ] = container.sum1_;
+                    sum2s[ index ] = container.sum2_;
+                }
             };
         }
 
@@ -389,7 +501,8 @@ public abstract class Combiner {
                                   : new PopulationStdevContainer();
         }
 
-        public ValueInfo createCombinedInfo( ValueInfo dataInfo ) {
+        public ValueInfo createCombinedInfo( ValueInfo dataInfo,
+                                             Unit scaleUnit ) {
             DefaultValueInfo info =
                 new DefaultValueInfo( dataInfo.getName() + "_stdev",
                                       Double.class,
@@ -423,7 +536,7 @@ public abstract class Combiner {
          * to keep memory usage down if there are many instances.
          */
         private static class PopulationStdevContainer extends StdevContainer {
-            public double getResult() {
+            public double getCombinedValue() {
                 return getStdev( false, count_, sum1_, sum2_ );
             }
         }
@@ -434,7 +547,7 @@ public abstract class Combiner {
          * to keep memory usage down if there are many instances.
          */
         private static class SampleStdevContainer extends StdevContainer {
-            public double getResult() {
+            public double getCombinedValue() {
                 return getStdev( true, count_, sum1_, sum2_ );
             }
         }
@@ -465,20 +578,22 @@ public abstract class Combiner {
     }
 
     /**
-     * Combiner instance that just counts submissions.
+     * Partial Combiner implementation that counts submissions.
      */
-    private static class CountCombiner extends AbstractCombiner {
+    private static abstract class AbstractCountCombiner extends Combiner {
 
         /**
          * Constructor.
+         *
+         * @param  name  name
+         * @param  descrip  description
+         * @param  type  combiner type
          */
-        CountCombiner() {
-            super( "count",
-                   "the number of non-blank values (weight is ignored)",
-                   false );
+        AbstractCountCombiner( String name, String descrip, Type type ) {
+            super( name, descrip, type, false );
         }
 
-        public BinList createArrayBinList( int size ) {
+        public ArrayBinList createArrayBinList( int size ) {
             final int[] counts = new int[ size ];
             return new ArrayBinList( size, this ) {
                 public void submitToBinInt( int index, double value ) {
@@ -488,19 +603,15 @@ public abstract class Combiner {
                     int count = counts[ index ];
                     return count == 0 ? Double.NaN : count;
                 }
+                public void copyBin( int index, Container bin ) {
+                    CountContainer container = (CountContainer) bin;
+                    counts[ index ] = container.count_;
+                }
             };
         }
 
         public Container createContainer() {
             return new CountContainer();
-        }
-
-        public ValueInfo createCombinedInfo( ValueInfo inInfo ) {
-            DefaultValueInfo outInfo = 
-                new DefaultValueInfo( "count", Integer.class,
-                                      "Number of items counted per bin" );
-            outInfo.setUCD( "meta.number" );
-            return outInfo;
         }
 
         /**
@@ -513,16 +624,58 @@ public abstract class Combiner {
             public void submit( double datum ) {
                 count_++;
             }
-            public double getResult() {
+            public double getCombinedValue() {
                 return count_ == 0 ? Double.NaN : count_;
             }
         }
     }
 
     /**
-     * Combiner implementation that calculates the sum.
+     * Combiner instance that counts submissions per bin. 
      */
-    private static class SumCombiner extends AbstractCombiner {
+    private static class CountCombiner extends AbstractCountCombiner {
+        CountCombiner() {
+            super( "count",
+                   "the number of non-blank values per bin (weight is ignored)",
+                   Type.EXTENSIVE );
+        }
+        public ValueInfo createCombinedInfo( ValueInfo inInfo,
+                                             Unit scaleUnit ) {
+            DefaultValueInfo outInfo = 
+                new DefaultValueInfo( "count", Integer.class,
+                                      "Number of items counted per bin" );
+            outInfo.setUCD( "meta.number" );
+            return outInfo;
+        }
+    }
+
+    /**
+     * Combiner instance that counts submissions per unit of bin extent.
+     */
+    private static class DensityCombiner extends AbstractCountCombiner {
+        DensityCombiner() {
+            super( "count-per-unit",
+                   "the number of non-blank values per unit of bin size "
+                 + "(weight is ignored)",
+                   Type.DENSITY );
+        }
+        public ValueInfo createCombinedInfo( ValueInfo inInfo,
+                                             Unit scaleUnit ) {
+            DefaultValueInfo outInfo =
+                new DefaultValueInfo( "density", Double.class,
+                                      "Number of items counted per "
+                                    +  scaleUnit.getTextName() );
+            outInfo.setUCD( "src.density" );
+            outInfo.setUnitString( "1/" + scaleUnit.getSymbol() );
+            return outInfo;
+        }
+    }
+
+    /**
+     * Partial Combiner implementation that calculates the sum of
+     * submitted values.
+     */
+    private static abstract class AbstractSumCombiner extends Combiner {
 
         /**
          * Combines the existing state value with a supplied datum
@@ -538,12 +691,16 @@ public abstract class Combiner {
 
         /**
          * Constructor.
+         *
+         * @param  name  name
+         * @param  descrip  description
+         * @param  type  combiner type
          */
-        SumCombiner() {
-            super( "sum", "the sum of all the combined values", false );
+        AbstractSumCombiner( String name, String descrip, Type type ) {
+            super( name, descrip, type, false );
         }
 
-        public BinList createArrayBinList( int size ) {
+        public ArrayBinList createArrayBinList( int size ) {
             final double[] sums = new double[ size ];
             Arrays.fill( sums, Double.NaN );
             return new ArrayBinList( size, this ) {
@@ -553,21 +710,15 @@ public abstract class Combiner {
                 public double getBinResultInt( int index ) {
                     return sums[ index ];
                 }
+                public void copyBin( int index, Container bin ) {
+                    SumContainer container = (SumContainer) bin;
+                    sums[ index ] = container.sum_;
+                }
             };
         }
 
         public Container createContainer() {
             return new SumContainer();
-        }
-
-        public ValueInfo createCombinedInfo( ValueInfo dataInfo ) {
-            DefaultValueInfo info =
-                new DefaultValueInfo( dataInfo.getName() + "_sum",
-                                      Double.class,
-                                      getInfoDescription( dataInfo )
-                                    + ", sum in bin" );
-            info.setUnitString( dataInfo.getUnitString() );
-            return info;
         }
 
         /**
@@ -580,16 +731,62 @@ public abstract class Combiner {
             public void submit( double datum ) {
                 sum_ = combineSum( sum_, datum );
             }
-            public double getResult() {
+            public double getCombinedValue() {
                 return sum_;
             }
         }
     }
 
     /**
+     * Combiner instance that sums submitted values per bin.
+     */
+    private static class SumCombiner extends AbstractSumCombiner {
+        SumCombiner() {
+            super( "sum", "the sum of all the combined values per bin",
+                   Type.EXTENSIVE );
+        }
+        public ValueInfo createCombinedInfo( ValueInfo dataInfo,
+                                             Unit scaleUnit ) {
+            DefaultValueInfo info =
+                new DefaultValueInfo( dataInfo.getName() + "_sum",
+                                      Double.class,
+                                      getInfoDescription( dataInfo )
+                                    + ", sum in bin" );
+            info.setUnitString( dataInfo.getUnitString() );
+            return info;
+        }
+    }
+
+    /**
+     * Combiner instance that sums submitted values per unit of bin extent.
+     */
+    private static class WeightedDensityCombiner extends AbstractSumCombiner {
+        WeightedDensityCombiner() {
+            super( "sum-per-unit",
+                   "the sum of all the combined values per unit of bin size",
+                   Type.DENSITY );
+        }
+        public ValueInfo createCombinedInfo( ValueInfo dataInfo,
+                                             Unit scaleUnit ) {
+            DefaultValueInfo info =
+                new DefaultValueInfo( dataInfo.getName() + "_density",
+                                      Double.class,
+                                      getInfoDescription( dataInfo )
+                                    + ", density per "
+                                    + scaleUnit.getTextName() );
+            String inUnit = dataInfo.getUnitString();
+            if ( inUnit == null || inUnit.trim().length() == 0 ) {
+                inUnit = "1";
+            }
+            info.setUnitString( inUnit + "/" + scaleUnit.getSymbol() );
+            return info;
+        }
+    }
+
+    /**
      * Combiner implementation that calculates the minimum submitted value.
      */
-    private static class MinCombiner extends AbstractCombiner {
+    private static class MinCombiner extends Combiner {
 
         /**
          * Combines the existing state value with a supplied datum
@@ -608,10 +805,11 @@ public abstract class Combiner {
          * Constructor.
          */
         MinCombiner() {
-            super( "min", "the minimum of all the combined values", false );
+            super( "min", "the minimum of all the combined values",
+                   Type.INTENSIVE, false );
         }
 
-        public BinList createArrayBinList( int size ) {
+        public ArrayBinList createArrayBinList( int size ) {
             final double[] mins = new double[ size ];
             Arrays.fill( mins, Double.NaN );
             return new ArrayBinList( size, this ) {
@@ -621,6 +819,10 @@ public abstract class Combiner {
                 public double getBinResultInt( int index ) {
                     return mins[ index ];
                 }
+                public void copyBin( int index, Container bin ) {
+                    MinContainer container = (MinContainer) bin;
+                    mins[ index ] = container.min_;
+                }
             };
         }
 
@@ -628,7 +830,8 @@ public abstract class Combiner {
             return new MinContainer();
         }
 
-        public ValueInfo createCombinedInfo( ValueInfo dataInfo ) {
+        public ValueInfo createCombinedInfo( ValueInfo dataInfo,
+                                             Unit scaleUnit ) {
             DefaultValueInfo info =
                 new DefaultValueInfo( dataInfo.getName() + "_min",
                                       dataInfo.getContentClass(),
@@ -649,7 +852,7 @@ public abstract class Combiner {
             public void submit( double datum ) {
                 min_ = combineMin( min_, datum );
             }
-            public double getResult() {
+            public double getCombinedValue() {
                 return min_;
             }
         }
@@ -658,7 +861,7 @@ public abstract class Combiner {
     /**
      * Combiner implementation that calculates the maximum submitted value.
      */
-    private static class MaxCombiner extends AbstractCombiner {
+    private static class MaxCombiner extends Combiner {
 
         /**
          * Combines the existing state value with a supplied datum
@@ -677,10 +880,11 @@ public abstract class Combiner {
          * Constructor.
          */
         MaxCombiner() {
-            super( "max", "the maximum of all the combined values", false );
+            super( "max", "the maximum of all the combined values",
+                   Type.INTENSIVE, false );
         }
 
-        public BinList createArrayBinList( int size ) {
+        public ArrayBinList createArrayBinList( int size ) {
             final double[] maxs = new double[ size ];
             Arrays.fill( maxs, Double.NaN );
             return new ArrayBinList( size, this ) {
@@ -690,6 +894,10 @@ public abstract class Combiner {
                 public double getBinResultInt( int index ) {
                     return maxs[ index ];
                 }
+                public void copyBin( int index, Container bin ) {
+                    MaxContainer container = (MaxContainer) bin;
+                    maxs[ index ] = container.max_;
+                }
             };
         }
 
@@ -697,7 +905,8 @@ public abstract class Combiner {
             return new MaxContainer();
         }
 
-        public ValueInfo createCombinedInfo( ValueInfo dataInfo ) {
+        public ValueInfo createCombinedInfo( ValueInfo dataInfo,
+                                             Unit scaleUnit ) {
             DefaultValueInfo info =
                 new DefaultValueInfo( dataInfo.getName() + "_max",
                                       dataInfo.getContentClass(),
@@ -718,7 +927,7 @@ public abstract class Combiner {
             public void submit( double datum ) {
                 max_ = combineMax( max_, datum );
             }
-            public double getResult() {
+            public double getCombinedValue() {
                 return max_;
             }
         }
@@ -727,7 +936,7 @@ public abstract class Combiner {
     /**
      * Combiner that just registers whether any data have been submitted.
      */
-    private static class HitCombiner extends AbstractCombiner {
+    private static class HitCombiner extends Combiner {
 
         /**
          * Constructor.
@@ -735,10 +944,10 @@ public abstract class Combiner {
         HitCombiner() {
             super( "hit",
                    "1 if any values present, NaN otherwise (weight is ignored)",
-                   false );
+                   Type.EXTENSIVE, false );
         }
 
-        public BinList createArrayBinList( int size ) {
+        public ArrayBinList createArrayBinList( int size ) {
             final BitSet mask = new BitSet();
             return new ArrayBinList( size, this ) {
                 public void submitToBinInt( int index, double datum ) {
@@ -747,6 +956,10 @@ public abstract class Combiner {
                 public double getBinResultInt( int index ) {
                     return mask.get( index ) ? 1 : Double.NaN;
                 }
+                public void copyBin( int index, Container bin ) {
+                    HitContainer container = (HitContainer) bin;
+                    mask.set( index, container.hit_ );
+                }
             };
         }
 
@@ -754,7 +967,8 @@ public abstract class Combiner {
             return new HitContainer();
         }
 
-        public ValueInfo createCombinedInfo( ValueInfo dataInfo ) {
+        public ValueInfo createCombinedInfo( ValueInfo dataInfo,
+                                             Unit scaleUnit ) {
             return new DefaultValueInfo( "hit", Short.class,
                                          "1 if bin contains data, 0 if not" );
         }
@@ -764,7 +978,7 @@ public abstract class Combiner {
             public void submit( double datum ) {
                 hit_ = true;
             }
-            public double getResult() {
+            public double getCombinedValue() {
                 return hit_ ? 1 : Double.NaN;
             }
         }

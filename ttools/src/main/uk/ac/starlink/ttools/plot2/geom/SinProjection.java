@@ -1,11 +1,13 @@
 package uk.ac.starlink.ttools.plot2.geom;
 
+import java.awt.Rectangle;
 import java.awt.geom.Ellipse2D;
 import java.awt.geom.Point2D;
 import uk.ac.starlink.pal.Pal;
 import uk.ac.starlink.ttools.func.Arrays;
 import uk.ac.starlink.ttools.plot.Matrices;
 import uk.ac.starlink.ttools.plot.Range;
+import uk.ac.starlink.ttools.plot2.PlotUtil;
 
 /**
  * Sine (orthographic) projection.
@@ -31,23 +33,13 @@ public class SinProjection extends SkyviewProjection {
      * Private singleton constructor.
      */
     private SinProjection() {
-        super( new Sin2(), new Ellipse2D.Double( -1, -1, 2, 2 ), true );
-    }
-
-    @Override
-    public String getProjectionName() {
-        return "Sin";
-    }
-
-    @Override
-    public String getProjectionDescription() {
-        return "rotatable sphere";
+        super( new Sin2(), new Ellipse2D.Double( -1, -1, 2, 2 ), "Sin",
+               "rotatable sphere" );
     }
 
     /**
      * Overridden for slight efficiency gain.
      */
-    @Override
     public boolean project( double rx, double ry, double rz,
                             Point2D.Double pos ) {
         if ( rx >= 0 ) {
@@ -60,7 +52,14 @@ public class SinProjection extends SkyviewProjection {
         }
     }
 
-    @Override
+    public boolean isContinuous() {
+        return true;
+    }
+
+    public boolean isContinuousLine( double[] r3a, double[] r3b ) {
+        return true;
+    }
+
     public double[] cursorRotate( double[] rot0, Point2D.Double pos0,
                                                  Point2D.Double pos1 ) {
 
@@ -102,19 +101,16 @@ public class SinProjection extends SkyviewProjection {
         }
     }
 
-    @Override
     public double[] projRotate( double[] rot0, Point2D.Double pos0,
                                                Point2D.Double pos1 ) {
         double[] rot1 = genericRotate( rot0, pos0, pos1 );
         return rot1 == null ? rot0 : rot1;
     }
 
-    @Override
     public boolean useRanges( boolean reflect, double[] r3, double radiusRad ) {
         return ! isFovSpecified( r3, radiusRad );
     }
 
-    @Override
     public SkyAspect createAspect( boolean reflect, double[] r3,
                                    double radiusRad, Range[] vxyzRanges ) {
 
@@ -124,7 +120,7 @@ public class SinProjection extends SkyviewProjection {
         if ( isFovSpecified( r3, radiusRad ) ) {
             double[] rotmat = rotateToCenter( r3, reflect );
             double zoom = 1.0 / Math.sin( Math.min( Math.PI / 2, radiusRad ) );
-            return new SkyAspect( this, rotmat, zoom, 0, 0 );
+            return new SkyAspect( rotmat, zoom, 0, 0 );
         }
 
         /* Otherwise, if we have range information, use that. */
@@ -162,7 +158,7 @@ public class SinProjection extends SkyviewProjection {
 
                     /* Return an aspect based on the rotation and zoom
                      * we've determined. */
-                    return new SkyAspect( this, crot, zoom, 0, 0 );
+                    return new SkyAspect( crot, zoom, 0, 0 );
                 }
             }
         }
@@ -173,15 +169,50 @@ public class SinProjection extends SkyviewProjection {
         }
     }
 
+    public SkyFov getFov( SkySurface surf ) {
+        if ( isDefaultAspect( surf ) ) {
+            return null;
+        }
+        else {
+            double[] rotmat = surf.getRotation();
+            double zoom = surf.getZoom();
+            double[] center = Matrices.mvMult( Matrices.invert( rotmat ), RX );
+            double[] lonLat = surf.getRoundedLonLatDegrees( center );
+            double rdeg = Math.toDegrees( Math.asin( 1.0 / zoom ) );
+            Rectangle bounds = surf.getPlotBounds();
+            int npix = Math.max( bounds.width, bounds.height );
+            double radiusDeg =
+                PlotUtil.roundNumber( rdeg, rdeg / ( 10. * npix ) );
+            return new SkyFov( lonLat[ 0 ], lonLat[ 1 ], radiusDeg );
+        }
+    }
+
     /**
      * Returns the default view for this projection. 
      *
      * @param  reflect  whether longitude runs right to left
+     * @return  default aspect
      */
-    private SkyAspect getDefaultAspect( boolean reflect ) {
+    private static SkyAspect getDefaultAspect( boolean reflect ) {
         double[] rot = verticalRotate( Math.toRadians( -15 ),
                                        Math.toRadians( -10 ), reflect );
-        return new SkyAspect( this, rot, 1, 0, 0 );
+        return new SkyAspect( rot, 1, 0, 0 );
+    }
+
+    /**
+     * Indicates whether a given sky surface using this projection
+     * is displayed in the default aspect.
+     *
+     * @param   surf   surface using SinProjection
+     * @return  true  iff surf is using the default aspect
+     */
+    private static boolean isDefaultAspect( SkySurface surf ) {
+        double[] rotmat = surf.getRotation();
+        SkyAspect dflt = getDefaultAspect( isReflected( rotmat ) );
+        return surf.getZoom() == dflt.getZoom()
+            && surf.getOffsetX() == dflt.getOffsetX()
+            && surf.getOffsetY() == dflt.getOffsetY()
+            && java.util.Arrays.equals( rotmat, dflt.getRotation() );
     }
 
     /**

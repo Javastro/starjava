@@ -15,10 +15,14 @@ import uk.ac.starlink.table.ColumnInfo;
 import uk.ac.starlink.table.DefaultValueInfo;
 import uk.ac.starlink.table.DescribedValue;
 import uk.ac.starlink.table.RowSequence;
+import uk.ac.starlink.table.StarTable;
 import uk.ac.starlink.table.Tables;
 import uk.ac.starlink.table.URLValueInfo;
 import uk.ac.starlink.table.ValueInfo;
 import uk.ac.starlink.util.DOMUtils;
+import uk.ac.starlink.votable.datalink.ServiceDescriptor;
+import uk.ac.starlink.votable.datalink.ServiceDescriptorFactory;
+import uk.ac.starlink.votable.datalink.ServiceDescriptorInfo;
 
 /**
  * A {@link uk.ac.starlink.table.StarTable} implementation based on a VOTable.
@@ -36,7 +40,7 @@ import uk.ac.starlink.util.DOMUtils;
  * {@link uk.ac.starlink.table.ColumnInfo#getAuxDatum} method, for instance:
  * <pre>
  *     String id = (String) table.getColumnInfo(0)
-                                 .getAuxDatumValue(VOStarTable.ID_INFO);
+ *                               .getAuxDatumValue(VOStarTable.ID_INFO);
  * </pre>
  * In the same way, if you set an auxiliary metadata item under one of
  * these keys, like this:
@@ -98,12 +102,43 @@ public class VOStarTable extends AbstractStarTable {
     public final static ValueInfo DATATYPE_INFO = new DefaultValueInfo(
         "Datatype", String.class, "VOTable data type name" );
 
+    /** ValueInfo for COOSYS <tt>system</tt> attribute. */
+    public final static ValueInfo COOSYS_SYSTEM_INFO = new DefaultValueInfo(
+        "CoosysSystem", String.class, "Sky coordinate system name from COOSYS");
+  
+    /** ValueInfo for COOSYS <tt>epoch</tt> attribute. */
+    public final static ValueInfo COOSYS_EPOCH_INFO = new DefaultValueInfo(
+        "CoosysEpoch", String.class, "Sky epoch from COOSYS" );
+
+    /** ValueInfo for COOSYS <tt>equinox</tt> attribute. */
+    public final static ValueInfo COOSYS_EQUINOX_INFO = new DefaultValueInfo(
+        "CoosysEquinox", String.class, "Sky equinox from COOSYS" );
+
+    /** ValueInfo for TIMESYS <tt>timeorigin</tt> attribute. */
+    public final static ValueInfo TIMESYS_TIMEORIGIN_INFO =
+        new DefaultValueInfo( "TimesysTimeorigin", String.class,
+                              "Time origin from TIMESYS" );
+
+    /** ValueInfo for TIMESYS <tt>timescale</tt> attribute. */
+    public final static ValueInfo TIMESYS_TIMESCALE_INFO =
+        new DefaultValueInfo( "TimesysTimescale", String.class,
+                              "Timescale from TIMESYS" );
+
+    /** ValueInfo for TIMESYS <tt>refposition</tt> attribute. */
+    public final static ValueInfo TIMESYS_REFPOSITION_INFO =
+        new DefaultValueInfo( "TimesysRefposition", String.class,
+                              "Ref position from TIMESYS" );
+
     private final static ValueInfo nullInfo = Tables.NULL_VALUE_INFO;
     private final static ValueInfo ubyteInfo = Tables.UBYTE_FLAG_INFO;
 
-    private final static List auxDataInfos = Arrays.asList( new ValueInfo[] {
-        ID_INFO, DATATYPE_INFO, nullInfo, XTYPE_INFO, ubyteInfo,
-        WIDTH_INFO, PRECISION_INFO, REF_INFO, TYPE_INFO,
+    private final static List<ValueInfo> auxDataInfos =
+            Arrays.asList( new ValueInfo[] {
+        DATATYPE_INFO, nullInfo, XTYPE_INFO,
+        COOSYS_SYSTEM_INFO, COOSYS_EPOCH_INFO, COOSYS_EQUINOX_INFO,
+        TIMESYS_TIMEORIGIN_INFO, TIMESYS_TIMESCALE_INFO,
+        TIMESYS_REFPOSITION_INFO,
+        ubyteInfo, WIDTH_INFO, PRECISION_INFO, ID_INFO, REF_INFO, TYPE_INFO,
     } );
 
     /**
@@ -155,7 +190,7 @@ public class VOStarTable extends AbstractStarTable {
 
                 /* Set up auxiliary metadata for this column according to the
                  * attributes that the FIELD element has. */
-                List auxdata = cinfo.getAuxData();
+                List<DescribedValue> auxdata = cinfo.getAuxData();
 
                 if ( field.hasAttribute( "ID" ) ) {
                     String id = field.getAttribute( "ID" );
@@ -224,9 +259,44 @@ public class VOStarTable extends AbstractStarTable {
                     auxdata.add( new DescribedValue( XTYPE_INFO, xtype ) );
                 }
 
-                if ( field.hasAttribute( "ref" ) ) {
-                    String ref = field.getAttribute( "ref" );
-                    auxdata.add( new DescribedValue( REF_INFO, ref ) );
+                VOElement coosys = field.getCoosys();
+                if ( coosys != null ) {
+                    if ( coosys.hasAttribute( "system" ) ) {
+                        String system = coosys.getAttribute( "system" );
+                        auxdata.add( new DescribedValue( COOSYS_SYSTEM_INFO,
+                                                         system ) );
+                    }
+                    if ( coosys.hasAttribute( "epoch" ) ) {
+                        String epoch = coosys.getAttribute( "epoch" );
+                        auxdata.add( new DescribedValue( COOSYS_EPOCH_INFO,
+                                                         epoch ) );
+                    }
+                    if ( coosys.hasAttribute( "equinox" ) ) {
+                        String equinox = coosys.getAttribute( "equinox" );
+                        auxdata.add( new DescribedValue( COOSYS_EQUINOX_INFO,
+                                                         equinox ) );
+                    }
+                }
+
+                VOElement timesys = field.getTimesys();
+                if ( timesys != null ) {
+                    if ( timesys.hasAttribute( "timeorigin" ) ) {
+                        String torigin = timesys.getAttribute( "timeorigin" );
+                        auxdata
+                       .add( new DescribedValue( TIMESYS_TIMEORIGIN_INFO,
+                                                 torigin ) );
+                    }
+                    if ( timesys.hasAttribute( "timescale" ) ) {
+                        String tscale = timesys.getAttribute( "timescale" );
+                        auxdata.add( new DescribedValue( TIMESYS_TIMESCALE_INFO,
+                                                         tscale ) );
+                    }
+                    if ( timesys.hasAttribute( "refposition" ) ) {
+                        String refpos = timesys.getAttribute( "refposition" );
+                        auxdata
+                       .add( new DescribedValue( TIMESYS_REFPOSITION_INFO,
+                                                 refpos ) );
+                    }
                 }
 
                 VOElement[] links = field.getChildrenByName( "LINK" );
@@ -244,11 +314,11 @@ public class VOStarTable extends AbstractStarTable {
         return colinfos[ icol ];
     }
 
-    public List getParameters() {
+    public List<DescribedValue> getParameters() {
 
         /* Lazily construct parameter list. */
         if ( ! doneParams ) {
-            List params = new ArrayList();
+            List<DescribedValue> params = new ArrayList<DescribedValue>();
 
             /* DESCRIPTION child. */
             String description = votable.getDescription();
@@ -278,15 +348,14 @@ public class VOStarTable extends AbstractStarTable {
             /* Track back through ancestor elements to pick up parameter-
              * like elements in this TABLE element and any ancestor 
              * RESOURCE elements. */
-            List pelList = new ArrayList();
+            List<VOElement> pelList = new ArrayList<VOElement>();
             for ( VOElement ancestor = votable; ancestor != null;
                   ancestor = ancestor.getParent() ) {
                 addParamElements( ancestor, pelList );
             }
 
             /* Convert these elements into DescribedValue metadata objects. */
-            for ( Iterator it = pelList.iterator(); it.hasNext(); ) {
-                VOElement el = (VOElement) it.next();
+            for ( VOElement el : pelList ) {
                 String tag = el.getVOTagName();
                 if ( el instanceof ParamElement ) {
                     ParamElement pel = (ParamElement) el;
@@ -316,6 +385,32 @@ public class VOStarTable extends AbstractStarTable {
                 }
             }
 
+            /* Datalink-style Service Descriptors. */
+            ServiceDescriptorFactory sdFact = new ServiceDescriptorFactory();
+            ServiceDescriptor[] servDescrips =
+                sdFact.readTableServiceDescriptors( votable );
+            int nsd = servDescrips.length;
+            for ( int isd = 0; isd < nsd; isd++ ) {
+                ServiceDescriptor sd = servDescrips[ isd ];
+                final String sdName;
+                if ( sd.getName() != null ) {
+                    sdName = "Service_" + sd.getName();
+                }
+                else {
+                    sdName = nsd == 1 ? "ServiceDescriptor"
+                                      : "ServiceDescriptor" + ( isd + 1 );
+                }
+                String sdDescrip = sd.getDescription() == null
+                                 ? null
+                                 : "Service Descriptor: " + sd.getDescription();
+                ValueInfo sdInfo =
+                    new ServiceDescriptorInfo( sdName, sdDescrip, this );
+                params.add( new DescribedValue( sdInfo, sd ) );
+            }
+
+            /* Post-process parameter list. */
+            adjustParams( params );
+
             /* Append this list to the superclass list. */
             synchronized ( this ) {
                 if ( ! doneParams ) {
@@ -327,7 +422,7 @@ public class VOStarTable extends AbstractStarTable {
         return super.getParameters();
     }
 
-    public List getColumnAuxDataInfos() {
+    public List<ValueInfo> getColumnAuxDataInfos() {
         return auxDataInfos;
     }
 
@@ -350,6 +445,37 @@ public class VOStarTable extends AbstractStarTable {
         }
         else {
             throw new UnsupportedOperationException();
+        }
+    }
+
+    /**
+     * Perform post-processing on the list of table parameters that
+     * has been acquired from the input VOTable document.
+     *
+     * <p>At present this strips out potentially huge numbers of
+     * uk.ac.starlink.topcat.plot2.TopcatLayer* INFO elements
+     * that were erroneously added by TOPCAT v4.5 when a table
+     * was plotted, thus trying to undo the mess that bug added.
+     * It is <em>conceivable</em> that this is behaviour could be
+     * unwanted, but (except for specific debugging purposes)
+     * very unlikely, so just do it rather than make it configurable.
+     *
+     * @param  params  mutable metadata item list to adjust in place
+     */
+    private static void adjustParams( List<DescribedValue> params ) {
+        int nTclayer = 0;
+        String tclayerPrefix = "uk.ac.starlink.topcat.plot2.TopcatLayer";
+        for ( Iterator<DescribedValue> it = params.iterator(); it.hasNext(); ) {
+            DescribedValue dval = it.next();
+            String dvname = dval.getInfo().getName();
+            if ( dvname != null && dvname.startsWith( tclayerPrefix ) ) {
+                nTclayer++;
+                it.remove();
+            }
+        }
+        if ( nTclayer > 0 ) {
+            logger_.warning( "Discarded " + nTclayer + " " + tclayerPrefix + "*"
+                           + " INFOs (added by TOPCAT v4.5 bug)" );
         }
     }
     
@@ -405,7 +531,8 @@ public class VOStarTable extends AbstractStarTable {
      * @param  parent   element whose children are to be considered
      * @param  pelList  list to which parameter-like elements will be added
      */
-    private static void addParamElements( VOElement parent, List pelList ) {
+    private static void addParamElements( VOElement parent,
+                                          List<VOElement> pelList ) {
         VOElement[] children = parent.getChildren();
         for ( int i = 0; i < children.length; i++ ) { 
             VOElement child = children[ i ];
@@ -472,6 +599,31 @@ public class VOStarTable extends AbstractStarTable {
                             : Decoder.longsToInts( shapel ) );
         info.setElementSize( decoder.getElementSize() );
         return info;
+    }
+
+    /**
+     * Identifies the column that was labelled with a given ID attribute.
+     *
+     * @param  colRef    ID string
+     * @param  table     table to interrogate; this will presumably be based
+     *                   on a VOStarTable, but it may be some kind of
+     *                   wrapped form of one
+     * @return   index of the column in <code>table</code> whose FIELD
+     *           element had an ID attribute of <code>colRef</code>,
+     *           or -1 if none exists
+     */
+    public static int getRefColumnIndex( String colRef, StarTable table ) {
+        if ( table != null ) {
+            int ncol = table.getColumnCount();
+            for ( int ic = 0; ic < ncol; ic++ ) {
+                ColumnInfo info = table.getColumnInfo( ic );
+                if ( colRef.equals( info.getAuxDatumValue( ID_INFO,
+                                                           String.class ) ) ) {
+                    return ic;
+                }
+            }
+        }
+        return -1;
     }
 
     /**

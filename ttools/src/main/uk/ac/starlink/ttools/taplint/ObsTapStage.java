@@ -135,12 +135,6 @@ public class ObsTapStage implements Stage {
      * Determines whether a table capability reports conformance to the
      * ObsCore data model.  If not, an appropriate report is made.
      *
-     * <p>If both are declared, only return v1.1.
-     * According to PR-ObsCore-v1.1-20160330, ObsCore 1.1 is supposed
-     * to be a superset of ObsCore 1.0, although in fact it is not.
-     * This code needs revisiting when that has been sorted out in
-     * the standard document.
-     *
      * @param  reporter   reporter
      * @param  tcap    tap capability object
      * @return   version of ObsCore model indicated, or null if no ObsCore
@@ -216,19 +210,21 @@ public class ObsTapStage implements Stage {
 
         /* Failing that, if it says ObsCore, that's probably what it means. */
         else {
-            for ( String dm : dmList ) {
-                if ( dm.toLowerCase().indexOf( "obscore" ) >= 0 ) {
-                    String msg = new StringBuffer()
-                       .append( "Mis-spelt ObsCore identifier? " )
-                       .append( dm )
-                       .append( " reported, should be " )
-                       .append( ObscoreVersion.V10.ivoid_ )
-                       .append( " or " )
-                       .append( ObscoreVersion.V11.ivoid_ )
-                       .append( "; assuming ObsCore 1.0" )
-                       .toString();
-                    reporter.report( FixedCode.W_IODM, msg );
-                    return ObscoreVersion.V10;
+            if ( dms != null ) {
+                for ( String dm : dms ) {
+                    if ( dm.toLowerCase().indexOf( "obscore" ) >= 0 ) {
+                        String msg = new StringBuffer()
+                           .append( "Mis-spelt ObsCore identifier? " )
+                           .append( dm )
+                           .append( " reported, should be " )
+                           .append( ObscoreVersion.V10.ivoid_ )
+                           .append( " or " )
+                           .append( ObscoreVersion.V11.ivoid_ )
+                           .append( "; assuming ObsCore 1.0" )
+                           .toString();
+                        reporter.report( FixedCode.W_IODM, msg );
+                        return ObscoreVersion.V10;
+                    }
                 }
             }
         }
@@ -567,11 +563,12 @@ public class ObsTapStage implements Stage {
                                   ReportCode code,
                                   String obsValue, String gotValue,
                                   boolean isCaseSensitive ) {
+            String badUcd = "meta.ref.uri;meta.curation";
             String vGot = String.valueOf( gotValue );
             String vObs = String.valueOf( obsValue );
             if ( isCaseSensitive ? ( ! vGot.equals( vObs ) )
                                  : ( ! vGot.equalsIgnoreCase( vObs ) ) ) {
-                String msg = new StringBuffer()
+                StringBuffer sbuf = new StringBuffer()
                     .append( "Wrong " )
                     .append( itemName )
                     .append( " in ObsCore column " )
@@ -579,9 +576,14 @@ public class ObsTapStage implements Stage {
                     .append( ": " )
                     .append( gotValue )
                     .append( " != " )
-                    .append( obsValue )
-                    .toString();
-                reporter_.report( code, msg );
+                    .append( obsValue );
+                if ( badUcd.equalsIgnoreCase( obsValue ) ) {
+                    sbuf.append( "; NOTE \"" )
+                        .append( badUcd )
+                        .append( "\" is bad UCD1+ syntax" )
+                        .append( " - ObsCore/UCD erratum required" );
+                }
+                reporter_.report( code, sbuf.toString() );
             }
         }
 
@@ -649,7 +651,7 @@ public class ObsTapStage implements Stage {
             new ObsCol( "obs_id", Type.VARCHAR,
                         "DataID.observationID", "meta.id" ),
             new ObsCol( "obs_publisher_did", Type.VARCHAR,
-                        "Curation.PublisherDID", "meta.ref.url;meta.curation" ),
+                        "Curation.PublisherDID", "meta.ref.uri;meta.curation" ),
             new ObsCol( "access_url", Type.CLOB,
                         "Access.Reference", "meta.ref.url" ),
             new ObsCol( "access_format", Type.VARCHAR,
@@ -669,7 +671,7 @@ public class ObsTapStage implements Stage {
                         "phys.angSize;instr.fov", "deg" ),
             new ObsCol( "s_region", Type.REGION,
                         "Char.SpatialAxis.Coverage.Support.Area",
-                        is11 ? "phys.outline;obs.field"
+                        is11 ? "pos.outline;obs.field"
                              : "phys.angArea;obs",
                         null ), // from ObsTAP 1.0 Table 6 but not Table 1
             new ObsCol( "s_resolution", Type.DOUBLE,
@@ -712,6 +714,8 @@ public class ObsTapStage implements Stage {
                         "spect.resolution" ),
             new ObsCol( "o_ucd", Type.VARCHAR,
                         "Char.ObservableAxis.ucd", "meta.ucd" ),
+
+            // Note ObsCore 1.1 inconsistent on mandatoryness of pol_states.
             new ObsCol( "pol_states", Type.VARCHAR,
                         "Char.PolarizationAxis.stateList",
                         "meta.code;phys.polarization" ),
@@ -793,7 +797,7 @@ public class ObsTapStage implements Stage {
             new ObsCol( "obs_title", Type.VARCHAR,
                         "DataID.Title", "meta.title;obs" ),
             new ObsCol( "publisher_id", Type.VARCHAR,
-                        "Curation.PublisherID", "meta.ref.url;meta.curation" ),
+                        "Curation.PublisherID", "meta.ref.uri;meta.curation" ),
             new ObsCol( "bib_reference", Type.VARCHAR,
                         "Curation.Reference", "meta.bib.bibcode" ),
             new ObsCol( "data_rights", Type.VARCHAR,

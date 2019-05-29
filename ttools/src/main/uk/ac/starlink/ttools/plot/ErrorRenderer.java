@@ -3,6 +3,7 @@ package uk.ac.starlink.ttools.plot;
 import java.awt.BasicStroke;
 import java.awt.Color;
 import java.awt.Component;
+import java.awt.Dimension;
 import java.awt.Graphics;
 import java.awt.Graphics2D;
 import java.awt.Point;
@@ -225,6 +226,7 @@ public abstract class ErrorRenderer {
     private static final int LEGEND_HEIGHT = 16;
     private static final int LEGEND_XPAD = 5;
     private static final int LEGEND_YPAD = 1;
+    private static final int DUMMY_SIZE = 10000;
 
     /**
      * Constructor.
@@ -486,6 +488,34 @@ public abstract class ErrorRenderer {
     }
 
     /**
+     * This is supposed to return the dimensions of the target plotting area.
+     * It is used to assess whether lines etc are (much) too long to make an
+     * attempt at plotting them, since attempting to plot lines that
+     * are several kilometers in length can make the graphics system grind
+     * to a halt.  So the returned value is not critical, and erring on
+     * the large side is preferred.
+     *
+     * @param  g  graphics context
+     * @return   approximate size of visible graphics canvas
+     */
+    private static Dimension getApproxGraphicsSize( Graphics2D g ) {
+
+        /* The right way to do this looks like to use the
+         * GraphicsConfiguration object associated with the graphics context.
+         * However, in the headless case, this sometimes has a dummy size
+         * (width=height=1).  That looks like a bug, but I'm not sure.
+         * In any case, try to work round it; if the size looks silly,
+         * return a spurious large value instead.
+         * This isn't great, since making it too large may result
+         * in poor performance, but if it's too small the graphics
+         * may come out a bit wrong.  Don't know what else to do though. */
+        Dimension size = g.getDeviceConfiguration().getBounds().getSize();
+        return size.width > 1 && size.height > 1
+             ? size
+             : new Dimension( DUMMY_SIZE, DUMMY_SIZE );
+    }
+
+    /**
      * Converts an array of normal 3D renderers to ones which will work
      * for spherical arrangement of coordinates.  The difference is in the
      * ordering of the ErrorMode arrays: in the spherical case there are
@@ -660,11 +690,8 @@ public abstract class ErrorRenderer {
                 g2.getRenderingHint( RenderingHints.KEY_ANTIALIASING );
             g2.setRenderingHint( RenderingHints.KEY_ANTIALIASING,
                                  RenderingHints.VALUE_ANTIALIAS_ON );
-            Shape clip = g2.getClip();
-            g2.setClip( x, y, width_, height_ );
             renderer_.drawErrors( g2, x + width_ / 2, y + height_ / 2,
                                   xoffs_, yoffs_ );
-            g2.setClip( clip );
             g2.setRenderingHint( RenderingHints.KEY_ANTIALIASING, aaHint );
         }
 
@@ -727,8 +754,7 @@ public abstract class ErrorRenderer {
 
         public void drawErrors( Graphics g, int x, int y, int[] xoffs,
                                 int[] yoffs ) {
-            drawErrors( g, x, y, xoffs, yoffs, g.getClipBounds(), 
-                        lines_, capper_, false );
+            drawErrors( g, x, y, xoffs, yoffs, lines_, capper_, false );
         }
 
         /**
@@ -739,7 +765,6 @@ public abstract class ErrorRenderer {
          * @param  y  data point Y coordinate
          * @param  xoffs  X coordinates of error bar limit offsets from (x,y)
          * @param  yoffs  Y coordinates of error bar limit offsets from (x,y)
-         * @param  clip   bounds of output
          * @param  lines  whether to draw lines
          * @param  capper   cap drawing object, if any
          * @param  willCover  true if the ends of the radial lines will 
@@ -747,14 +772,15 @@ public abstract class ErrorRenderer {
          *                    (affects line capping)
          */
         public static void drawErrors( Graphics g, int x, int y,
-                                       int[] xoffs, int[] yoffs, Rectangle clip,
+                                       int[] xoffs, int[] yoffs,
                                        boolean lines, Capper capper,
                                        boolean willCover ) {
             Graphics2D g2 = (Graphics2D) g;
             Stroke oldStroke = g2.getStroke();
             g2.setStroke( capper != null || willCover ? CAP_BUTT : CAP_ROUND );
-            int xmax = clip.width + 1;
-            int ymax = clip.height + 1;
+            Dimension size = getApproxGraphicsSize( g2 );
+            int xmax = size.width;
+            int ymax = size.height;
             int np = xoffs.length;
             for ( int ip = 0; ip < np; ip++ ) {
                 int xoff = xoffs[ ip ];
@@ -764,7 +790,8 @@ public abstract class ErrorRenderer {
                 if ( xoff != 0 || yoff != 0 ) {
 
                     /* If the end coordinate is definitely outside the graphics
-                     * clip, shrink the line to something about the right size.
+                     * bounds, shrink the line to something about the right
+                     * size.
                      * This is here to defend against the case in which the
                      * error bound is way off the screen - trying to draw a 
                      * kilometre long line can have adverse effects on some
@@ -986,7 +1013,8 @@ public abstract class ErrorRenderer {
             Graphics2D g2 = (Graphics2D) g;
             Stroke stroke0 = g2.getStroke();
             g2.setStroke( stroke_ );
-            double dmax = 4 * Math.max( clip.width, clip.height );
+            Dimension size = getApproxGraphicsSize( g2 );
+            double dmax = Math.max( size.width, size.height );
             int np = xoffs.length;
             for ( int ip = 0; ip < np; ip++ ) {
                 double dx = xoffs[ ip ];
@@ -1095,8 +1123,8 @@ public abstract class ErrorRenderer {
 
         public void drawErrors( Graphics g, int x, int y,
                                 int[] xoffs, int[] yoffs ) {
-            Rectangle clip = g.getClipBounds();
-            int dmax = 4 * Math.max( clip.width, clip.height );
+            Dimension size = getApproxGraphicsSize( (Graphics2D) g );
+            int dmax = Math.max( size.width, size.height );
             boolean ok = true;
             for ( int ip = 0; ip < 4 && ok; ip++ ) {
                 ok = ok && Math.abs( xoffs[ ip ] ) < dmax
@@ -1404,9 +1432,8 @@ public abstract class ErrorRenderer {
              * graphics system attempting to fill an ellipse with a 
              * kilometre semi-major axis.  This may result in some 
              * distortions for ellipses - too bad. */
-            Rectangle clip = g.getClipBounds();
-            int maxcoord = Math.max( Math.max( clip.width, clip.height ) * 3,
-                                     2000 );
+            Dimension size = getApproxGraphicsSize( g2 );
+            int maxcoord = Math.max( size.width, size.height );
             boolean clipped = false;
             for ( int ioff = 0; ioff < noff && ! clipped; ioff++ ) {
                 int xoff = xoffs[ ioff ];
@@ -1446,7 +1473,7 @@ public abstract class ErrorRenderer {
             /* If the X and Y offsets are aligned along X and Y axes we
              * can do it easily. */
             else if ( yoffs[ 0 ] == 0 && yoffs[ 1 ] == 0 &&
-                      xoffs[ 2 ] == 0 && xoffs[ 2 ] == 0 ) {
+                      xoffs[ 2 ] == 0 && xoffs[ 3 ] == 0 ) {
                 int xlo = Math.min( xoffs[ 0 ], xoffs[ 1 ] );
                 int xhi = Math.max( xoffs[ 0 ], xoffs[ 1 ] );
                 int ylo = Math.min( yoffs[ 2 ], yoffs[ 3 ] );
@@ -1497,7 +1524,7 @@ public abstract class ErrorRenderer {
 
             /* Draw crosshair if required. */
             if ( withLines_ ) {
-                CappedLine.drawErrors( g, x, y, xoffs, yoffs, clip, true, null,
+                CappedLine.drawErrors( g, x, y, xoffs, yoffs, true, null,
                                        true );
             }
         }

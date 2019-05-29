@@ -62,7 +62,6 @@ import uk.ac.starlink.util.SourceReader;
  * the configuration to write its state to a new Element.
  *
  * @author Peter W. Draper
- * @copyright Copyright (C) 2001-2004 Central Laboratory of the Research Councils
  * @see Element
  * @see StoreControlFrame
  * @see StoreSource
@@ -114,7 +113,7 @@ public class StoreConfiguration
      * get a default configuration using a getResource()). If you use
      * this method it is not possible to save to backing store.
      *
-     * @param stream InputStream that contains an XML description of a
+     * @param inputStream InputStream that contains an XML description of a
      *               series of configurations (i.e. a wrapped backing
      *               store file).
      *
@@ -194,13 +193,13 @@ public class StoreConfiguration
     /**
      * Return all the Elements that are children of another Element.
      */
-    public static List getChildElements( Element element )
+    public static List<Element> getChildElements( Element element )
     {
         NodeList nodeList = element.getChildNodes();
-        List elementList = new ArrayList();
+        List<Element> elementList = new ArrayList<Element>();
         for ( int i = 0; i < nodeList.getLength(); i++ ) {
             if ( nodeList.item( i ) instanceof Element ) {
-                elementList.add( nodeList.item( i ) );
+                elementList.add( (Element) nodeList.item( i ) );
             }
         }
         return elementList;

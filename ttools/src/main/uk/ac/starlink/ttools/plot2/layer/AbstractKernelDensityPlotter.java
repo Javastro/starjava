@@ -21,6 +21,7 @@ import uk.ac.starlink.ttools.plot2.ReportMeta;
 import uk.ac.starlink.ttools.plot2.config.ConfigException;
 import uk.ac.starlink.ttools.plot2.config.ConfigKey;
 import uk.ac.starlink.ttools.plot2.config.ConfigMap;
+import uk.ac.starlink.ttools.plot2.config.PerUnitConfigKey;
 import uk.ac.starlink.ttools.plot2.config.StyleKeys;
 import uk.ac.starlink.ttools.plot2.data.DataSpec;
 import uk.ac.starlink.ttools.plot2.data.DataStore;
@@ -51,7 +52,13 @@ public abstract class AbstractKernelDensityPlotter
     public static final ConfigKey<Integer> THICK_KEY =
         StyleKeys.createThicknessKey( 2 );
 
-    private final ConfigKey<Normalisation> normKey_;
+    /** Config key for normalisation. */
+    public static final ConfigKey<Normalisation> NORMALISE_KEY =
+        StyleKeys.NORMALISE;
+
+    private final PerUnitConfigKey<Unit> unitKey_;
+    private final ReportKey<Combiner.Type> ctypeRepkey_;
+
     private static final int GUESS_PLOT_WIDTH = 300;
 
     /**
@@ -59,16 +66,19 @@ public abstract class AbstractKernelDensityPlotter
      *
      * @param   xCoord  X axis coordinate
      * @param   hasWeight   true to permit histogram weighting
-     * @param   normKey   config key for normalisation options
+     * @param   unitKey  config key to select X axis physical units,
+     *                   or null if no unit selection required
      * @param   name  plotter name
      * @param   icon  plotter icon
      */
     protected AbstractKernelDensityPlotter( FloatingCoord xCoord,
                                             boolean hasWeight,
-                                            ConfigKey<Normalisation> normKey,
+                                            PerUnitConfigKey<Unit> unitKey,
                                             String name, Icon icon ) {
-        super( xCoord, hasWeight, name, icon );
-        normKey_ = normKey;
+        super( xCoord, hasWeight, unitKey, name, icon );
+        unitKey_ = unitKey;
+        ctypeRepkey_ = unitKey == null ? null
+                                       : unitKey.getCombinerTypeReportKey();
     }
 
     /**
@@ -94,9 +104,12 @@ public abstract class AbstractKernelDensityPlotter
         list.add( StyleKeys.COLOR );
         list.add( StyleKeys.TRANSPARENCY );
         list.addAll( Arrays.asList( getKernelConfigKeys() ) );
+        if ( unitKey_ != null ) {
+            list.add( unitKey_ );
+        }
         list.add( KERNEL_KEY );
         list.add( StyleKeys.CUMULATIVE );
-        list.add( normKey_ );
+        list.add( NORMALISE_KEY );
         list.add( StyleKeys.FILL );
         list.add( THICK_KEY );
         return list.toArray( new ConfigKey[ 0 ] );
@@ -107,8 +120,10 @@ public abstract class AbstractKernelDensityPlotter
                                                StyleKeys.TRANSPARENCY );
         Kernel1dShape kernelShape = config.get( KERNEL_KEY );
         boolean isCumulative = config.get( StyleKeys.CUMULATIVE );
-        Normalisation norm = config.get( normKey_ );
+        Normalisation norm = config.get( NORMALISE_KEY );
         FillMode fill = config.get( StyleKeys.FILL );
+        Combiner combiner = config.get( getCombinerKey() );
+        Unit unit = unitKey_ == null ? Unit.UNIT : config.get( unitKey_ );
         KernelFigure kernelFigure = createKernelFigure( config );
         Stroke stroke = fill.hasLine()
                       ? new BasicStroke( config.get( THICK_KEY ),
@@ -116,7 +131,7 @@ public abstract class AbstractKernelDensityPlotter
                                          BasicStroke.JOIN_ROUND )
                       : null;
         return new KDenseStyle( color, fill, stroke, kernelShape, kernelFigure,
-                                isCumulative, norm );
+                                combiner, unit, isCumulative, norm );
     }
 
     protected LayerOpt getLayerOpt( KDenseStyle style ) {
@@ -129,6 +144,10 @@ public abstract class AbstractKernelDensityPlotter
         Kernel1d kernel =
             style.createKernel( surf.getAxes()[ 0 ], surf.getLogFlags()[ 0 ] );
         return getEffectiveExtent( kernel );
+    }
+
+    protected Combiner getCombiner( KDenseStyle style ) {
+        return style.combiner_;
     }
 
     protected void paintBins( PlanarSurface surface, BinArray binArray,
@@ -146,8 +165,7 @@ public abstract class AbstractKernelDensityPlotter
         Axis xAxis = surface.getAxes()[ 0 ];
         boolean xLog = surface.getLogFlags()[ 0 ];
         Kernel1d kernel = style.createKernel( xAxis, xLog );
-        double[] bins = getDataBins( binArray, xAxis, kernel,
-                                     style.norm_, style.isCumulative_ );
+        double[] bins = getDataBins( binArray, xAxis, kernel, style );
 
         /* Work out the Y axis base of the bars in graphics coordinates. */
         Axis yAxis = surface.getAxes()[ 1 ];
@@ -291,9 +309,9 @@ public abstract class AbstractKernelDensityPlotter
         Axis xAxis = Axis.createAxis( gxlo, gxhi, dxlo, dxhi, xlog, xflip );
         Kernel1d kernel = style.createKernel( xAxis, xlog );
         int xpad = getEffectiveExtent( kernel );
-        BinArray binArray = readBins( xAxis, xpad, dataSpec, dataStore );
-        double[] bins = getDataBins( binArray, xAxis, kernel,
-                                     style.norm_, style.isCumulative_ );
+        BinArray binArray = readBins( xAxis, xpad, style.combiner_,
+                                      dataSpec, dataStore );
+        double[] bins = getDataBins( binArray, xAxis, kernel, style );
         int ixlo = binArray.getBinIndex( gxlo );
         int ixhi = binArray.getBinIndex( gxhi );
         for ( int ix = ixlo; ix < ixhi; ix++ ) {
@@ -307,8 +325,7 @@ public abstract class AbstractKernelDensityPlotter
         BinArray binArray = plan.binArray_;
         Axis xAxis = plan.xAxis_;
         Kernel1d kernel = style.createKernel( xAxis, xLog );
-        double[] dataBins = getDataBins( binArray, xAxis, kernel,
-                                         style.norm_, style.isCumulative_ );
+        double[] dataBins = getDataBins( binArray, xAxis, kernel, style );
         double[] dlimits = xAxis.getDataLimits();
         double dlo = dlimits[ 0 ];
         double dhi = dlimits[ 1 ];
@@ -325,6 +342,9 @@ public abstract class AbstractKernelDensityPlotter
         System.arraycopy( dataBins, ixlo, clipBins, 0, nx );
         ReportMap report = new ReportMap();
         report.put( BINS_KEY, clipBins );
+        if ( ctypeRepkey_ != null ) {
+            report.put( ctypeRepkey_, getCombiner( style ).getType() );
+        }
         ReportMap kReport = style.kernelFigure_.getReportMap( xLog, dlo, dhi );
         if ( kReport != null ) {
             report.putAll( kReport );
@@ -356,6 +376,22 @@ public abstract class AbstractKernelDensityPlotter
     }
 
     /**
+     * Reads the data bin values using a given style.
+     *
+     * @param   binArray  basic results
+     * @param   xAxis   axis over which counts are accumulated
+     * @param   kernel   smoothing kernel
+     * @param   style   style
+     * @return  output data bin values
+     */
+    private static double[] getDataBins( BinArray binArray, Axis xAxis,
+                                         Kernel1d kernel, KDenseStyle style ) {
+        return getDataBins( binArray, xAxis, kernel, style.norm_,
+                            style.combiner_.getType(), style.unit_,
+                            style.isCumulative() );
+    }
+
+    /**
      * Style subclass for kernel density plots.
      */
     public static class KDenseStyle implements Style {
@@ -364,6 +400,8 @@ public abstract class AbstractKernelDensityPlotter
         private final Stroke stroke_;
         private final Kernel1dShape kernelShape_;
         private final KernelFigure kernelFigure_;
+        private final Combiner combiner_;
+        private final Unit unit_;
         private final boolean isCumulative_;
         private final Normalisation norm_;
         private static final int[] ICON_DATA = { 4, 6, 8, 9, 9, 7, 5, 3, };
@@ -376,18 +414,23 @@ public abstract class AbstractKernelDensityPlotter
          * @param  stroke  line stroke, null for filled area
          * @param  kernelShape  smoothing kernel shape
          * @param  kernelFigure  kernel configuration
+         * @param  combiner   bin aggregation mode
+         * @param  unit    axis unit scaling
          * @param  isCumulative  are bins painted cumulatively
          * @param  norm   normalisation mode
          */
         public KDenseStyle( Color color, FillMode fill, Stroke stroke,
                             Kernel1dShape kernelShape,
                             KernelFigure kernelFigure,
+                            Combiner combiner, Unit unit,
                             boolean isCumulative, Normalisation norm ) {
             color_ = color;
             fill_ = fill;
             stroke_ = stroke;
             kernelShape_ = kernelShape;
             kernelFigure_ = kernelFigure;
+            combiner_ = combiner;
+            unit_ = unit;
             isCumulative_ = isCumulative;
             norm_ = norm;
         }
@@ -433,6 +476,8 @@ public abstract class AbstractKernelDensityPlotter
             code = 23 * code + PlotUtil.hashCode( stroke_ );
             code = 23 * code + kernelShape_.hashCode();
             code = 23 * code + kernelFigure_.hashCode();
+            code = 23 * code + combiner_.hashCode();
+            code = 23 * code + unit_.hashCode();
             code = 23 * code + ( isCumulative_ ? 11 : 13 );
             code = 23 * code + PlotUtil.hashCode( norm_ );
             return code;
@@ -447,6 +492,8 @@ public abstract class AbstractKernelDensityPlotter
                     && PlotUtil.equals( this.stroke_, other.stroke_ )
                     && this.kernelShape_.equals( other.kernelShape_ )
                     && this.kernelFigure_.equals( other.kernelFigure_ )
+                    && this.combiner_.equals( other.combiner_ )
+                    && this.unit_.equals( other.unit_ )
                     && this.isCumulative_ == other.isCumulative_
                     && PlotUtil.equals( this.norm_, other.norm_ );
             }

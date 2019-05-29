@@ -12,7 +12,6 @@ import javax.swing.Icon;
 import uk.ac.starlink.ttools.gui.ResourceIcon;
 import uk.ac.starlink.ttools.plot.MarkShape;
 import uk.ac.starlink.ttools.plot.MarkStyle;
-import uk.ac.starlink.ttools.plot.Range;
 import uk.ac.starlink.ttools.plot2.AuxReader;
 import uk.ac.starlink.ttools.plot2.AuxScale;
 import uk.ac.starlink.ttools.plot2.DataGeom;
@@ -20,6 +19,7 @@ import uk.ac.starlink.ttools.plot2.Glyph;
 import uk.ac.starlink.ttools.plot2.Pixer;
 import uk.ac.starlink.ttools.plot2.PlotUtil;
 import uk.ac.starlink.ttools.plot2.PointCloud;
+import uk.ac.starlink.ttools.plot2.Span;
 import uk.ac.starlink.ttools.plot2.SubCloud;
 import uk.ac.starlink.ttools.plot2.Surface;
 import uk.ac.starlink.ttools.plot2.config.ConfigKey;
@@ -28,8 +28,9 @@ import uk.ac.starlink.ttools.plot2.config.StyleKeys;
 import uk.ac.starlink.ttools.plot2.data.Coord;
 import uk.ac.starlink.ttools.plot2.data.DataSpec;
 import uk.ac.starlink.ttools.plot2.data.DataStore;
-import uk.ac.starlink.ttools.plot2.data.TupleSequence;
+import uk.ac.starlink.ttools.plot2.data.Tuple;
 import uk.ac.starlink.ttools.plot2.geom.CubeSurface;
+import uk.ac.starlink.ttools.plot2.geom.GPoint3D;
 import uk.ac.starlink.ttools.plot2.paper.Paper;
 import uk.ac.starlink.ttools.plot2.paper.PaperType2D;
 import uk.ac.starlink.ttools.plot2.paper.PaperType3D;
@@ -52,6 +53,9 @@ public abstract class MarkForm implements ShapeForm {
 
     /** MarkForm instance for two points per tuple. */
     public static final MarkForm PAIR = createMarkForm( 2 );
+
+    /** MarkForm instance for four points per tuple. */
+    public static final MarkForm QUAD = createMarkForm( 4 );
 
     private static final Color DUMMY_COLOR = Color.GRAY;
 
@@ -131,15 +135,25 @@ public abstract class MarkForm implements ShapeForm {
             };
         }
         else {
-            return new MarkForm( npos, "Mark" + npos,
-                                 npos == 2 ? ResourceIcon.FORM_MARKS2
-                                           : ResourceIcon.FORM_MARKS3 ) {
+            final Icon icon;
+            if ( npos == 2 ) {
+                icon = ResourceIcon.FORM_MARKS2;
+            }
+            else if ( npos == 3 ) {
+                icon = ResourceIcon.FORM_MARKS3;
+            }
+            else {
+                icon = ResourceIcon.FORM_MARKS4;
+            }
+            return new MarkForm( npos, "Mark" + npos, icon ) {
                 public String getFormDescription() {
                     return PlotUtil.concatLines( new String[] {
-                        "<p>Plots " + npos + "similar markers",
+                        "<p>Plots " + npos + " similar markers",
                         "of fixed size and shape",
                         "representing " + npos + " separate positions",
                         "from the same input table row.",
+                        "This is a convenience option that can be used with",
+                        "other plot layers based on " + npos + " positions.",
                         "</p>",
                     } );
                 }
@@ -331,7 +345,7 @@ public abstract class MarkForm implements ShapeForm {
         }
 
         public Object calculateBinPlan( Surface surface, DataGeom geom,
-                                        Map<AuxScale,Range> auxRanges,
+                                        Map<AuxScale,Span> auxSpans,
                                         DataStore dataStore, DataSpec dataSpec,
                                         Object[] knownPlans ) {
             return BinPlan
@@ -406,14 +420,14 @@ public abstract class MarkForm implements ShapeForm {
 
         public ShapePainter create2DPainter( final Surface surface,
                                              final DataGeom geom,
-                                             Map<AuxScale,Range> auxRanges,
+                                             Map<AuxScale,Span> auxSpans,
                                              final PaperType2D paperType ) {
             final double[] dpos = new double[ surface.getDataDimCount() ];
             final Point2D.Double gp = new Point2D.Double();
             return new ShapePainter() {
-                public void paintPoint( TupleSequence tseq, Color color,
+                public void paintPoint( Tuple tuple, Color color,
                                         Paper paper ) {
-                    if ( geom.readDataPos( tseq, 0, dpos ) &&
+                    if ( geom.readDataPos( tuple, 0, dpos ) &&
                          surface.dataToGraphics( dpos, true, gp ) ) {
                         paperType.placeGlyph( paper, gp.x, gp.y,
                                               glyph_, color );
@@ -424,17 +438,16 @@ public abstract class MarkForm implements ShapeForm {
 
         public ShapePainter create3DPainter( final CubeSurface surface,
                                              final DataGeom geom,
-                                             Map<AuxScale,Range> auxRanges,
+                                             Map<AuxScale,Span> auxSpans,
                                              final PaperType3D paperType ) {
             final double[] dpos = new double[ surface.getDataDimCount() ];
-            final Point2D.Double gp = new Point2D.Double();
-            final double[] dz = new double[ 1 ];
+            final GPoint3D gp = new GPoint3D();
             return new ShapePainter() {
-                public void paintPoint( TupleSequence tseq, Color color,
+                public void paintPoint( Tuple tuple, Color color,
                                         Paper paper ) {
-                    if ( geom.readDataPos( tseq, 0, dpos ) &&
-                         surface.dataToGraphicZ( dpos, true, gp, dz ) ) {
-                        paperType.placeGlyph( paper, gp.x, gp.y, dz[ 0 ],
+                    if ( geom.readDataPos( tuple, 0, dpos ) &&
+                         surface.dataToGraphicZ( dpos, true, gp ) ) {
+                        paperType.placeGlyph( paper, gp.x, gp.y, gp.z,
                                               glyph_, color );
                     }
                 }
@@ -484,16 +497,16 @@ public abstract class MarkForm implements ShapeForm {
 
         public ShapePainter create2DPainter( final Surface surface,
                                              final DataGeom geom,
-                                             Map<AuxScale,Range> auxRanges,
+                                             Map<AuxScale,Span> auxSpans,
                                              final PaperType2D paperType ) {
             final double[] dpos = new double[ surface.getDataDimCount() ];
             final Point2D.Double gp = new Point2D.Double();
             final int npc = geom.getPosCoords().length;
             return new ShapePainter() {
-                public void paintPoint( TupleSequence tseq, Color color,
+                public void paintPoint( Tuple tuple, Color color,
                                         Paper paper ) {
                     for ( int ip = 0; ip < npos_; ip++ ) {
-                        if ( geom.readDataPos( tseq, ip * npc, dpos ) &&
+                        if ( geom.readDataPos( tuple, ip * npc, dpos ) &&
                              surface.dataToGraphics( dpos, true, gp ) ) {
                             paperType.placeGlyph( paper, gp.x, gp.y, glyph_,
                                                   color );
@@ -505,19 +518,18 @@ public abstract class MarkForm implements ShapeForm {
 
         public ShapePainter create3DPainter( final CubeSurface surface,
                                              final DataGeom geom,
-                                             Map<AuxScale,Range> auxRanges,
+                                             Map<AuxScale,Span> auxSpans,
                                              final PaperType3D paperType ) {
             final double[] dpos = new double[ surface.getDataDimCount() ];
-            final Point2D.Double gp = new Point2D.Double();
-            final double[] dz = new double[ 1 ];
+            final GPoint3D gp = new GPoint3D();
             final int npc = geom.getPosCoords().length;
             return new ShapePainter() {
-                public void paintPoint( TupleSequence tseq, Color color,
+                public void paintPoint( Tuple tuple, Color color,
                                         Paper paper ) {
                     for ( int ip = 0; ip < npos_; ip++ ) {
-                        if ( geom.readDataPos( tseq, ip * npc, dpos ) &&
-                             surface.dataToGraphicZ( dpos, true, gp, dz ) ) {
-                            paperType.placeGlyph( paper, gp.x, gp.y, dz[ 0 ],
+                        if ( geom.readDataPos( tuple, ip * npc, dpos ) &&
+                             surface.dataToGraphicZ( dpos, true, gp ) ) {
+                            paperType.placeGlyph( paper, gp.x, gp.y, gp.z,
                                                   glyph_, color );
                         }
                     }

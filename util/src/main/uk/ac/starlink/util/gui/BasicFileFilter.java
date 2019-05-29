@@ -15,10 +15,11 @@ import java.util.Hashtable;
 import javax.swing.filechooser.FileFilter;
 
 /**
- * A FileFilter for configuring a {@link JFileChooser} to only show
+ * A FileFilter for configuring a {@link javax.swing.JFileChooser} to only show
  * files that have one of a set of file extensions. Also implements
  * FilenameFilter to provide similar services for filtering directory
- * contents using the {@link File} class (see {@link File.listFiles}.
+ * contents using the {@link java.io.File} class
+ * (see {@link java.io.File#listFiles}).
  * <p>
  * Example - create filters for HDS and FITS files and use with a
  * BasicFileChooser.
@@ -47,7 +48,7 @@ public class BasicFileFilter
     extends FileFilter
     implements FilenameFilter
 {
-    private Hashtable filters = null;
+    private Hashtable<String,Object> filters = null;
     private String description = null;
     private String fullDescription = null;
     private boolean useExtensionsInDescription = true;
@@ -60,7 +61,7 @@ public class BasicFileFilter
      */
     public BasicFileFilter()
     {
-        this.filters = new Hashtable();
+        this.filters = new Hashtable<String,Object>();
     }
 
     /**
@@ -186,7 +187,7 @@ public class BasicFileFilter
     public void addExtension( String extension )
     {
         if ( filters == null ) {
-            filters = new Hashtable( 5 );
+            filters = new Hashtable<String,Object>( 5 );
         }
         filters.put( extension.toLowerCase(), this );
         fullDescription = null;
@@ -210,12 +211,11 @@ public class BasicFileFilter
                 }
 
                 // build the description from the extension list
-                Enumeration extensions = filters.keys();
+                Enumeration<String> extensions = filters.keys();
                 if ( extensions != null ) {
-                    fullDescription += " ." + (String)extensions.nextElement();
+                    fullDescription += " ." + extensions.nextElement();
                     while ( extensions.hasMoreElements() ) {
-                        fullDescription += ", ." +
-                            (String)extensions.nextElement();
+                        fullDescription += ", ." + extensions.nextElement();
                     }
                 }
                 fullDescription += ")";

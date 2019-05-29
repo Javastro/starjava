@@ -1,8 +1,9 @@
 package uk.ac.starlink.ttools.votlint;
 
-import java.io.PrintStream;
+import java.util.Collection;
 import java.util.HashMap;
-import java.util.Iterator;
+import java.util.HashSet;
+import java.util.LinkedHashMap;
 import java.util.Map;
 import org.xml.sax.Locator;
 import uk.ac.starlink.votable.VOTableVersion;
@@ -18,17 +19,13 @@ public class VotLintContext {
 
     private final VOTableVersion version_;
     private final boolean validate_;
-    private final boolean debug_;
-    private final PrintStream out_;
-    private final Map idMap_;
-    private final Map refMap_;
-    private final Map msgMap_;
-    private final Map namespaceMap_;
+    private final SaxMessager messager_;
+    private final Map<String,ElementRef> idMap_;
+    private final Map<String,UncheckedReference> refMap_;
+    private final Map<String,String> namespaceMap_;
+    private final Map<String,Collection<ElementRef>> linksMap_;
     private Locator locator_;
     private int errCount_;
-
-    /** Maximum number of identical error messages which will be logged. */
-    public final static int MAX_REPEAT = 4;
 
     /**
      * Constructor.
@@ -36,20 +33,17 @@ public class VotLintContext {
      * @param  version  version of VOTable for which the parse will be done
      * @param  validate  if true, validation will be performed against
      *                   the appropriate DTD/schema
-     * @param  debug  if true, a stack trace will be output with each
-     *                log message
-     * @param  out    output stream to which messages will be written
+     * @param  messager    destination for validation messages
      */
     public VotLintContext( VOTableVersion version, boolean validate,
-                           boolean debug, PrintStream out ) {
+                           SaxMessager messager ) {
         version_ = version;
         validate_ = validate;
-        debug_ = debug;
-        out_ = out;
-        idMap_ = new HashMap();
-        refMap_ = new HashMap();
-        msgMap_ = new HashMap();
-        namespaceMap_ = new HashMap();
+        messager_ = messager;
+        idMap_ = new LinkedHashMap<String,ElementRef>();
+        refMap_ = new HashMap<String,UncheckedReference>();
+        namespaceMap_ = new HashMap<String,String>();
+        linksMap_ = new LinkedHashMap<String,Collection<ElementRef>>();
     }
 
     /**
@@ -71,15 +65,6 @@ public class VotLintContext {
     }
 
     /**
-     * Returns whether we are in debug mode.
-     *
-     * @return   true if debugging output is on
-     */
-    public boolean isDebug() {
-        return debug_;
-    }
-
-    /**
      * Sets the SAX document locator for this parse.
      *
      * @param  locator   locator
@@ -98,19 +83,10 @@ public class VotLintContext {
     }
 
     /**
-     * Returns the output stream to which messages will be written.
-     *
-     * @return   output stream
-     */
-    public PrintStream getOutput() {
-        return out_;
-    }
-
-    /**
      * Returns prefix-&gt;namespaceURI map for the xmlns namespaces currently
      * in scope.
      */
-    public Map getNamespaceMap() {
+    public Map<String,String> getNamespaceMap() {
         return namespaceMap_;
     }
 
@@ -125,22 +101,22 @@ public class VotLintContext {
 
         /* Check this one isn't already taken. */
         if ( idMap_.containsKey( id ) ) {
-            ElementRef ref = (ElementRef) idMap_.get( id );
+            ElementRef ref = idMap_.get( id );
             error( "ID " + id + " already defined " + ref );
         }
 
         /* If not, keep a record of it. */
         else {
             idMap_.put( id, handler.getRef() );
+            linksMap_.put( id, new HashSet<ElementRef>() );
         }
 
         /* If we've seen a reference to this one already, process the
          * link now and remove it from the pending list. */
         if ( refMap_.containsKey( id ) ) {
-            UncheckedReference unref = 
-                (UncheckedReference) refMap_.remove( id );
-            ElementRef to = (ElementRef) idMap_.get( id );
-            unref.checkLink( to );
+            UncheckedReference unref = refMap_.remove( id );
+            ElementRef to = idMap_.get( id );
+            unref.recordLink( to );
         }
     }
 
@@ -160,8 +136,8 @@ public class VotLintContext {
 
         /* If we've already seen the corresponding ID, do the checking now. */
         if ( idMap_.containsKey( id ) ) {
-            ElementRef to = (ElementRef) idMap_.get( id );
-            unref.checkLink( to );
+            ElementRef to = idMap_.get( id );
+            unref.recordLink( to );
         }
 
         /* Otherwise, remember the check needs to be done for processing
@@ -176,12 +152,42 @@ public class VotLintContext {
      * This is done at the end of the parse.
      */
     public void reportUncheckedRefs() {
-        for ( Iterator it = refMap_.keySet().iterator(); it.hasNext(); ) {
-            String id = (String) it.next();
-            UncheckedReference unref = (UncheckedReference) refMap_.get( id );
-            it.remove();
+        for ( Map.Entry<String,UncheckedReference> entry :
+              refMap_.entrySet() )  {
+            String id = entry.getKey();
+            UncheckedReference unref = entry.getValue();
             ElementRef from = unref.from_;
             error( "ID " + id + " referenced from " + from + " never found" );
+        }
+    }
+
+    /**
+     * Goes through all declared IDs that were never referenced.
+     * Such unreferenced IDs are not an error, but in some cases
+     * this is susplicious, so warnings may be reported.
+     * This is done at the end of the parse.
+     */
+    public void reportUnusedIds() {
+        for ( Map.Entry<String,Collection<ElementRef>> entry :
+              linksMap_.entrySet() ) {
+            String id = entry.getKey();
+            Collection<ElementRef> froms = entry.getValue();
+            ElementRef to = idMap_.get( id );
+            if ( froms.size() == 0 ) {
+
+                /* Currently, only report unreferenced TIMESYS elements.
+                 * Could do others too. */
+                if ( version_.allowTimesys() &&
+                     "TIMESYS".equals( to.getName() ) ) {
+                    String msg = new StringBuffer()
+                        .append( to.getName() )
+                        .append( " element with ID=\"" )
+                        .append( id )
+                        .append( "\" never referenced" )
+                        .toString();
+                    warning( msg );
+                }
+            }
         }
     }
 
@@ -191,7 +197,7 @@ public class VotLintContext {
      * @param  msg  message
      */
     public void info( String msg ) {
-        message( "INFO", msg, null );
+        messager_.reportMessage( SaxMessager.Level.INFO, msg, locator_ );
     }
 
     /**
@@ -200,7 +206,7 @@ public class VotLintContext {
      * @param  msg  message
      */
     public void warning( String msg ) {
-        message( "WARNING", msg, null );
+        messager_.reportMessage( SaxMessager.Level.WARNING, msg, locator_ );
     }
 
     /**
@@ -210,75 +216,7 @@ public class VotLintContext {
      */
     public void error( String msg ) {
         errCount_++;
-        message( "ERROR", msg, null );
-    }
-
-    /**
-     * Dispatches a message to the user.  Context information, such as
-     * position in the parse and message severity, are output as well
-     * as the text itself.  Additionally an effort is made not to write
-     * the same message millions of times.  Either the <tt>msg</tt>
-     * or the <tt>e</tt> arguments, but not both, may be null.
-     *
-     * @param  type  indication of message severity
-     * @param  msg   specific message content
-     * @param  e     throwable associated with this message
-     */
-    public void message( String type, String msg, Throwable e ) {
-
-        /* Fill in the message from the throwable if necessary. */
-        if ( msg == null && e != null ) {
-            msg = e.getMessage();
-            if ( msg == null ) {
-                msg = e.toString();
-            }
-        }
-
-        /* See how many times (if any) we have output this same message 
-         * before now.  If it's more than a certain threshold, don't
-         * bother to do it again. */
-        int repeat = msgMap_.containsKey( msg )
-                   ? ((Integer) msgMap_.get( msg )).intValue()
-                   : 0;
-        msgMap_.put( msg, new Integer( repeat + 1 ) );
-        if ( repeat < MAX_REPEAT ) {
-
-            /* Construct the text to output. */
-            StringBuffer sbuf = new StringBuffer()
-                .append( type );
-            int il = -1;
-            int ic = -1;
-            if ( locator_ != null ) {
-                ic = locator_.getColumnNumber();
-                il = locator_.getLineNumber();
-            }
-            if ( il > 0 ) {
-                sbuf.append( " (l." )
-                    .append( il );
-                if ( ic > 0 ) {
-                    sbuf.append( ", c." )
-                        .append( ic );
-                }
-                sbuf.append( ")" );
-            }
-            sbuf.append( ": " )
-                .append( msg );
-            if ( repeat == MAX_REPEAT - 1 ) {
-                sbuf.append( " (more...)" );
-            }
-            String text = sbuf.toString();
-
-            /* Output the message. */
-            out_.println( text );
-            if ( debug_ ) {
-                if ( e == null ) {
-                    e = new VotLintException( msg );
-                    e.fillInStackTrace();
-                }
-                e.printStackTrace( out_ );
-                out_.println();
-            }
-        }
+        messager_.reportMessage( SaxMessager.Level.ERROR, msg, locator_ );
     }
 
     /**
@@ -306,12 +244,15 @@ public class VotLintContext {
         }
 
         /**
-         * Performs the check on a resolved IDREF->ID arc
+         * Performs the check on a resolved IDREF->ID arc, and
+         * also updates an internal data structure indicating which
+         * IDs have been referenced.
          *
          * @param  to  element which the IDREF points to
          */
-        void checkLink( ElementRef to ) {
+        void recordLink( ElementRef to ) {
             refChecker_.checkLink( VotLintContext.this, id_, from_, to );
+            linksMap_.get( id_ ).add( from_ );
         }
     }
 }

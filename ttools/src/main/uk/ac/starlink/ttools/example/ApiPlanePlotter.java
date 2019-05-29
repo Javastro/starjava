@@ -6,7 +6,6 @@ import javax.swing.Icon;
 import uk.ac.starlink.table.StarTable;
 import uk.ac.starlink.ttools.plot.BarStyle;
 import uk.ac.starlink.ttools.plot.MarkShape;
-import uk.ac.starlink.ttools.plot.Range;
 import uk.ac.starlink.ttools.plot2.BasicCaptioner;
 import uk.ac.starlink.ttools.plot2.Captioner;
 import uk.ac.starlink.ttools.plot2.DataGeom;
@@ -15,6 +14,7 @@ import uk.ac.starlink.ttools.plot2.Padding;
 import uk.ac.starlink.ttools.plot2.PlotLayer;
 import uk.ac.starlink.ttools.plot2.Plotter;
 import uk.ac.starlink.ttools.plot2.ShadeAxisFactory;
+import uk.ac.starlink.ttools.plot2.Span;
 import uk.ac.starlink.ttools.plot2.config.StyleKeys;
 import uk.ac.starlink.ttools.plot2.data.Coord;
 import uk.ac.starlink.ttools.plot2.data.DataSpec;
@@ -27,6 +27,7 @@ import uk.ac.starlink.ttools.plot2.geom.PlaneNavigator;
 import uk.ac.starlink.ttools.plot2.geom.PlanePlotType;
 import uk.ac.starlink.ttools.plot2.geom.PlaneSurfaceFactory;
 import uk.ac.starlink.ttools.plot2.layer.BinSizer;
+import uk.ac.starlink.ttools.plot2.layer.Combiner;
 import uk.ac.starlink.ttools.plot2.layer.HistogramPlotter;
 import uk.ac.starlink.ttools.plot2.layer.MarkForm;
 import uk.ac.starlink.ttools.plot2.layer.Normalisation;
@@ -35,6 +36,7 @@ import uk.ac.starlink.ttools.plot2.layer.ShapeMode;
 import uk.ac.starlink.ttools.plot2.layer.ShapePlotter;
 import uk.ac.starlink.ttools.plot2.layer.ShapeStyle;
 import uk.ac.starlink.ttools.plot2.layer.Stamper;
+import uk.ac.starlink.ttools.plot2.layer.Unit;
 import uk.ac.starlink.ttools.plot2.paper.Compositor;
 import uk.ac.starlink.ttools.plot2.paper.PaperTypeSelector;
 import uk.ac.starlink.ttools.plot2.task.ColumnDataSpec;
@@ -123,7 +125,7 @@ public class ApiPlanePlotter implements SinePlot.PlanePlotter {
         float[] legPos = null;
         String title = null;
         ShadeAxisFactory shadeFact = null;
-        Range shadeFixRange = null;
+        Span shadeFixSpan = null;
 
         /* Prepare the list of plot layers; in this case there is only one. */
         PlotLayer[] layers = { createScatterLayer( geom, table), };
@@ -149,7 +151,7 @@ public class ApiPlanePlotter implements SinePlot.PlanePlotter {
         /* Construct and return the plot generator. */
         return new PlotGenerator( layers, surfFact, profile, aspect,
                                   legend, legPos, title, shadeFact,
-                                  shadeFixRange, ptSel, compositor,
+                                  shadeFixSpan, ptSel, compositor,
                                   dataStore, xpix, ypix, padding );
     }
 
@@ -232,19 +234,20 @@ public class ApiPlanePlotter implements SinePlot.PlanePlotter {
         BarStyle.Placement placement = BarStyle.PLACE_ADJACENT;
         boolean cumulative = true;
         Normalisation norm = Normalisation.NONE;
+        Unit unit = Unit.UNIT;
         int thick = 1;
         float[] dash = null;
         BinSizer sizer = BinSizer.createCountBinSizer( 16 );
         double phase = 0;
+        Combiner combiner = Combiner.SUM;
         HistogramPlotter.HistoStyle style =
             new HistogramPlotter.HistoStyle( color, barForm, placement,
-                                             cumulative, norm, thick, dash,
-                                             sizer, phase );
+                                             cumulative, norm, unit, thick,
+                                             dash, sizer, phase, combiner );
 
         /* Combine data and style to generate a histogram plot layer. */
         Plotter plotter =
-            new HistogramPlotter( PlaneDataGeom.X_COORD, false,
-                                  StyleKeys.NORMALISE );
+            new HistogramPlotter( PlaneDataGeom.X_COORD, false, null );
         return plotter.createLayer( geom, dataSpec, style );
     }
 }

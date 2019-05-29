@@ -36,6 +36,23 @@ public interface PlotTypeGui<P,A> {
     boolean hasPositions();
 
     /**
+     * Indicates whether this plot type's surface factory produces
+     * surfaces implementing the
+     * {@link uk.ac.starlink.ttools.plot2.geom.PlanarSurface} interface.
+     *
+     * @return   true for plane surface plot types
+     */
+    boolean isPlanar();
+
+    /**
+     * Returns a list of figure drawing modes that can be used for graphically
+     * marking out shapes on the plot surface.
+     *
+     * @return  available figure modes; may be empty
+     */
+    public FigureMode[] getFigureModes();
+
+    /**
      * Returns the GangerFactory used by this plot.
      * It controls how multi-zone plots are arranged.
      *
@@ -53,9 +70,18 @@ public interface PlotTypeGui<P,A> {
     ZoneFactory createZoneFactory();
 
     /**
+     * Returns an object that can characterise surfaces used by this plot type
+     * as hypercubes in data coordinate space.
+     * If it can't be done, null is returned.
+     *
+     * @return  Cartesian ranger for this plot type, or null
+     */
+    CartesianRanger getCartesianRanger();
+
+    /**
      * Returns the help ID describing the navigation actions for this plot.
      *
      * @return  navigator help id
      */
-    public String getNavigatorHelpId();
+    String getNavigatorHelpId();
 }

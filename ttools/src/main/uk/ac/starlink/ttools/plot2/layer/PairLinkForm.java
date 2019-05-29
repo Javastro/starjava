@@ -9,18 +9,19 @@ import java.util.HashMap;
 import java.util.Map;
 import javax.swing.Icon;
 import uk.ac.starlink.ttools.gui.ResourceIcon;
-import uk.ac.starlink.ttools.plot.Range;
 import uk.ac.starlink.ttools.plot2.AuxReader;
 import uk.ac.starlink.ttools.plot2.AuxScale;
 import uk.ac.starlink.ttools.plot2.DataGeom;
 import uk.ac.starlink.ttools.plot2.Glyph;
 import uk.ac.starlink.ttools.plot2.PlotUtil;
+import uk.ac.starlink.ttools.plot2.Span;
 import uk.ac.starlink.ttools.plot2.Surface;
 import uk.ac.starlink.ttools.plot2.config.ConfigKey;
 import uk.ac.starlink.ttools.plot2.config.ConfigMap;
 import uk.ac.starlink.ttools.plot2.data.Coord;
-import uk.ac.starlink.ttools.plot2.data.TupleSequence;
+import uk.ac.starlink.ttools.plot2.data.Tuple;
 import uk.ac.starlink.ttools.plot2.geom.CubeSurface;
+import uk.ac.starlink.ttools.plot2.geom.GPoint3D;
 import uk.ac.starlink.ttools.plot2.paper.Paper;
 import uk.ac.starlink.ttools.plot2.paper.PaperType2D;
 import uk.ac.starlink.ttools.plot2.paper.PaperType3D;
@@ -35,7 +36,7 @@ import uk.ac.starlink.ttools.plot2.paper.PaperType3D;
 public class PairLinkForm implements ShapeForm {
 
     private static final PairLinkForm instance_ = new PairLinkForm();
-    private static final LineXYShape LINE_SHAPE = LineXYShape.getInstance();
+    private static final LineXYShape LINE_SHAPE = LineXYShape.INSTANCE;
 
     /**
      * Private constructor prevents instantiation.
@@ -181,7 +182,7 @@ public class PairLinkForm implements ShapeForm {
 
         public ShapePainter create2DPainter( final Surface surface,
                                              final DataGeom geom,
-                                             Map<AuxScale,Range> auxRanges,
+                                             Map<AuxScale,Span> auxSpans,
                                              final PaperType2D paperType ) {
             int ndim = surface.getDataDimCount();
             final double[] dpos1 = new double[ ndim ];
@@ -193,17 +194,18 @@ public class PairLinkForm implements ShapeForm {
             final int npc = geom.getPosCoords().length;
             final Rectangle bounds = surface.getPlotBounds();
             return new ShapePainter() {
-                public void paintPoint( TupleSequence tseq, Color color,
+                public void paintPoint( Tuple tuple, Color color,
                                         Paper paper ) {
 
                     /* Paint the line if any part of it falls within the
                      * plot bounds. */
-                    if ( geom.readDataPos( tseq, 0, dpos1 ) &&
+                    if ( geom.readDataPos( tuple, 0, dpos1 ) &&
                          surface.dataToGraphics( dpos1, false, gp1 ) &&
                          PlotUtil.isPointFinite( gp1 ) &&
-                         geom.readDataPos( tseq, npc, dpos2 ) &&
+                         geom.readDataPos( tuple, npc, dpos2 ) &&
                          surface.dataToGraphics( dpos2, false, gp2 ) &&
-                         PlotUtil.isPointFinite( gp2 ) ) {
+                         PlotUtil.isPointFinite( gp2 ) &&
+                         surface.isContinuousLine( dpos1, dpos2 ) ) {
                         PlotUtil.quantisePoint( gp1, gp1i );
                         PlotUtil.quantisePoint( gp2, gp2i );
                         if ( lineMightCross( bounds, gp1i, gp2i ) ) {
@@ -219,20 +221,18 @@ public class PairLinkForm implements ShapeForm {
 
         public ShapePainter create3DPainter( final CubeSurface surface,
                                              final DataGeom geom,
-                                             Map<AuxScale,Range> auxRanges,
+                                             Map<AuxScale,Span> auxSpans,
                                              final PaperType3D paperType ) {
             int ndim = surface.getDataDimCount();
             final double[] dpos1 = new double[ ndim ];
             final double[] dpos2 = new double[ ndim ];
-            final Point2D.Double gp1 = new Point2D.Double();
-            final Point2D.Double gp2 = new Point2D.Double();
+            final GPoint3D gp1 = new GPoint3D();
+            final GPoint3D gp2 = new GPoint3D();
             final Point gp1i = new Point();
             final Point gp2i = new Point();
-            final double[] dz1 = new double[ 1 ];
-            final double[] dz2 = new double[ 1 ];
             final int npc = geom.getPosCoords().length;
             return new ShapePainter() {
-                public void paintPoint( TupleSequence tseq, Color color,
+                public void paintPoint( Tuple tuple, Color color,
                                         Paper paper ) {
 
                     /* Paint the line if either end falls within the plot
@@ -243,13 +243,13 @@ public class PairLinkForm implements ShapeForm {
                      * It's not really the right thing to do, but it's
                      * not too bad.  Additional work would be required
                      * as well to truncate it at the cube face. */
-                    if ( geom.readDataPos( tseq, 0, dpos1 ) &&
-                         geom.readDataPos( tseq, npc, dpos2 ) &&
+                    if ( geom.readDataPos( tuple, 0, dpos1 ) &&
+                         geom.readDataPos( tuple, npc, dpos2 ) &&
                          ( surface.inRange( dpos1 ) ||
                            surface.inRange( dpos2 ) ) &&
-                         surface.dataToGraphicZ( dpos1, false, gp1, dz1 ) &&
-                         surface.dataToGraphicZ( dpos2, false, gp2, dz2 ) ) {
-                        double z = 0.5 * ( dz1[ 0 ] + dz2[ 0 ] );
+                         surface.dataToGraphicZ( dpos1, false, gp1 ) &&
+                         surface.dataToGraphicZ( dpos2, false, gp2 ) ) {
+                        double z = 0.5 * ( gp1.z + gp2.z );
                         PlotUtil.quantisePoint( gp1, gp1i );
                         PlotUtil.quantisePoint( gp2, gp2i );
                         Glyph glyph = getLineGlyph( gp2i.x - gp1i.x,

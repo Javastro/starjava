@@ -9,6 +9,8 @@ import java.util.logging.Logger;
 import java.net.URL;
 import javax.xml.transform.dom.DOMSource;
 import org.xml.sax.SAXException;
+import org.w3c.dom.NodeList;
+import uk.ac.starlink.table.ColumnInfo;
 import uk.ac.starlink.table.DescribedValue;
 import uk.ac.starlink.table.RowSequence;
 import uk.ac.starlink.table.StoragePolicy;
@@ -41,17 +43,43 @@ public class VOTableTest extends TestCase {
         assertEquals( "myJ2000", coosys.getID() );
         assertEquals( "", coosys.getAttribute( "nope" ) );
 
+        TimesysElement timesys =
+            (TimesysElement) defs.getChildByName( "TIMESYS" );
+        assertTrue( timesys.hasAttribute( "refposition" ) );
+        assertEquals( "UTC", timesys.getAttribute( "timescale" ) );
+        assertEquals( 2400000.5, timesys.getTimeOrigin() );
+
+        NodeList fieldList = vot.getElementsByVOTagName( "FIELD" );
+        assertEquals( 5, fieldList.getLength() );
+        FieldElement raEl = (FieldElement) fieldList.item( 1 );
+        FieldElement decEl = (FieldElement) fieldList.item( 2 );
+        assertEquals( "RA", raEl.getAttribute( "name" ) );
+        assertEquals( "Dec", decEl.getAttribute( "name" ) );
+        VOElement coosysEl = (VOElement) raEl.getCoosys();
+        assertEquals( "COOSYS", coosysEl.getVOTagName() );
+        assertEquals( "2000.", coosysEl.getAttribute( "epoch" ) );
+
         VOElement res = vot.getChildByName( "RESOURCE" );
-        ParamElement param = (ParamElement) res.getChildByName( "PARAM" );
-        String pdesc = param.getDescription();
+        VOElement[] params = res.getChildrenByName( "PARAM" );
+
+        ParamElement obsParam = (ParamElement) params[ 0 ];
+        String pdesc = obsParam.getDescription();
         assertTrue( pdesc.startsWith( "This parameter is designed" ) );
-        String pval = param.getValue();
-        String pobj = (String) param.getObject();
+        String pval = obsParam.getValue();
+        String pobj = (String) obsParam.getObject();
         assertEquals( pval, pobj );
+
+        ParamElement epochParam = (ParamElement) params[ 1 ];
+        assertEquals( "Epoch", epochParam.getName() );
+        double mjdEpoch = ((Double) epochParam.getObject()).doubleValue();
+        assertEquals( 54291.25, mjdEpoch );
+        TimesysElement tsys = epochParam.getTimesys();
+        assertEquals( 2400000.5, tsys.getTimeOrigin() );
+        assertEquals( "UTC", tsys.getAttribute( "timescale" ) );
  
         TableElement tab = (TableElement) res.getChildrenByName( "TABLE" )[ 0 ];
         int ncol = tab.getFields().length;
-        assertEquals( 4, ncol );
+        assertEquals( 5, ncol );
         long nrow = tab.getNrows();
 
         if ( policy == StoragePolicy.DISCARD ) {
@@ -63,6 +91,34 @@ public class VOTableTest extends TestCase {
             VOStarTable stab = new VOStarTable( tab );
             assertEquals( tab.getNrows(), stab.getRowCount() );
             assertEquals( tab.getFields().length, stab.getColumnCount() );
+
+            ColumnInfo raInfo = stab.getColumnInfo( 1 );
+            ColumnInfo decInfo = stab.getColumnInfo( 2 );
+            ColumnInfo timeInfo = stab.getColumnInfo( 4 );
+            assertEquals( "RA", raInfo.getName() );
+            assertEquals( "Dec", decInfo.getName() );
+            assertEquals( "ObsTime", timeInfo.getName() );
+            assertEquals( "deg", raInfo.getUnitString() );
+            assertEquals( "POS_EQ_DEC", decInfo.getUCD() );
+            assertEquals( "2000.",
+                          raInfo.getAuxDatumValue( VOStarTable
+                                                  .COOSYS_EPOCH_INFO,
+                                                   String.class ) );
+            assertEquals( "2000.",
+                          decInfo.getAuxDatumByName( "CoosysEpoch" )
+                                 .getValue() );
+            assertEquals( "UTC",
+                          timeInfo.getAuxDatumValue( VOStarTable
+                                                    .TIMESYS_TIMESCALE_INFO,
+                                                     String.class ) );
+            assertEquals( "BARYCENTER",
+                          timeInfo.getAuxDatumValue( VOStarTable
+                                                    .TIMESYS_REFPOSITION_INFO,
+                                                     String.class ) );
+            assertEquals( "MJD-origin",
+                          timeInfo.getAuxDatumByName( "TimesysTimeorigin" )
+                                  .getValue() );
+
             RowSequence rseq = stab.getRowSequence();
             RowSequence rstep = tab.getData().getRowSequence();
             List rows = new ArrayList();
@@ -108,15 +164,18 @@ public class VOTableTest extends TestCase {
                                 ((String) cell).length() == 0 );
             }
 
-            DescribedValue parameter =
-                stab.getParameterByName( param.getName() );
-            assertTrue( stab.getParameters().contains( parameter ) );
-            ValueInfo pinfo = parameter.getInfo();
-            assertEquals( param.getValue(), parameter.getValue() );
-            assertEquals( param.getName(), pinfo.getName() );
-            assertEquals( String.class, pinfo.getContentClass() );
-            assertEquals( param.getDescription(), pinfo.getDescription() );
+            DescribedValue obsParameter =
+                stab.getParameterByName( obsParam.getName() );
+            assertTrue( stab.getParameters().contains( obsParameter ) );
+            ValueInfo obsInfo = obsParameter.getInfo();
+            assertEquals( obsParam.getValue(), obsParameter.getValue() );
+            assertEquals( obsParam.getName(), obsInfo.getName() );
+            assertEquals( String.class, obsInfo.getContentClass() );
+            assertEquals( obsParam.getDescription(), obsInfo.getDescription() );
+
+            DescribedValue epochParameter =
+                stab.getParameterByName( epochParam.getName() );
+            assertTrue( stab.getParameters().contains( epochParameter ) );
         }
     }
-
 }

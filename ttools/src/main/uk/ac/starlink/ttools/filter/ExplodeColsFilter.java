@@ -28,13 +28,17 @@ public class ExplodeColsFilter extends BasicFilter {
             "though not all the arrays need to have the same number",
             "of elements.",
             "</p>",
+            "<p>This filter does the opposite of",
+            "<ref id='collapsecols'><code>collapsecols</code></ref>.",
+            "</p>",
             explainSyntax( new String[] { "colid-list", } ),
         };
     }
 
-    public ProcessingStep createStep( Iterator argIt ) throws ArgException {
+    public ProcessingStep createStep( Iterator<String> argIt )
+            throws ArgException {
         if ( argIt.hasNext() ) {
-            final String colIdList = (String) argIt.next();
+            final String colIdList = argIt.next();
             argIt.remove();
             return new ProcessingStep() {
                 public StarTable wrap( StarTable base ) throws IOException {

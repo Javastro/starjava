@@ -53,9 +53,11 @@ public class ColFitsStarTable extends AbstractStarTable implements Closeable {
      *          data part of the HDU
      * @param   force  true to make a table if we possibly can,
      *                 false to reject if it doesn't look very much like one
+     * @param   wide  convention for representing extended columns;
+     *                use null to avoid use of extended columns
      */
     public ColFitsStarTable( DataSource datsrc, Header hdr, long dataPos,
-                             boolean force )
+                             boolean force, WideFits wide )
             throws IOException {
         HeaderCards cards = new HeaderCards( hdr );
 
@@ -70,7 +72,15 @@ public class ColFitsStarTable extends AbstractStarTable implements Closeable {
         }
 
         /* Find the number of columns. */
-        ncol_ = cards.getIntValue( "TFIELDS" ).intValue();
+        int ncolStd = cards.getIntValue( "TFIELDS" ).intValue();
+        ncol_ = wide == null
+              ? ncolStd
+              : wide.getExtendedColumnCount( cards, ncolStd );
+        boolean hasExtCol = ncol_ > ncolStd;
+        if ( hasExtCol ) {
+            assert wide != null;
+            AbstractWideFits.logWideRead( logger_, ncolStd, ncol_ );
+        }
 
         /* Nasty hack.
          * LDAC is a somewhat eccentric FITS variant that has a single-cell
@@ -92,21 +102,29 @@ public class ColFitsStarTable extends AbstractStarTable implements Closeable {
         valReaders_ = new ValueReader[ ncol_ ];
         for ( int icol = 0; icol < ncol_; icol++ ) {
             int jcol = icol + 1;
+            BintableColumnHeader colhead =
+                  hasExtCol && jcol >= ncolStd
+                ? wide.createExtendedHeader( ncolStd, jcol )
+                : BintableColumnHeader.createStandardHeader( jcol );
             ColumnInfo cinfo = new ColumnInfo( "col" + jcol );
 
             /* Format character and length. */
-            String tform = cards.getStringValue( "TFORM" + jcol ).trim();
+            String tform = colhead.getStringValue( cards, "TFORM" ).trim();
+            if ( tform == null ) {
+                throw new TableFormatException( "Missing column format header "
+                                              + colhead.getKeyName( "TFORM" ) );
+            }
             char formatChar = tform.charAt( tform.length() - 1 );
 
             /* Use a special value if we have byte values offset by 128
              * (which allows one to represent signed bytes as unigned ones). */
             if ( formatChar == 'B' &&
-                 ( cards.containsKey( "TZERO" + jcol )
-                   && cards.getDoubleValue( "TZERO" + jcol ).doubleValue()
-                                                            == -128.0 ) &&
-                 ( ! cards.containsKey( "TSCALE" + jcol )
-                   || cards.getDoubleValue( "TSCALE" + jcol ).doubleValue()
-                                                             == 1.0 ) ) {
+                 ( colhead.containsKey( cards, "TZERO" )
+                   && colhead.getDoubleValue( cards, "TZERO" ).doubleValue()
+                                                              == -128.0 ) &&
+                 ( ! colhead.containsKey( cards, "TSCALE" )
+                   || colhead.getDoubleValue( cards, "TSCALE" ).doubleValue()
+                                                               == 1.0 ) ) {
                 formatChar = 'b';
             }
 
@@ -116,19 +134,23 @@ public class ColFitsStarTable extends AbstractStarTable implements Closeable {
                     Long.parseLong( tform.substring( 0, tform.length() - 1 ) );
             }
             catch ( NumberFormatException e ) {
-                throw new TableFormatException( "Bad TFORM " + tform );
+                throw new TableFormatException( "Bad "
+                                              + colhead.getKeyName( "TFORM" )
+                                              + " '" + tform + '"' );
             }
 
             /* Row count and item shape. */
-            String tdims = cards.getStringValue( "TDIM" + jcol );
+            String tdims = colhead.getStringValue( cards, "TDIM" );
             long[] dims = parseTdim( tdims );
             if ( dims == null ) {
-                logger_.info( "No TDIM" + jcol
+                logger_.info( "No " + colhead.getKeyName( "TDIM" )
                             + "; assume (1," + nitem + ")" );
                 dims = new long[] { 1, nitem };
             }
             if ( multiply( dims ) != nitem ) {
-                throw new TableFormatException( "TDIM doesn't match TFORM" );
+                throw new TableFormatException( colhead.getKeyName( "TDIM" )
+                                              + " doesn't match "
+                                              + colhead.getKeyName( "TFORM" ) );
             }
             int[] itemShape = new int[ dims.length - 1 ];
             for ( int i = 0; i < dims.length - 1; i++ ) {
@@ -145,29 +167,26 @@ public class ColFitsStarTable extends AbstractStarTable implements Closeable {
             }
 
             /* Null value. */
-            String blankKey = "TNULL" + jcol;
-            Long blank = cards.containsKey( blankKey )
-                       ? cards.getLongValue( blankKey )
-                       : null;
+            Long blank = colhead.getLongValue( cards, "TNULL" );
 
             /* Informational metadata. */
-            String ttype = cards.getStringValue( "TTYPE" + jcol );
+            String ttype = colhead.getStringValue( cards, "TTYPE" );
             if ( ttype != null ) {
                 cinfo.setName( ttype );
             }
-            String tunit = cards.getStringValue( "TUNIT" + jcol );
+            String tunit = colhead.getStringValue( cards, "TUNIT" );
             if ( tunit != null ) {
                 cinfo.setUnitString( tunit );
             }
-            String tcomm = cards.getStringValue( "TCOMM" + jcol );
+            String tcomm = colhead.getStringValue( cards, "TCOMM" );
             if ( tcomm != null ) {
                 cinfo.setDescription( tcomm );
             }
-            String tucd = cards.getStringValue( "TUCD" + jcol );
+            String tucd = colhead.getStringValue( cards, "TUCD" );
             if ( tucd != null ) {
                 cinfo.setUCD( tucd );
             }
-            String tutype = cards.getStringValue( "TUTYP" + jcol );
+            String tutype = colhead.getStringValue( cards, "TUTYP" );
             if ( tutype != null ) {
                 cinfo.setUtype( tutype );
             }
@@ -265,10 +284,17 @@ public class ColFitsStarTable extends AbstractStarTable implements Closeable {
         if ( isRandom ) {
             randomColReaders_ = new ColumnReader[ ncol_ ];
             for ( int icol = 0; icol < ncol_; icol++ ) {
-                BasicInput input = inputFacts_[ icol ].createInput( false );
+                final BasicInputThreadLocal bitl =
+                    new BasicInputThreadLocal( inputFacts_[ icol ], false );
                 randomColReaders_[ icol ] =
-                   new ColumnReader( valReaders_[ icol ],
-                                     inputFacts_[ icol ].createInput( false ) );
+                       new ColumnReader( valReaders_[ icol ] ) {
+                    protected BasicInput getInput() {
+                        return bitl.get();
+                    }
+                    public void close() throws IOException {
+                        bitl.close();
+                    }
+                };
             }
         }
         else {
@@ -294,11 +320,7 @@ public class ColFitsStarTable extends AbstractStarTable implements Closeable {
 
     public Object getCell( long irow, int icol ) throws IOException {
         if ( randomColReaders_ != null ) {
-            ColumnReader colReader = randomColReaders_[ icol ];
-            synchronized ( colReader ) {
-                colReader.seekRow( irow );
-                return colReader.readCell();
-            }
+            return randomColReaders_[ icol ].readIndexedCell( irow );
         }
         else {
             throw new UnsupportedOperationException();
@@ -309,11 +331,7 @@ public class ColFitsStarTable extends AbstractStarTable implements Closeable {
         if ( randomColReaders_ != null ) {
             Object[] row = new Object[ ncol_ ];
             for ( int icol = 0; icol < ncol_; icol++ ) {
-                ColumnReader colReader = randomColReaders_[ icol ];
-                synchronized ( colReader ) {
-                    colReader.seekRow( irow );
-                    row[ icol ] = colReader.readCell();
-                }
+                row[ icol ] = randomColReaders_[ icol ].readIndexedCell( irow );
             }
             return row;
         }
@@ -736,9 +754,17 @@ public class ColFitsStarTable extends AbstractStarTable implements Closeable {
             seqColReaders_ = new ColumnReader[ ncol_ ];
             cursors_ = new long[ ncol_ ];
             for ( int icol = 0; icol < ncol_; icol++ ) {
+                final BasicInput input =
+                    inputFacts_[ icol ].createInput( true );
                 seqColReaders_[ icol ] =
-                    new ColumnReader( valReaders_[ icol ],
-                                      inputFacts_[ icol ].createInput( true ) );
+                        new ColumnReader( valReaders_[ icol ] ) {
+                    protected BasicInput getInput() {
+                        return input;
+                    }
+                    public void close() throws IOException {
+                        input.close();
+                    }
+                };
                 cursors_[ icol ] = -1;
             }
             lastValues_ = new Object[ ncol_ ];
@@ -756,7 +782,7 @@ public class ColFitsStarTable extends AbstractStarTable implements Closeable {
                 if ( nskip > 1 ) {
                     colReader.skipCells( nskip - 1 );
                 }
-                lastValues_[ icol ] = colReader.readCell();
+                lastValues_[ icol ] = colReader.readNextCell();
                 cursors_[ icol ] = irow_;
             }
             else if ( irow_ < 0 ) {
@@ -836,30 +862,36 @@ public class ColFitsStarTable extends AbstractStarTable implements Closeable {
      * Aggregates a ValueReader and a BasicInput to read cell values for
      * a given column.
      */
-    private static class ColumnReader {
+    private static abstract class ColumnReader implements Closeable {
         private final ValueReader valReader_;
-        private final BasicInput input_;
         private final long itemBytes_;
 
         /**
          * Constructor.
          *
          * @param  valueReader  understands data format
-         * @param  input  provides byte data
          */
-        ColumnReader( ValueReader valReader, BasicInput input ) {
+        ColumnReader( ValueReader valReader ) {
             valReader_ = valReader;
-            input_ = input;
             itemBytes_ = valReader.getItemBytes();
         }
+
+        /**
+         * Returns the object that provides byte data.
+         *
+         * @return  basic input
+         */
+        protected abstract BasicInput getInput();
 
         /**
          * Positions ready to read the value for a given row.
          *
          * @param  irow  row index
          */
-        void seekRow( long irow ) throws IOException {
-            input_.seek( irow * itemBytes_ );
+        Object readIndexedCell( long irow ) throws IOException {
+            BasicInput input = getInput();
+            input.seek( irow * itemBytes_ );
+            return valReader_.readValue( input );
         }
 
         /**
@@ -867,19 +899,12 @@ public class ColFitsStarTable extends AbstractStarTable implements Closeable {
          *
          * @return   cell value
          */
-        Object readCell() throws IOException {
-            return valReader_.readValue( input_ );
+        Object readNextCell() throws IOException {
+            return valReader_.readValue( getInput() );
         }
 
         void skipCells( long nrow ) throws IOException {
-            input_.skip( itemBytes_ * nrow );
-        }
-
-        /**
-         * Releases resources.
-         */
-        void close() throws IOException {
-            input_.close();
+            getInput().skip( itemBytes_ * nrow );
         }
     }
 }

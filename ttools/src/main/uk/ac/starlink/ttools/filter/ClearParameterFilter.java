@@ -38,17 +38,18 @@ public class ClearParameterFilter extends BasicFilter {
         };
     }
 
-    public ProcessingStep createStep( Iterator argIt ) throws ArgException {
-        List pnameList = new ArrayList();
+    public ProcessingStep createStep( Iterator<String> argIt )
+            throws ArgException {
+        List<String> pnameList = new ArrayList<String>();
         while ( argIt.hasNext() ) {
-            String arg = (String) argIt.next();
+            String arg = argIt.next();
             pnameList.add( arg );
             argIt.remove();
         }
         if ( pnameList.isEmpty() ) {
             throw new ArgException( "No parameter names supplied" );
         }
-        final String[] pnames = (String[]) pnameList.toArray( new String[ 0 ] );
+        final String[] pnames = pnameList.toArray( new String[ 0 ] );
         return new ProcessingStep() {
             public StarTable wrap( StarTable base ) {
                 removeParameters( base.getParameters(), pnames );
@@ -75,26 +76,21 @@ public class ClearParameterFilter extends BasicFilter {
             patterns[ iname ] =
                 ColumnIdentifier.globToRegex( pnames[ iname ], false );
         }
-        for ( Iterator it = paramList.iterator(); it.hasNext(); ) {
-            Object obj = it.next();
-            if ( obj instanceof DescribedValue ) {
-                DescribedValue dval = (DescribedValue) obj;
-                String pname = dval.getInfo().getName();
-                for ( int iname = 0; iname < nname; iname++ ) {
-                    if ( patterns[ iname ] == null ) {
-                        if ( pnames[ iname ].equalsIgnoreCase( pname ) ) {
-                            it.remove();
-                        }
-                    }
-                    else {
-                        if ( patterns[ iname ].matcher( pname ).matches() ) {
-                            it.remove();
-                        }
+        for ( Iterator<DescribedValue> it = paramList.iterator();
+              it.hasNext(); ) {
+            DescribedValue dval = it.next();
+            String pname = dval.getInfo().getName();
+            for ( int iname = 0; iname < nname; iname++ ) {
+                if ( patterns[ iname ] == null ) {
+                    if ( pnames[ iname ].equalsIgnoreCase( pname ) ) {
+                        it.remove();
                     }
                 }
-            }
-            else {
-                it.remove();  // shouldn't be there in the first place
+                else {
+                    if ( patterns[ iname ].matcher( pname ).matches() ) {
+                        it.remove();
+                    }
+                }
             }
         }
     }

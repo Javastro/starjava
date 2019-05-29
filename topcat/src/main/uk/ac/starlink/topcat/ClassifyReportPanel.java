@@ -37,6 +37,9 @@ public class ClassifyReportPanel extends JPanel {
     private int ncat_;
     private Item[] items_;
 
+    /** Maximum length of default subset name value identification string. */
+    private static final int MAXLEN_VALSTR = 16;
+
     /**
      * Constructor.
      */
@@ -163,12 +166,6 @@ public class ClassifyReportPanel extends JPanel {
         final Set<Object> includeSet = new HashSet<Object>();
         Item otherItem = null;
         List<RowSubset> rsets = new ArrayList<RowSubset>();
-
-        /* It would be nice to return SyntheticRowSubset instances here,
-         * since they can be reported with their expressions in the subsets
-         * window, so it's easy to see where they came from.
-         * But in general, it's not easy to come up with JEL expressions
-         * corresponding to these classification categories. */
         for ( Item item : items_ ) {
             if ( item.flagBox_.isSelected() ) {
                 String name = item.txtField_.getText();
@@ -179,34 +176,9 @@ public class ClassifyReportPanel extends JPanel {
                         otherItem = item;
                     }
                     else {
-                        final Object value = cval.getValue();
+                        Object value = cval.getValue();
                         includeSet.add( value );
-                        if ( value == null ) {
-                            rsets.add( new RowSubset( name ) {
-                                public boolean isIncluded( long lrow ) {
-                                    try {
-                                        return cdata_.readValue( lrow ) == null;
-                                    }
-                                    catch ( IOException e ) {
-                                        return false;
-                                    }
-                                }
-                            } );
-                        }
-                        else {
-                            rsets.add( new RowSubset( name ) {
-                                public boolean isIncluded( long lrow ) {
-                                    try {
-                                        return value
-                                              .equals( cdata_
-                                                      .readValue( lrow ) );
-                                    }
-                                    catch ( IOException e ) {
-                                        return false;
-                                    }
-                                }
-                            } );
-                        }
+                        rsets.add( createSubset( name, value, cdata_ ) );
                     }
                 }
             }
@@ -328,6 +300,58 @@ public class ClassifyReportPanel extends JPanel {
     }
 
     /**
+     * Creates a subset defined by existence of a given value in a column.
+     *
+     * <p>It would be nice to return SyntheticRowSubset instances here,
+     * since they can be reported with their expressions in the subsets
+     * window, so it's easy to see where they came from.
+     * This would also be better for session serialization,
+     * and for STILTS command generation.
+     * But the current implementation does not do that.
+     *
+     * <p>The problem is that it's quite hard to come up with robust
+     * JEL expressions corresponding to these classification categories
+     * (serialising java equality conditions into java source code).
+     * Problems include working out a suitable column name,
+     * coping with null testing for potentially primitive column types,
+     * and serialising the object value.  It would certainly be possible,
+     * though maybe fiddly, to solve some of these problems some of the time.
+     * This method acts as a placeholder in case somebody gets round
+     * to doing that one day.
+     *
+     * @param  name  subset name
+     * @param  value   value which the column must have for inclusion
+     * @parma  cdata   column data
+     */
+    private static RowSubset createSubset( String name, final Object value,
+                                           final ColumnData cdata ) {
+        if ( value == null ) {
+           return new RowSubset( name ) {
+                public boolean isIncluded( long lrow ) {
+                    try {
+                        return cdata.readValue( lrow ) == null;
+                    }
+                    catch ( IOException e ) {
+                        return false;
+                    }
+                }
+            };
+        }
+        else {
+            return new RowSubset( name ) {
+                public boolean isIncluded( long lrow ) {
+                    try {
+                        return value.equals( cdata.readValue( lrow ) );
+                    }
+                    catch ( IOException e ) {
+                        return false;
+                    }
+                }
+            };
+        }
+    }
+
+    /**
      * Defines a result item which will be displayed to the user and
      * which can be turned into a RowSubset.
      */
@@ -356,7 +380,8 @@ public class ClassifyReportPanel extends JPanel {
             labelLabel_ = new JLabel( label );
             txtField_ = new JTextField();
             txtField_.setText( prefix +
-                               ClassifyWindow.sanitiseText( label, false, 6 ) );
+                               ClassifyWindow.sanitiseText( label, false,
+                                                            MAXLEN_VALSTR ) );
             flagBox_ = new JCheckBox();
             flagBox_.setSelected( cval != null );
             flagBox_.addActionListener( new ActionListener() {

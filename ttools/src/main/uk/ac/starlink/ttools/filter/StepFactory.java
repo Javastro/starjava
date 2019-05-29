@@ -39,6 +39,7 @@ public class StepFactory {
         filterFactory_.register( "cache", pkg + "CacheFilter" );
         filterFactory_.register( "check", pkg + "CheckFilter" );
         filterFactory_.register( "clearparams", pkg + "ClearParameterFilter" );
+        filterFactory_.register( "collapsecols", pkg + "CollapseColsFilter" );
         filterFactory_.register( "colmeta", pkg + "ColumnMetadataFilter" );
         filterFactory_.register( "delcols", pkg + "DeleteColumnFilter" );
         filterFactory_.register( "every", pkg + "EveryFilter" );
@@ -46,6 +47,7 @@ public class StepFactory {
         filterFactory_.register( "explodeall", pkg + "ExplodeAllFilter" );
         filterFactory_.register( "fixcolnames", pkg + "FixNamesFilter" );
         filterFactory_.register( "head", pkg + "HeadFilter" );
+        filterFactory_.register( "healpixmeta", pkg + "HealpixMetadataFilter" );
         filterFactory_.register( "keepcols", pkg + "KeepColumnFilter" );
         filterFactory_.register( "meta", pkg + "MetadataFilter" );
         filterFactory_.register( "progress", pkg + "ProgressFilter" );
@@ -99,7 +101,7 @@ public class StepFactory {
     /**
      * Creates a processing filter from a line of text.
      * The general format for the line is 
-     * <code>&lt;filter-name&gt; &lt;ilter-args&gt;</code>
+     * <code>&lt;filter-name&gt; &lt;filter-args&gt;</code>
      *
      * @param   line  line of text representing filter commands
      * @return  processing step; may be null if <code>line</code>

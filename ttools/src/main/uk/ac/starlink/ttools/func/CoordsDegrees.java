@@ -162,6 +162,52 @@ public class CoordsDegrees {
     }
 
     /**
+     * Calculates the position angle between two points on the sky in degrees.
+     * The result is in the range +/-180.
+     * If point 2 is due east of point 1, the result is +90.
+     * Zero is returned if the points are coincident.
+     *
+     * @param  ra1   right ascension of point 1 in degrees
+     * @param  dec1  declination of point 1 in degrees
+     * @param  ra2   right ascension of point 2 in degrees
+     * @param  dec2  declination of point 2 in degrees
+     * @return  bearing in degrees of point 2 from point 1.
+     */
+    public static double posAngDegrees( double ra1, double dec1,
+                                        double ra2, double dec2 ) {
+        return radiansToDegrees(
+            CoordsRadians.posAngRadians( degreesToRadians( ra1 ),
+                                         degreesToRadians( dec1 ),
+                                         degreesToRadians( ra2 ),
+                                         degreesToRadians( dec2 ) ) );
+    }
+
+    /**
+     * Calculates the distance in three dimensional space
+     * between two points specified in spherical polar coordinates.
+     *
+     * @param   ra1      right ascension of point 1 in degrees
+     * @param   dec1     declination of point1 in degrees
+     * @param   radius1  distance from origin of point1
+     * @param   ra2      right ascension of point 2 in degrees
+     * @param   dec2     declination of point2 in degrees
+     * @param   radius2  distance from origin of point2
+     * @return  the linear distance between point1 and point2;
+     *          units are as for <code>radius1</code> and <code>radius2</code>
+     */
+    public static double
+            polarDistanceDegrees( double ra1, double dec1, double radius1,
+                                  double ra2, double dec2, double radius2 ) {
+        return CoordsRadians
+              .polarDistanceRadians( degreesToRadians( ra1 ),
+                                     degreesToRadians( dec1 ),
+                                     radius1,
+                                     degreesToRadians( ra2 ),
+                                     degreesToRadians( dec2 ),
+                                     radius2 );
+    }
+
+    /**
      * Converts degrees to radians.
      *
      * @param  deg   angle in degrees

@@ -46,6 +46,9 @@ public abstract class BlobPanel2 extends JComponent {
     private Color pathColor_ = new Color( 0, 0, 0, 128 );
     private boolean isActive_;
 
+    /* Name of boolean property associated with isActive method. */
+    public static final String PROP_ACTIVE = "active";
+
     /**
      * Constructor.
      */
@@ -137,16 +140,17 @@ public abstract class BlobPanel2 extends JComponent {
         }
         isActive_ = active;
         blobAction_.putValue( Action.NAME,
-                              active ? "Finish Drawing Region"
-                                     : "Draw Subset Region" );
+                              active ? "Finish Drawing Blob"
+                                     : "Draw Blob Subset" );
         blobAction_.putValue( Action.SMALL_ICON,
                               active ? ResourceIcon.BLOB_SUBSET_END
                                      : ResourceIcon.BLOB_SUBSET );
         blobAction_.putValue( Action.SHORT_DESCRIPTION,
-                              active ? "Define susbset from currently-drawn " +
+                              active ? "Define subset from currently-drawn " +
                                        "region"
-                                     : "Draw a region on the plot to define " +
-                                       "a new row subset" );
+                                     : "Draw a freehand region on the plot " +
+                                       "to define a new row subset" );
+        blobAction_.putValue( PROP_ACTIVE, Boolean.valueOf( active ) );
         setListening( active );
         setVisible( active );
     }

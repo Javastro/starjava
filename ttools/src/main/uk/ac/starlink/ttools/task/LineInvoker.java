@@ -60,10 +60,15 @@ public class LineInvoker {
      * Invokes one of the known tasks given a string of command-line words.
      * The <code>args</code> string will typically come straight out of
      * a static <code>main()</code> method.
+     * A callback may be supplied to perform configuration that has to
+     * be done after logging configuration - presumably because it
+     * does some logging itself.  It is executed synchronously.
      * 
      * @param   args   argument list
+     * @param   loggedConfig   callback for configuration to be done after
+     *                         logging configuration (may be null)
      */
-    public int invoke( String[] args ) {
+    public int invoke( String[] args, Runnable loggedConfig ) {
         List argList = new ArrayList( Arrays.asList( args ) );
         LineTableEnvironment env = new LineTableEnvironment();
         int verbosity = 0;
@@ -252,7 +257,12 @@ public class LineInvoker {
         env.setOutputStream( out );
         env.setErrorStream( err );
 
+        /* Configure logging, then perform additional configuration
+         * that has to be done after that. */
         InvokeUtils.configureLogging( verbosity, env.isDebug() );
+        if ( loggedConfig != null ) {
+            loggedConfig.run();
+        }
 
         String taskName = (String) argList.remove( 0 );
         if ( taskFactory_.isRegistered( taskName ) ) {
@@ -545,35 +555,47 @@ public class LineInvoker {
             e.printStackTrace( env.getErrorStream() );
         }
         else {
-            List<String> msgList = new ArrayList<String>();
-            for ( ; e != null; e = e.getCause() ) {
-                String msg = e.getMessage();
-                if ( msg == null ) {
-                    msg = e.toString();
-                }
-                int nm = msgList.size();
-                if ( nm == 0 || ! msg.equals( msgList.get( nm - 1 ) ) ) {
-                    msgList.add( msg );
-                }
-            }
-            String[] msgs = msgList.toArray( new String[ 0 ] );
-            StringBuffer sbuf = new StringBuffer();
-            sbuf.append( "Error: " );
-            for ( int im = 0; im < msgs.length; im++ ) {
-                if ( im > 0 ) {
-                    sbuf.append( '\n' );
-                    for ( int j = 0; j < im; j++ ) {
-                        sbuf.append( "    " );
-                    }
-                    sbuf.append( '(' );
-                }
-                sbuf.append( msgs[ im ] );
-            }
-            for ( int j = 1; j < msgs.length; j++ ) {
-                sbuf.append( ')' );
-            }
-            env.getErrorStream().println( sbuf.toString() );
+            env.getErrorStream().println( getStackSummary( e ) );
         }
+    }
+
+    /**
+     * Returns a truncated version of a stack trace for user consumption.
+     * This gives the error message for each throwable in the cause chain,
+     * but not line numbers etc.
+     *
+     * @param   error   exception to summarise
+     * @return   multiline text summary
+     */
+    public static String getStackSummary( Throwable error ) {
+        List<String> msgList = new ArrayList<String>();
+        for ( Throwable e = error ; e != null; e = e.getCause() ) {
+            String msg = e.getMessage();
+            if ( msg == null ) {
+                msg = e.toString();
+            }
+            int nm = msgList.size();
+            if ( nm == 0 || ! msg.equals( msgList.get( nm - 1 ) ) ) {
+                msgList.add( msg );
+            }
+        }
+        String[] msgs = msgList.toArray( new String[ 0 ] );
+        StringBuffer sbuf = new StringBuffer();
+        sbuf.append( "Error: " );
+        for ( int im = 0; im < msgs.length; im++ ) {
+            if ( im > 0 ) {
+                sbuf.append( '\n' );
+                for ( int j = 0; j < im; j++ ) {
+                    sbuf.append( "    " );
+                }
+                sbuf.append( '(' );
+            }
+            sbuf.append( msgs[ im ] );
+        }
+        for ( int j = 1; j < msgs.length; j++ ) {
+            sbuf.append( ')' );
+        }
+        return sbuf.toString();
     }
 
     /**
@@ -839,7 +861,7 @@ public class LineInvoker {
      * @param  unused   unused words
      * @return  warning lines
      */
-    private static String getUnusedWarning( String[] unused ) {
+    public static String getUnusedWarning( String[] unused ) {
         StringBuffer sbuf = new StringBuffer( "Unused arguments:" );
         for ( int i = 0; i < unused.length; i++ ) {
             sbuf.append( ' ' )

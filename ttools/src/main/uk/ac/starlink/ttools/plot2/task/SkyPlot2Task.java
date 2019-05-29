@@ -1,6 +1,5 @@
 package uk.ac.starlink.ttools.plot2.task;
 
-import uk.ac.starlink.task.ChoiceParameter;
 import uk.ac.starlink.task.Environment;
 import uk.ac.starlink.task.Parameter;
 import uk.ac.starlink.task.TaskException;
@@ -8,10 +7,12 @@ import uk.ac.starlink.ttools.plot2.DataGeom;
 import uk.ac.starlink.ttools.plot2.SingleGanger;
 import uk.ac.starlink.ttools.plot2.config.ConfigMeta;
 import uk.ac.starlink.ttools.plot2.config.SkySysConfigKey;
+import uk.ac.starlink.ttools.plot2.geom.HealpixDataGeom;
 import uk.ac.starlink.ttools.plot2.geom.SkyPlotType;
 import uk.ac.starlink.ttools.plot2.geom.SkySys;
 import uk.ac.starlink.ttools.plot2.geom.SkyDataGeom;
 import uk.ac.starlink.ttools.plot2.geom.SkySurfaceFactory;
+import uk.ac.starlink.ttools.plot2.layer.HealpixPlotter;
 
 /**
  * Task for Sky-type plots.
@@ -81,10 +82,15 @@ public class SkyPlot2Task extends TypedPlot2Task {
 
         public DataGeom getGeom( Environment env, String suffix )
                 throws TaskException {
+
+            /* Get data and view sky coordinate systems.  The DataGeom
+             * has the job of taking account of any transformation implied
+             * by the difference between these two, so we need to know
+             * what they are to construct it. */
             SkySys viewsys = viewsysParam_.objectValue( env );
-            ChoiceParameter<SkySys> datasysParam =
-                    new ParameterFinder<ChoiceParameter<SkySys>>() {
-                public ChoiceParameter<SkySys> createParameter( String sfix ) {
+            ConfigParameter<SkySys> datasysParam =
+                    new ParameterFinder<ConfigParameter<SkySys>>() {
+                public ConfigParameter<SkySys> createParameter( String sfix ) {
                     return createDataSysParameter( sfix );
                 }
             }.getParameter( env, suffix );
@@ -100,7 +106,46 @@ public class SkyPlot2Task extends TypedPlot2Task {
                    .toString();
                 throw new TaskException( msg );
             }
-            return SkyDataGeom.createGeom( datasys, viewsys );
+
+            /* Do special case handling for the HealpixPlotter.
+             * This is necessary because the HealpixPlotter has positional
+             * coordinates, but they are not the same as the positional
+             * coordinates assumed by the rest of the sky plot invocation
+             * (it's a tile index rather than a lon/lat pair).
+             * If you don't do this, the task will ask the user for lon/lat.
+             * Switching on a particular layer type like this is not very
+             * nice, and really this should be abstracted out to make more
+             * generalised enquiries about the layer to see if this
+             * kind of handling is necessary, and enquire for layer-specific
+             * coordinate types.  However, for now the Healpix plotter is
+             * the only example of this sort of thing, so it's not clear
+             * what would be the best form for such generalisation.
+             * If other instances of this kind of requirement come up,
+             * consider this more carefully and generalise the handling
+             * as appropriate. */
+            LayerType layer = createLayerTypeParameter( suffix, this )
+                             .objectValue( env );
+            if ( layer.getPlotter( env, suffix ) instanceof HealpixPlotter ) {
+                boolean isNest = HealpixPlotter.IS_NEST;
+                int level = new ParameterFinder<ConfigParameter<Integer>>() {
+                    public ConfigParameter<Integer>
+                            createParameter( String sfix ) {
+                        return ConfigParameter
+                              .createLayerSuffixedParameter( HealpixPlotter
+                                                            .DATALEVEL_KEY,
+                                                             sfix, false );
+                    }
+                }.getParameter( env, suffix )
+                 .objectValue( env )
+                 .intValue();
+                return HealpixDataGeom
+                      .createGeom( level, isNest, datasys, viewsys );
+            }
+
+            /* Otherwise, it's a normal SkyDataGeom. */
+            else {
+                return SkyDataGeom.createGeom( datasys, viewsys );
+            }
         }
 
         /**
@@ -109,37 +154,11 @@ public class SkyPlot2Task extends TypedPlot2Task {
          * @param  suffix  layer-specific suffix
          * @return  parameter name
          */
-        private ChoiceParameter<SkySys>
+        private ConfigParameter<SkySys>
                 createDataSysParameter( String suffix ) {
-            String datasysName = "datasys" + suffix;
-            ChoiceParameter<SkySys> param =
-                new ChoiceParameter( datasysName,
-                                     SkySys.getKnownSystems( false ) );
-            param.setPrompt( "Sky coordinate system for data" );
-            param.setDescription( new String[] {
-                "<p>The sky coordinate system used to interpret",
-                "supplied data longitude and latitude coordinate values"
-                + ( suffix.length() > 0 ? ( " for layer " + suffix )
-                                        : "" ) + ".",
-                "</p>",
-                "<p>Choice of this value goes along with the",
-                "<code>" + viewsysName_ + "</code> parameter.",
-                "If neither <code>" + viewsysName_ + "</code>",
-                "nor <code>" + datasysName + "</code> is given,",
-                "plotting is carried out in a generic sky system",
-                "assumed the same between the data and the view.",
-                "But if any layers have a supplied",
-                "<code>" + datasysName + "</code> parameter,",
-                "there must be a non-blank",
-                "<code>" + viewsysName_ + "</code> supplied",
-                "into which the data input coordinates will be transformed.",
-                "If not supplied explicitly,",
-                "<code>" + datasysName + "</code> defaults to the same value",
-                "as <code>" + viewsysName_ + "</code>.",
-                new SkySysConfigKey( new ConfigMeta( "dummy", "dummy" ), false )
-                   .getOptionsXml()
-            } );
-            return param;
+            return ConfigParameter
+                  .createLayerSuffixedParameter( SkySurfaceFactory.DATASYS_KEY,
+                                                 suffix, false );
         }
     }
 }

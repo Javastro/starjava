@@ -27,8 +27,8 @@ import uk.ac.starlink.topcat.BasicAction;
 import uk.ac.starlink.topcat.ResourceIcon;
 import uk.ac.starlink.topcat.RowSubset;
 import uk.ac.starlink.topcat.TopcatModel;
+import uk.ac.starlink.topcat.TypedListModel;
 import uk.ac.starlink.ttools.plot.Range;
-import uk.ac.starlink.ttools.plot2.DataGeom;
 import uk.ac.starlink.ttools.plot2.GangerFactory;
 import uk.ac.starlink.ttools.plot2.PlotLayer;
 import uk.ac.starlink.ttools.plot2.PlotType;
@@ -37,9 +37,8 @@ import uk.ac.starlink.ttools.plot2.Plotter;
 import uk.ac.starlink.ttools.plot2.ReportMap;
 import uk.ac.starlink.ttools.plot2.SingleGanger;
 import uk.ac.starlink.ttools.plot2.Surface;
-import uk.ac.starlink.ttools.plot2.SurfaceFactory;
 import uk.ac.starlink.ttools.plot2.config.ConfigKey;
-import uk.ac.starlink.ttools.plot2.config.StyleKeys;
+import uk.ac.starlink.ttools.plot2.data.FloatingCoord;
 import uk.ac.starlink.ttools.plot2.geom.PlaneAspect;
 import uk.ac.starlink.ttools.plot2.geom.PlaneDataGeom;
 import uk.ac.starlink.ttools.plot2.geom.PlanePlotType;
@@ -47,14 +46,15 @@ import uk.ac.starlink.ttools.plot2.geom.PlaneSurface;
 import uk.ac.starlink.ttools.plot2.geom.PlaneSurfaceFactory;
 import uk.ac.starlink.ttools.plot2.layer.AbstractKernelDensityPlotter;
 import uk.ac.starlink.ttools.plot2.layer.BinBag;
+import uk.ac.starlink.ttools.plot2.layer.Combiner;
 import uk.ac.starlink.ttools.plot2.layer.DensogramPlotter;
 import uk.ac.starlink.ttools.plot2.layer.FixedKernelDensityPlotter;
 import uk.ac.starlink.ttools.plot2.layer.FunctionPlotter;
 import uk.ac.starlink.ttools.plot2.layer.HistogramPlotter;
 import uk.ac.starlink.ttools.plot2.layer.KnnKernelDensityPlotter;
 import uk.ac.starlink.ttools.plot2.layer.Normalisation;
-import uk.ac.starlink.ttools.plot2.paper.PaperTypeSelector;
 import uk.ac.starlink.ttools.plot2.layer.Stats1Plotter;
+import uk.ac.starlink.ttools.plot2.layer.Unit;
 
 /**
  * Layer plot window for histograms.
@@ -70,7 +70,8 @@ import uk.ac.starlink.ttools.plot2.layer.Stats1Plotter;
 public class HistogramPlotWindow
              extends StackPlotWindow<PlaneSurfaceFactory.Profile,PlaneAspect> {
 
-    private static final PlotType PLOT_TYPE = new HistogramPlotType();
+    private static final PlotType PLOT_TYPE =
+        new PlanePlotType( createHistogramPlotters(), false );
     private static final PlotTypeGui PLOT_GUI = new HistogramPlotTypeGui();
     private static final int BINS_TABLE_INTRO_NCOL = 2;
 
@@ -78,9 +79,11 @@ public class HistogramPlotWindow
      * Constructor.
      *
      * @param  parent  parent component
+     * @param  tablesModel  list of available tables
      */
-    public HistogramPlotWindow( Component parent ) {
-        super( "Histogram Plot", parent, PLOT_TYPE, PLOT_GUI );
+    public HistogramPlotWindow( Component parent,
+                                TypedListModel<TopcatModel> tablesModel ) {
+        super( "Histogram Plot", parent, PLOT_TYPE, PLOT_GUI, tablesModel );
 
         /* This window currently works with a single plot zone, with index zero.
          * At least, the histogram-specific behaviour applies only
@@ -105,7 +108,7 @@ public class HistogramPlotWindow
                 importAct.setEnabled( hasData );
                 saveAct.setEnabled( hasData );
             }
-        } );
+        }, false );
         getToolBar().add( importAct );
         JMenu exportMenu = getExportMenu();
         exportMenu.addSeparator();
@@ -161,6 +164,7 @@ public class HistogramPlotWindow
      * @return   table representing the current histogram
      */
     private StarTable getBinDataTable( int iz ) {
+        Unit unit = Unit.UNIT;
         PlotPanel plotPanel = getPlotPanel();
         if ( iz >= plotPanel.getZoneCount() ) {
             return null;
@@ -251,6 +255,7 @@ public class HistogramPlotWindow
             GuiDataSpec dataSpec = (GuiDataSpec) layer.getDataSpec();
             boolean isCumulative = style.isCumulative();
             Normalisation norm = style.getNormalisation();
+            Combiner combiner = style.getCombiner();
             int icWeight = plotter.getWeightCoordIndex();
             boolean hasWeight =
                 icWeight >= 0 && ! dataSpec.isCoordBlank( icWeight );
@@ -274,7 +279,8 @@ public class HistogramPlotWindow
                     .append( "_" );
             }
             if ( hasWeight ) {
-                nbuf.append( "SUM_" )
+                nbuf.append( combiner.getName() )
+                    .append( "_" )
                     .append( weightName );
             }
             else {
@@ -290,7 +296,12 @@ public class HistogramPlotWindow
             if ( isCumulative ) {
                 descripWords.add( "cumulative" );
             }
-            descripWords.add( "count" );
+            if ( hasWeight ) {
+                descripWords.add( combiner.getName().toLowerCase() );
+            }
+            else {
+                descripWords.add( "count" );
+            }
             StringBuffer dbuf = new StringBuffer();
             for ( String word : descripWords ) {
                 dbuf.append( word )
@@ -316,7 +327,7 @@ public class HistogramPlotWindow
             final Number[] data = new Number[ nrow ];
             final Class clazz = isInt ? Integer.class : Double.class;
             for ( Iterator<BinBag.Bin> binIt =
-                      binBag.binIterator( isCumulative, norm );
+                      binBag.binIterator( isCumulative, norm, unit );
                   binIt.hasNext(); ) {
                 BinBag.Bin bin = binIt.next();
                 Double xmin = new Double( bin.getXMin() );
@@ -443,34 +454,21 @@ public class HistogramPlotWindow
     }
 
     /**
-     * Variant of PlanePlotType for histograms; has a different set of plotters.
+     * Assembles the list of plotters to be available in the histogram window.
+     *
+     * @return  histogram plotter list
      */
-    private static class HistogramPlotType implements PlotType {
-        private final PaperTypeSelector ptSelector_ =
-            PlanePlotType.getInstance().getPaperTypeSelector();
-        private final SurfaceFactory surfFact_ = new PlaneSurfaceFactory();
-        public PaperTypeSelector getPaperTypeSelector() {
-            return ptSelector_;
-        }
-        public DataGeom[] getPointDataGeoms() {
-            return new DataGeom[] { PlaneDataGeom.INSTANCE };
-        }
-        public SurfaceFactory getSurfaceFactory() {
-            return surfFact_;
-        }
-        public Plotter[] getPlotters() {
-            ConfigKey<Normalisation> normKey = StyleKeys.NORMALISE;
-            return new Plotter[] {
-                new HistogramPlotter( PlaneDataGeom.X_COORD, true, normKey ),
-                new FixedKernelDensityPlotter( PlaneDataGeom.X_COORD, true,
-                                               normKey ),
-                new KnnKernelDensityPlotter( PlaneDataGeom.X_COORD, true,
-                                             normKey ),
-                new DensogramPlotter( PlaneDataGeom.X_COORD, true ),
-                new Stats1Plotter( PlaneDataGeom.X_COORD, true, normKey ),
-                FunctionPlotter.PLANE,
-            };
-        }
+    private static Plotter[] createHistogramPlotters() {
+        FloatingCoord xCoord = PlaneDataGeom.X_COORD;
+        ConfigKey<Unit> unitKey = null;
+        return new Plotter[] {
+            new HistogramPlotter( xCoord, true, null ),
+            new FixedKernelDensityPlotter( xCoord, true, null ),
+            new KnnKernelDensityPlotter( xCoord, true, null ),
+            new DensogramPlotter( xCoord, true ),
+            new Stats1Plotter( xCoord, true, null ),
+            FunctionPlotter.PLANE,
+        };
     }
 
     /**
@@ -484,7 +482,8 @@ public class HistogramPlotWindow
         }
         public PositionCoordPanel createPositionCoordPanel( int npos ) {
             return SimplePositionCoordPanel
-                  .createPanel( PLOT_TYPE.getPointDataGeoms()[ 0 ], npos );
+                  .createPanel( PLOT_TYPE.getPointDataGeoms()[ 0 ], npos,
+                                null );
         }
         public GangerFactory getGangerFactory() {
             return SingleGanger.FACTORY;
@@ -492,8 +491,17 @@ public class HistogramPlotWindow
         public ZoneFactory createZoneFactory() {
             return ZoneFactories.FIXED;
         }
+        public CartesianRanger getCartesianRanger() {
+            return null;
+        }
         public boolean hasPositions() {
             return false;
+        }
+        public boolean isPlanar() {
+            return true;
+        }
+        public FigureMode[] getFigureModes() {
+            return new FigureMode[ 0 ];
         }
         public String getNavigatorHelpId() {
             return "histogramNavigation";

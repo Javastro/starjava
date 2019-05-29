@@ -21,7 +21,7 @@ import java.util.TreeMap;
  */
 public abstract class AbstractStarTable implements StarTable {
 
-    private List parameters_ = new ArrayList();
+    private List<DescribedValue> parameters_ = new ArrayList<DescribedValue>();
     private String name_;
     private URL url_;
 
@@ -36,37 +36,36 @@ public abstract class AbstractStarTable implements StarTable {
      * @return  a list of all the auxiliary metadata <tt>ValueInfo</tt> items
      *          which in fact crop up in column metadata
      */
-    public List getColumnAuxDataInfos() {
-        Map auxMap = new TreeMap();  // order alphabetically
+    public List<ValueInfo> getColumnAuxDataInfos() {
+        Map<String,ValueInfo> auxMap = new TreeMap<String,ValueInfo>();
         for ( int i = 0; i < getColumnCount(); i++ ) {
-           for ( Iterator it = getColumnInfo( i ).getAuxData().iterator();
-                 it.hasNext(); ) {
+            for ( DescribedValue dval : getColumnInfo( i ).getAuxData() ) {
 
-               /* Construct a ValueInfo based on this DescribedValue. */
-               DescribedValue dval = (DescribedValue) it.next();
-               ValueInfo info = dval.getInfo();
-               String name = info.getName();
+                /* Construct a ValueInfo based on this DescribedValue. */
+                ValueInfo info = dval.getInfo();
+                String name = info.getName();
 
-               /* We already have one by this name, if necessary generalise
-                * the stored ValueInfo so that it is consistent with this 
-                * one too. */
-               if ( auxMap.containsKey( name ) ) {
-                   ValueInfo oldInfo = (ValueInfo) auxMap.get( name );
-                   auxMap.put( name, 
-                               DefaultValueInfo.generalise( oldInfo, info ) );
-               }
+                /* We already have one by this name, if necessary generalise
+                 * the stored ValueInfo so that it is consistent with this 
+                 * one too. */
+                if ( auxMap.containsKey( name ) ) {
+                    ValueInfo oldInfo = auxMap.get( name );
+                    auxMap.put( name, 
+                                DefaultValueInfo.generalise( oldInfo, info ) );
+                }
 
-               /* Not encountered one with this name before, put it 
-                * straight in the pool. */
-               else {
-                   auxMap.put( name, info );
-               }
-           }
+                /* Not encountered one with this name before, put it 
+                 * straight in the pool. */
+                else {
+                    auxMap.put( name, info );
+                }
+            }
         }
-        return Collections.unmodifiableList( new ArrayList( auxMap.values() ) );
+        return Collections
+              .unmodifiableList( new ArrayList<ValueInfo>( auxMap.values() ) );
     }
 
-    public List getParameters() {
+    public List<DescribedValue> getParameters() {
         return parameters_;
     }
 
@@ -78,13 +77,13 @@ public abstract class AbstractStarTable implements StarTable {
      * @param  parameters   a List of <tt>DescribedValue</tt>s pertaining
      *         to this table
      */
-    public void setParameters( List parameters ) {
+    public void setParameters( List<DescribedValue> parameters ) {
         parameters_ = parameters;
     }
 
     public void setParameter( DescribedValue dval ) {
         DescribedValue old = getParameterByName( dval.getInfo().getName() );
-        List parameters = getParameters();
+        List<DescribedValue> parameters = getParameters();
         if ( old != null ) {
             parameters.remove( old );
         }
@@ -118,13 +117,9 @@ public abstract class AbstractStarTable implements StarTable {
     }
 
     public DescribedValue getParameterByName( String parname ) {
-        for ( Iterator it = getParameters().iterator(); it.hasNext(); ) {
-            Object item = it.next();
-            if ( item instanceof DescribedValue ) {
-                DescribedValue dval = (DescribedValue) item;
-                if ( parname.equals( dval.getInfo().getName() ) ) {
-                    return dval;
-                }
+        for ( DescribedValue dval : getParameters() ) {
+            if ( parname.equals( dval.getInfo().getName() ) ) {
+                return dval;
             }
         }
         return null;

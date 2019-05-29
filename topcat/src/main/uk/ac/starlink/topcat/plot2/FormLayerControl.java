@@ -16,10 +16,10 @@ import javax.swing.Box;
 import javax.swing.DefaultListModel;
 import javax.swing.Icon;
 import javax.swing.JComponent;
+import javax.swing.JLabel;
 import javax.swing.ListModel;
 import javax.swing.event.ListDataEvent;
 import javax.swing.event.ListDataListener;
-import uk.ac.starlink.topcat.LineBox;
 import uk.ac.starlink.ttools.plot.Style;
 import uk.ac.starlink.ttools.plot2.DataGeom;
 import uk.ac.starlink.ttools.plot2.LegendEntry;
@@ -31,12 +31,13 @@ import uk.ac.starlink.ttools.plot2.config.ConfigMap;
 import uk.ac.starlink.ttools.plot2.config.Specifier;
 import uk.ac.starlink.ttools.plot2.config.StyleKeys;
 import uk.ac.starlink.ttools.plot2.data.DataSpec;
+import uk.ac.starlink.topcat.AlignedBox;
 import uk.ac.starlink.topcat.RowSubset;
 import uk.ac.starlink.topcat.TablesListComboBox;
 import uk.ac.starlink.topcat.TopcatEvent;
 import uk.ac.starlink.topcat.TopcatListener;
 import uk.ac.starlink.topcat.TopcatModel;
-import uk.ac.starlink.util.gui.ShrinkWrapper;
+import uk.ac.starlink.topcat.TypedListModel;
 
 /**
  * Plot layer control which manages coordinates and subsets in a common way
@@ -66,6 +67,7 @@ public abstract class FormLayerControl
      *
      * @param  posCoordPanel  panel for entering table and basic positional
      *                        coordinates
+     * @param  tablesModel   list of available tables
      * @param  zsel    zone id specifier, may be null for single-zone plots
      * @param  autoPopulate  if true, when the table is changed an attempt
      *                       will be made to initialise the coordinate fields
@@ -77,6 +79,7 @@ public abstract class FormLayerControl
      * @param  controlIcon  icon for control stack
      */
     protected FormLayerControl( PositionCoordPanel posCoordPanel,
+                                TypedListModel<TopcatModel> tablesModel,
                                 Specifier<ZoneId> zsel, boolean autoPopulate,
                                 NextSupplier nextSupplier,
                                 TopcatListener tcListener, Icon controlIcon ) {
@@ -87,7 +90,7 @@ public abstract class FormLayerControl
         final TopcatListener externalTcListener = tcListener;
 
         /* Set up a selector for which table to plot. */
-        tableSelector_ = new TablesListComboBox();
+        tableSelector_ = new TablesListComboBox( tablesModel, 250 );
 
         /* Ensure listeners are notified when the table selection changes,
          * or when anything else about this control changes. */
@@ -102,10 +105,14 @@ public abstract class FormLayerControl
         } );
 
         /* Set up the panel for selecting the table and position coordinates. */
-        JComponent posbox = Box.createVerticalBox();
-        posbox.add( new LineBox( "Table", new ShrinkWrapper( tableSelector_ ),
-                                 true ) );
-        posbox.add( posCoordPanel_.getComponent() );
+        JComponent posbox = AlignedBox.createVerticalBox();
+        JComponent tline = Box.createHorizontalBox();
+        tline.add( new JLabel( "Table: " ) );
+        tline.add( tableSelector_ );
+        JComponent coordComp = posCoordPanel_.getComponent();
+        posbox.add( tline );
+        posbox.add( Box.createVerticalStrut( 5 ) );
+        posbox.add( coordComp );
 
         /* Set up a manager for per-subset configuration. */
         subsetManager_ =
@@ -185,17 +192,19 @@ public abstract class FormLayerControl
      */
     protected abstract boolean isControlActive( FormControl fc );
 
-    public PlotLayer[] getPlotLayers() {
+    public TopcatLayer[] getLayers() {
         RowSubset[] subsets = subStack_.getSelectedSubsets();
         GuiCoordContent[] posContents = posCoordPanel_.getContents();
         if ( tcModel_ == null || posContents == null || subsets == null ) {
-            return new PlotLayer[ 0 ];
+            return new TopcatLayer[ 0 ];
         }
         DataGeom geom = posCoordPanel_.getDataGeom();
+        ConfigMap coordConfig = posCoordPanel_.getConfig();
         FormControl[] fcs = getActiveFormControls();
-        List<PlotLayer> layerList = new ArrayList<PlotLayer>();
+        List<TopcatLayer> layerList = new ArrayList<TopcatLayer>();
         for ( int is = 0; is < subsets.length; is++ ) {
             RowSubset subset = subsets[ is ];
+            String leglabel = getLegendLabel( subset );
             for ( int ifc = 0; ifc < fcs.length; ifc++ ) {
                 FormControl fc = fcs[ ifc ];
                 GuiCoordContent[] extraContents = fc.getExtraCoordContents();
@@ -204,14 +213,21 @@ public abstract class FormLayerControl
                         PlotUtil.arrayConcat( posContents, extraContents );
                     DataSpec dspec =
                         new GuiDataSpec( tcModel_, subset, contents );
-                    PlotLayer layer = fc.createLayer( geom, dspec, subset );
-                    if ( layer != null ) {
+                    PlotLayer plotLayer = fc.createLayer( geom, dspec, subset );
+                    if ( plotLayer != null ) {
+                        ConfigMap config = new ConfigMap();
+                        config.putAll( coordConfig );
+                        config.putAll( fc.getExtraConfig() );
+                        config.putAll( fc.getStylePanel().getConfig( subset ) );
+                        TopcatLayer layer =
+                            new TopcatLayer( plotLayer, config, leglabel,
+                                             tcModel_, contents, subset );
                         layerList.add( layer );
                     }
                 }
             }
         }
-        return layerList.toArray( new PlotLayer[ 0 ] );
+        return layerList.toArray( new TopcatLayer[ 0 ] );
     }
 
     public LegendEntry[] getLegendEntries() {
@@ -219,18 +235,12 @@ public abstract class FormLayerControl
             return new LegendEntry[ 0 ];
         }
         Map<RowSubset,List<Style>> rsetStyles =
-            getStylesBySubset( getPlotLayers() );
+            getStylesBySubset( getLayers() );
         List<LegendEntry> entries = new ArrayList<LegendEntry>();
         for ( RowSubset rset : rsetStyles.keySet() ) {
             Style[] styles = rsetStyles.get( rset ).toArray( new Style[ 0 ] );
-            ConfigMap config =
-                subsetManager_.getConfigger( rset ).getConfig();
-            boolean show = config.get( StyleKeys.SHOW_LABEL );
-            if ( show ) {
-                String label = config.get( StyleKeys.LABEL );
-                if ( label == null || label.trim().length() == 0 ) {
-                    label = tcModel_.getID() + ": " + rset.getName();
-                }
+            String label = getLegendLabel( rset );
+            if ( label != null ) {
                 LegendEntry entry = new LegendEntry( label, styles );
                 assert entry.equals( new LegendEntry( label, styles ) );
                 entries.add( entry );
@@ -239,8 +249,37 @@ public abstract class FormLayerControl
         return entries.toArray( new LegendEntry[ 0 ] );
     }
 
+    /**
+     * Returns the label to use in the legend for a given row subset
+     * controlled by this control.  Null means the item should not appear
+     * in the legend.
+     *
+     * @param  rset  row subset
+     * @return  legend label, or null if absent from legend
+     */
+    private String getLegendLabel( RowSubset rset ) {
+        if ( rset == null ) {
+            return null;
+        }
+        ConfigMap config = subsetManager_.getConfigger( rset ).getConfig();
+        boolean show = config.get( StyleKeys.SHOW_LABEL );
+        if ( show ) {
+            String label = config.get( StyleKeys.LABEL );
+            return label == null || label.trim().length() == 0
+                 ? tcModel_.getID() + ": " + rset.getName()
+                 : label;
+        }
+        else {
+            return null;
+        }
+    }
+
     public Specifier<ZoneId> getZoneSpecifier() {
         return zsel_;
+    }
+
+    public TablesListComboBox getTableSelector() {
+        return tableSelector_;
     }
 
     public void submitReports( Map<LayerId,ReportMap> reports ) {
@@ -322,15 +361,15 @@ public abstract class FormLayerControl
      * Returns all those style objects associated with a given RowSubset
      * for a given list of plot layers.
      *
-     * @param    layers  plot layers
+     * @param    tcLayers   layers
      * @return   ordered RowSubset->Styles map
      */
     private static Map<RowSubset,List<Style>>
-                   getStylesBySubset( PlotLayer[] layers ) {
+                   getStylesBySubset( TopcatLayer[] tcLayers ) {
         Map<RowSubset,List<Style>> map =
             new LinkedHashMap<RowSubset,List<Style>>();
-        for ( int il = 0; il < layers.length; il++ ) {
-            PlotLayer layer = layers[ il ];
+        for ( TopcatLayer tcLayer : tcLayers ) {
+            PlotLayer layer = tcLayer.getPlotLayer();
             DataSpec dspec = layer.getDataSpec();
             if ( dspec != null ) {
                 Object mask = dspec.getMaskId();
@@ -439,8 +478,7 @@ public abstract class FormLayerControl
             /* Work out if there are any subsets in the new table with
              * names matching those selected in the old table. */
             List<RowSubset> newSubsets = new ArrayList<RowSubset>();
-            for ( Object rs : tcModel_.getSubsets() ) {
-                RowSubset rset = (RowSubset) rs;
+            for ( RowSubset rset : tcModel_.getSubsets() ) {
                 if ( oldSelectedSubsetNames.contains( rset.getName() ) ) {
                     newSubsets.add( rset );
                 }
@@ -467,8 +505,7 @@ public abstract class FormLayerControl
                                    subsetManager_.getConfigger( rset ) );
                 }
             }
-            for ( Object rs : tcModel_.getSubsets() ) {
-                RowSubset rset = (RowSubset) rs;
+            for ( RowSubset rset : tcModel_.getSubsets() ) {
                 Configger configger = subconMap.get( rset.getName() );
                 if ( configger != null ) {
                     subsetManager_.setConfig( rset, configger.getConfig() );

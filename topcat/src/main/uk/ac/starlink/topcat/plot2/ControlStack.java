@@ -10,6 +10,7 @@ import javax.swing.JComponent;
 import javax.swing.JLabel;
 import javax.swing.event.ListSelectionEvent;
 import javax.swing.event.ListSelectionListener;
+import uk.ac.starlink.topcat.CheckBoxList;
 import uk.ac.starlink.topcat.ResourceIcon;
 
 /**
@@ -81,7 +82,7 @@ public class ControlStack extends CheckBoxList<Control> {
      * @return   current control, or null
      */
     public Control getCurrentControl() {
-        return getTypedValue( getSelectedValue() );
+        return getSelectedValue();
     }
 
     /**

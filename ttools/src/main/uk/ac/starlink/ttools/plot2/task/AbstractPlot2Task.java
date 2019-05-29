@@ -73,6 +73,7 @@ import uk.ac.starlink.ttools.plot2.Plotter;
 import uk.ac.starlink.ttools.plot2.ShadeAxis;
 import uk.ac.starlink.ttools.plot2.ShadeAxisFactory;
 import uk.ac.starlink.ttools.plot2.SingleGanger;
+import uk.ac.starlink.ttools.plot2.Span;
 import uk.ac.starlink.ttools.plot2.SubCloud;
 import uk.ac.starlink.ttools.plot2.Surface;
 import uk.ac.starlink.ttools.plot2.SurfaceFactory;
@@ -104,6 +105,7 @@ import uk.ac.starlink.ttools.task.ConsumerTask;
 import uk.ac.starlink.ttools.task.DoubleArrayParameter;
 import uk.ac.starlink.ttools.task.DynamicTask;
 import uk.ac.starlink.ttools.task.FilterParameter;
+import uk.ac.starlink.ttools.task.InputFormatParameter;
 import uk.ac.starlink.ttools.task.InputTableParameter;
 import uk.ac.starlink.ttools.task.StringMultiParameter;
 import uk.ac.starlink.ttools.task.TableProducer;
@@ -312,7 +314,8 @@ public abstract class AbstractPlot2Task implements Task, DynamicTask {
             "If multiple layers have the same label,",
             "they will contribute to the same entry in the legend,",
             "with style icons plotted over each other.",
-            "The value of this parameter is a sequence of layer suffixes,",
+            "The value of this parameter is a comma-separated sequence",
+            "of layer suffixes,",
             "which determines the order in which the legend entries appear.",
             "Layers with suffixes missing from this list",
             "do not show up in the legend at all.",
@@ -525,9 +528,7 @@ public abstract class AbstractPlot2Task implements Task, DynamicTask {
                      * the fixed icon here. */
                     else {
                         Icon plot = executor.createPlotIcon( dataStore );
-                        long start = System.currentTimeMillis();
                         painter.paintPicture( PlotUtil.toPicture( plot ) );
-                        PlotUtil.logTime( logger_, "Plot", start );
                     }
                 }
             };
@@ -611,6 +612,84 @@ public abstract class AbstractPlot2Task implements Task, DynamicTask {
     }
 
     /**
+     * Returns the parameter for assigning the external horizontal
+     * extent of the plot.
+     *
+     * @return  xpix parameter
+     */
+    public Parameter<Integer> getXpixParameter() {
+        return xpixParam_;
+    }
+
+    /**
+     * Returns the parameter for assigning the external vertical
+     * extent of the plot.
+     *
+     * @return  ypix parameter
+     */
+    public Parameter<Integer> getYpixParameter() {
+        return ypixParam_;
+    }
+
+    /**
+     * Returns the parameter for determining the sequence of layers
+     * appearing in the plot.
+     *
+     * @return  sequence parameter
+     */
+    public Parameter<String[]> getSequenceParameter() {
+        return seqParam_;
+    }
+
+    /**
+     * Returns the parameter for indicating whether the legend will be visible.
+     *
+     * @return  legend visible parameter
+     */
+    public Parameter<Boolean> getLegendParameter() {
+        return legendParam_;
+    }
+
+    /**
+     * Returns the parameter for indicating whether the legend border will
+     * be visible.
+     *
+     * @return  legend border parameter
+     */
+    public Parameter<Boolean> getLegendBorderParameter() {
+        return legborderParam_;
+    }
+
+    /**
+     * Returns the parameter for indicating whether the legend background
+     * will be opaque.
+     *
+     * @return  legend opaque parameter
+     */
+    public Parameter<Boolean> getLegendOpaqueParameter() {
+        return legopaqueParam_;
+    }
+
+    /**
+     * Returns the parameter for determining the sequence and inclusion
+     * of layers in the legend.
+     *
+     * @return  legend sequence parameter
+     */
+    public Parameter<String[]> getLegendSequenceParameter() {
+        return legseqParam_;
+    }
+
+    /**
+     * Returns the parameter for assigning the plot external padding.
+     *
+     * @return  padding parameter
+     */
+    public Parameter<Padding> getPaddingParameter() {
+        return paddingParam_;
+    }
+
+    /**
      * Paints a sequence of animation frames under control of a parameter
      * table, outputting the result to a sequence of files.
      *
@@ -651,7 +730,8 @@ public abstract class AbstractPlot2Task implements Task, DynamicTask {
                         long start = System.currentTimeMillis();
                         Icon plot = executor.createPlotIcon( dstore );
                         painter.paintPicture( PlotUtil.toPicture( plot ) );
-                        PlotUtil.logTime( logger_, "Plot " + outName, start );
+                        PlotUtil.logTimeFromStart( logger_, "Plot " + outName,
+                                                   start );
                         return null;
                     }
                 } );
@@ -783,7 +863,7 @@ public abstract class AbstractPlot2Task implements Task, DynamicTask {
                 numpos = baseOut.length() - 1;
             }
             StringBuffer frameOut = new StringBuffer( baseOut );
-            int ndigit = nrow > 0 ? (int) Math.ceil( Math.log10( nrow ) )
+            int ndigit = nrow > 0 ? (int) Math.ceil( Math.log10( nrow + 1 ) )
                                   : 3;
             String snum = "-" + Strings.padWithZeros( irow + 1, ndigit );
             frameOut.insert( numpos, snum );
@@ -1145,7 +1225,7 @@ public abstract class AbstractPlot2Task implements Task, DynamicTask {
         final Object[] profiles = PlotUtil.createProfileArray( surfFact, nz );
         final ConfigMap[] aspectConfigs = new ConfigMap[ nz ];
         final ShadeAxisFactory[] shadeFacts = new ShadeAxisFactory[ nz ];
-        final Range[] shadeFixRanges = new Range[ nz ];
+        final Span[] shadeFixSpans = new Span[ nz ];
         for ( int iz = 0; iz < nz; iz++ ) {
             String zoneSuffix = zoneSuffixes[ iz ];
 
@@ -1181,9 +1261,10 @@ public abstract class AbstractPlot2Task implements Task, DynamicTask {
             /* Prepare to specify the shade axis for the current zone. */
             ConfigMap shadeConfig =
                 createZoneSuffixedConfigMap( env, shadeKeys, zoneSuffix );
-            Range shadeFixRange =
-                new Range( shadeConfig.get( StyleKeys.SHADE_LOW ),
-                           shadeConfig.get( StyleKeys.SHADE_HIGH ) );
+            Span shadeFixSpan =
+                PlotUtil
+               .createSpan( shadeConfig.get( StyleKeys.SHADE_LOW ),
+                            shadeConfig.get( StyleKeys.SHADE_HIGH ) );
             ShadeAxisFactory shadeFact =
                 createShadeAxisFactory( env, zoneLayers, zoneSuffix );
 
@@ -1215,7 +1296,7 @@ public abstract class AbstractPlot2Task implements Task, DynamicTask {
             profiles[ iz ] = profile;
             aspectConfigs[ iz ] = aspectConfig;
             shadeFacts[ iz ] = shadeFact;
-            shadeFixRanges[ iz ] = shadeFixRange;
+            shadeFixSpans[ iz ] = shadeFixSpan;
         }
 
         /* We have all we need.  Construct and return the object
@@ -1227,7 +1308,7 @@ public abstract class AbstractPlot2Task implements Task, DynamicTask {
                 long t0 = System.currentTimeMillis();
                 DataStore store =
                     storeFact.readDataStore( dataSpecs, prevStore );
-                PlotUtil.logTime( logger_, "Data", t0 );
+                PlotUtil.logTimeFromStart( logger_, "Data", t0 );
                 return store;
             }
 
@@ -1241,7 +1322,7 @@ public abstract class AbstractPlot2Task implements Task, DynamicTask {
                     PlotDisplay
                    .createGangDisplay( ganger, surfFact, nz, contents,
                                        profiles, aspectConfigs,
-                                       shadeFacts, shadeFixRanges, navigator,
+                                       shadeFacts, shadeFixSpans, navigator,
                                        ptSel, compositor, dataStore, caching );
                 panel.setPreferredSize( new Dimension( xpix, ypix ) );
                 return panel;
@@ -1265,7 +1346,7 @@ public abstract class AbstractPlot2Task implements Task, DynamicTask {
                 return AbstractPlot2Task
                       .createPlotIcon( ganger, surfFact,
                                        nz, contents, profiles, aspects,
-                                       shadeFacts, shadeFixRanges,
+                                       shadeFacts, shadeFixSpans,
                                        ptSel, compositor, dataStore,
                                        xpix, ypix, forceBitmap );
             }
@@ -1323,7 +1404,15 @@ public abstract class AbstractPlot2Task implements Task, DynamicTask {
         for ( int il = 0; il < nl; il++ ) {
             String suffix = suffixSeq[ il ];
             PlotLayer layer = layerMap.get( suffix );
-            if ( layer == null ) {
+            if ( layer != null ) {
+                layers[ il ] = layerMap.get( suffix );
+            }
+            else if ( layerMap.containsKey( suffix ) ) {
+                String msg = "No plot produced for layer \"" + suffix + "\""
+                           + " (underspecified?)";
+                throw new ExecutionException( msg );
+            }
+            else {
                 String msg = new StringBuffer()
                     .append( "No specification for layer \"" )
                     .append( suffix )
@@ -1332,9 +1421,6 @@ public abstract class AbstractPlot2Task implements Task, DynamicTask {
                     .append( layerMap.keySet() )
                     .toString();
                 throw new ParameterValueException( seqParam_, msg );
-            }
-            else {
-                layers[ il ] = layer;
             }
         }
         return layers;
@@ -1622,7 +1708,8 @@ public abstract class AbstractPlot2Task implements Task, DynamicTask {
             }
         }.getParameter( env, zoneSuffix );
         if ( scaleLayer != null ) {
-            auxlabelParam.setStringDefault( getAuxLabel( scaleLayer, scale ) );
+            auxlabelParam
+           .setStringDefault( PlotUtil.getScaleAxisLabel( layers, scale ) );
         }
         String label = auxlabelParam.objectValue( env );
 
@@ -1717,6 +1804,7 @@ public abstract class AbstractPlot2Task implements Task, DynamicTask {
         S style;
         try {
             style = splotter.createStyle( config );
+            assert style.equals( splotter.createStyle( config ) );
         }
         catch ( ConfigException e ) {
             throw new UsageException( e.getConfigKey().getMeta().getShortName()
@@ -1958,15 +2046,45 @@ public abstract class AbstractPlot2Task implements Task, DynamicTask {
      */
     private StarTable getInputTable( Environment env, String suffix )
             throws TaskException {
-        FilterParameter filterParam = new ParameterFinder<FilterParameter>() {
-            public FilterParameter createParameter( String sfix ) {
-                return createFilterParameter( sfix, null );
+
+        /* Get the basic input table from an InputTableParameter,
+         * which navigates suffixes in the usual way.
+         * But this has to be doctored so that its associated parameters
+         * (stream and format), that are used internally, also do
+         * suffix navigation. */
+        final InputFormatParameter fmtParam =
+                new ParameterFinder<InputFormatParameter>() {
+            public InputFormatParameter createParameter( String sfix ) {
+                return createTableParameter( sfix ).getFormatParameter();
+            }
+        }.getParameter( env, suffix );
+        final BooleanParameter streamParam =
+                new ParameterFinder<BooleanParameter>() {
+            public BooleanParameter createParameter( String sfix ) {
+                return createTableParameter( sfix ).getStreamParameter();
             }
         }.getParameter( env, suffix );
         InputTableParameter tableParam =
                 new ParameterFinder<InputTableParameter>() {
             public InputTableParameter createParameter( String sfix ) {
-                return createTableParameter( sfix );
+                return new InputTableParameter( createTableParameter( sfix )
+                                               .getName() ) {
+                    @Override
+                    public InputFormatParameter getFormatParameter() {
+                        return fmtParam;
+                    }
+                    @Override
+                    public BooleanParameter getStreamParameter() {
+                        return streamParam;
+                    }
+                };
+            }
+        }.getParameter( env, suffix );
+
+        /* Get the filter parameter. */
+        FilterParameter filterParam = new ParameterFinder<FilterParameter>() {
+            public FilterParameter createParameter( String sfix ) {
+                return createFilterParameter( sfix, null );
             }
         }.getParameter( env, suffix );
 
@@ -2046,7 +2164,7 @@ public abstract class AbstractPlot2Task implements Task, DynamicTask {
      * @param  suffix  zone suffix, or either null or empty string for all zones
      * @return  parameter to get plot title for zone
      */
-    private Parameter<String> createTitleParameter( String suffix ) {
+    public Parameter<String> createTitleParameter( String suffix ) {
         if ( "".equals( suffix ) ) {
             suffix = null;
         }
@@ -2073,7 +2191,7 @@ public abstract class AbstractPlot2Task implements Task, DynamicTask {
      * @param   suffix  zone suffix
      * @return   parameter
      */
-    private StringParameter createAuxLabelParameter( String suffix ) {
+    public StringParameter createAuxLabelParameter( String suffix ) {
         if ( "".equals( suffix ) ) {
             suffix = null;
         }
@@ -2103,7 +2221,7 @@ public abstract class AbstractPlot2Task implements Task, DynamicTask {
      * @param  suffix  zone suffix
      * @return   parameter
      */
-    private BooleanParameter createAuxVisibleParameter( String suffix ) {
+    public BooleanParameter createAuxVisibleParameter( String suffix ) {
         if ( "".equals( suffix ) ) {
             suffix = null;
         }
@@ -2136,7 +2254,7 @@ public abstract class AbstractPlot2Task implements Task, DynamicTask {
      * @param  suffix  zone suffix
      * @return   parameter
      */
-    private DoubleParameter createAuxCrowdParameter( String suffix ) {
+    public DoubleParameter createAuxCrowdParameter( String suffix ) {
         if ( "".equals( suffix ) ) {
             suffix = null;
         }
@@ -2173,7 +2291,7 @@ public abstract class AbstractPlot2Task implements Task, DynamicTask {
      * @param  suffix  zone suffix
      * @return  parameter
      */
-    private IntegerParameter createAuxWidthParameter( String suffix ) {
+    public IntegerParameter createAuxWidthParameter( String suffix ) {
         if ( "".equals( suffix ) ) {
             suffix = null;
         }
@@ -2200,8 +2318,7 @@ public abstract class AbstractPlot2Task implements Task, DynamicTask {
      * @param  suffix  zone suffix, or either null or empty string for all zones
      * @return   parameter to get legend position for zone
      */
-    private DoubleArrayParameter
-            createLegendPositionParameter( String suffix ) {
+    public DoubleArrayParameter createLegendPositionParameter( String suffix ) {
         if ( "".equals( suffix ) ) {
             suffix = null;
         }
@@ -2328,20 +2445,24 @@ public abstract class AbstractPlot2Task implements Task, DynamicTask {
         final String typeTxt;
         final String typeUsage;
         if ( cClazz.equals( String.class ) ) {
-            typeTxt = "string";
+            typeTxt = "a string";
             typeUsage = "txt";
         }
         else if ( cClazz.equals( Integer.class ) ||
                   cClazz.equals( Long.class ) ) {
-            typeTxt = "integer";
+            typeTxt = "an integer";
             typeUsage = "int";
         }
         else if ( Number.class.isAssignableFrom( cClazz ) ) {
-            typeTxt = "numeric";
+            typeTxt = "a numeric";
             typeUsage = "num";
         }
+        else if ( Object.class.equals( cClazz ) ) {
+            typeTxt = "an";
+            typeUsage = null;
+        }
         else {
-            typeTxt = "<code>" + cClazz.getSimpleName() + "</code>";
+            typeTxt = "a <code>" + cClazz.getSimpleName() + "</code>";
             typeUsage = null;
         }
         StringParameter param = new StringParameter( cName + suffix );
@@ -2370,7 +2491,7 @@ public abstract class AbstractPlot2Task implements Task, DynamicTask {
             }
             dbuf.append( ".\n" );
         }
-        dbuf.append( "The value is a " )
+        dbuf.append( "The value is " )
             .append( typeTxt )
             .append( " algebraic expression based on column names\n" )
             .append( "as described in <ref id='jel'/>.\n" )
@@ -2390,7 +2511,7 @@ public abstract class AbstractPlot2Task implements Task, DynamicTask {
      *
      * @return   paint mode parameter
      */
-    private static PaintModeParameter createPaintModeParameter() {
+    public static PaintModeParameter createPaintModeParameter() {
         return new PaintModeParameter( "omode", EXPORTERS );
     }
 
@@ -2406,9 +2527,9 @@ public abstract class AbstractPlot2Task implements Task, DynamicTask {
      * @param  aspects    plot surface aspects by zone (nz-element array)
      * @param  shadeFacts   shader axis factories by zone (nz-element array),
      *                      elements may be null if not required
-     * @param  shadeFixRanges  fixed shader ranges by zone (nz-element array)
-     *                         elements may be null for auto-range or if no
-     *                         shade axis
+     * @param  shadeFixSpans  fixed shader ranges by zone (nz-element array)
+     *                        elements may be null for auto-range or if no
+     *                        shade axis
      * @param  ptSel    paper type selector
      * @param  compositor  compositor for pixel composition
      * @param  dataStore   data storage object
@@ -2424,7 +2545,7 @@ public abstract class AbstractPlot2Task implements Task, DynamicTask {
                             final int nz, final ZoneContent[] contents,
                             final P[] profiles, final A[] aspects,
                             ShadeAxisFactory[] shadeFacts,
-                            Range[] shadeFixRanges,
+                            Span[] shadeFixSpans,
                             final PaperTypeSelector ptSel,
                             final Compositor compositor,
                             final DataStore dataStore,
@@ -2447,8 +2568,8 @@ public abstract class AbstractPlot2Task implements Task, DynamicTask {
          * since it involves ranging, it's convenient to do it here
          * because we will need the aux ranges anyway. */
         final ShadeAxis[] shadeAxes = new ShadeAxis[ nz ];
-        final List<Map<AuxScale,Range>> auxRangeList =
-            new ArrayList<Map<AuxScale,Range>>();
+        final List<Map<AuxScale,Span>> auxSpanList =
+            new ArrayList<Map<AuxScale,Span>>();
         long start = System.currentTimeMillis();
         for ( int iz = 0; iz < nz; iz++ ) {
             ZoneContent content = contents[ iz ];
@@ -2457,17 +2578,17 @@ public abstract class AbstractPlot2Task implements Task, DynamicTask {
             Surface approxSurf =
                 surfFact.createSurface( approxGang.getZonePlotBounds( iz ),
                                         profiles[ iz ], aspects[ iz ] );
-            Map<AuxScale,Range> auxRanges =
-                PlotDisplay.getAuxRanges( content.getLayers(), approxSurf,
-                                          shadeFixRanges[ iz ], shadeFact,
-                                          planArray, dataStore );
-            auxRangeList.add( auxRanges );
-            Range shadeRange = auxRanges.get( AuxScale.COLOR );
-            if ( shadeFact != null && shadeRange != null ) {
-                shadeAxes[ iz ] = shadeFact.createShadeAxis( shadeRange );
+            Map<AuxScale,Span> auxSpans =
+                PlotDisplay.getAuxSpans( content.getLayers(), approxSurf,
+                                         shadeFixSpans[ iz ], shadeFact,
+                                         planArray, dataStore );
+            auxSpanList.add( auxSpans );
+            Span shadeSpan = auxSpans.get( AuxScale.COLOR );
+            if ( shadeFact != null && shadeSpan != null ) {
+                shadeAxes[ iz ] = shadeFact.createShadeAxis( shadeSpan );
             }
         }
-        PlotUtil.logTime( logger_, "Range", start );
+        PlotUtil.logTimeFromStart( logger_, "Range", start );
 
         /* Work out plot bounds. */
         final Gang gang =
@@ -2485,6 +2606,8 @@ public abstract class AbstractPlot2Task implements Task, DynamicTask {
             public void paintIcon( Component c, Graphics g, int x, int y ) {
                 g.translate( x, y );
                 Shape clip = g.getClip();
+                long planMillis = 0;
+                long paintMillis = 0;
                 for ( int iz = 0; iz < nz; iz++ ) {
                     ZoneContent content = contents[ iz ];
                     PlotLayer[] layers = content.getLayers();
@@ -2508,12 +2631,18 @@ public abstract class AbstractPlot2Task implements Task, DynamicTask {
                          ! clip.intersects( surface.getPlotBounds() ) ) {
                         layers = new PlotLayer[ 0 ];
                     }
+                    long planStart = System.currentTimeMillis();
                     Icon zicon =
                         PlotUtil
-                       .createPlotIcon( placer, layers, auxRangeList.get( iz ),
+                       .createPlotIcon( placer, layers, auxSpanList.get( iz ),
                                         dataStore, paperType, cached, planSet );
+                    planMillis += System.currentTimeMillis() - planStart;
+                    long paintStart = System.currentTimeMillis();
                     zicon.paintIcon( c, g, 0, 0 );
+                    paintMillis += System.currentTimeMillis() - paintStart;
                 }
+                PlotUtil.logTimeElapsed( logger_, "Plan", planMillis );
+                PlotUtil.logTimeElapsed( logger_, "Paint", paintMillis );
                 g.translate( -x, -y );
             }
         };
@@ -2552,35 +2681,6 @@ public abstract class AbstractPlot2Task implements Task, DynamicTask {
         for ( PlotLayer layer : layers ) {
             if ( layer.getAuxRangers().containsKey( scale ) ) {
                 return layer;
-            }
-        }
-        return null;
-    }
-
-    /**
-     * Tries to return the name of an input data quantity used in plotting
-     * a given layer that corresponds to a given AuxScale.
-     *
-     * @param   layer   plot layer
-     * @param   scale   scale
-     * @return  user-readable name for data corresponding to
-     *          <code>scale</code> in <code>layer</code>,
-     *          or null if there's no obvious answer
-     */
-    private static String getAuxLabel( PlotLayer layer, AuxScale scale ) {
-        AuxReader rdr = layer.getAuxRangers().get( scale );
-        if ( rdr != null ) {
-            int icAux = rdr.getCoordIndex();
-            if ( icAux >= 0 ) {
-                DataSpec dataSpec = layer.getDataSpec();
-                assert dataSpec == null || dataSpec instanceof JELDataSpec;
-                if ( dataSpec instanceof JELDataSpec ) {
-                    String[] exprs =
-                        ((JELDataSpec) dataSpec).getCoordExpressions( icAux );
-                    if ( exprs.length == 1 ) {
-                        return exprs[ 0 ];
-                    }
-                }
             }
         }
         return null;

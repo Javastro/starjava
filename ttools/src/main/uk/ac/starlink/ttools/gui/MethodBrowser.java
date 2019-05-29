@@ -10,6 +10,7 @@ import java.awt.RenderingHints;
 import java.io.BufferedReader;
 import java.io.IOException;
 import java.io.InputStreamReader;
+import java.lang.reflect.AccessibleObject;
 import java.lang.reflect.Field;
 import java.lang.reflect.Member;
 import java.lang.reflect.Method;
@@ -36,11 +37,13 @@ import javax.swing.JTree;
 import javax.swing.event.TreeSelectionEvent;
 import javax.swing.event.TreeSelectionListener;
 import javax.swing.text.html.HTMLEditorKit;
+import javax.swing.text.html.StyleSheet;
 import javax.swing.tree.DefaultMutableTreeNode;
 import javax.swing.tree.DefaultTreeCellRenderer;
 import javax.swing.tree.DefaultTreeModel;
 import javax.swing.tree.TreePath;
 import javax.swing.tree.TreeSelectionModel;
+import uk.ac.starlink.ttools.build.HideDoc;
 import uk.ac.starlink.ttools.build.Heading;
 
 /**
@@ -155,7 +158,13 @@ public class MethodBrowser extends JPanel {
         docPane_.putClientProperty( JEditorPane.HONOR_DISPLAY_PROPERTIES,
                                     Boolean.TRUE );
         docPane_.setEditable( false );
-        docPane_.setEditorKit( new HTMLEditorKit() );
+        HTMLEditorKit ekit = new HTMLEditorKit();
+        StyleSheet stylesheet = new StyleSheet();
+        stylesheet.addStyleSheet( ekit.getStyleSheet() );
+        stylesheet.addRule( "p {margin-top: 10}" );
+        stylesheet.addRule( "code {color: #6F3F0F}" );  // brown
+        ekit.setStyleSheet( stylesheet );
+        docPane_.setEditorKit( ekit );
         docPane_.setText( getInstructions() );
         JScrollPane docScroller = new JScrollPane( docPane_ );
         docScroller.setPreferredSize( new Dimension( 500, 450 ) );
@@ -235,24 +244,26 @@ public class MethodBrowser extends JPanel {
      */
     private void addPublicStaticMembers( DefaultMutableTreeNode parent,
                                          Member[] members ) {
-        List mems = new ArrayList( Arrays.asList( members ) );
-        for ( Iterator it = mems.iterator(); it.hasNext(); ) {
-            Member mem = (Member) it.next();
+        List<Member> mems = new ArrayList<Member>( Arrays.asList( members ) );
+        for ( Iterator<Member> it = mems.iterator(); it.hasNext(); ) {
+            Member mem = it.next();
             int mods = mem.getModifiers();
             if ( ! Modifier.isStatic( mods ) ||
-                 ! Modifier.isPublic( mods ) ) {
+                 ! Modifier.isPublic( mods ) ||
+                 ( mem instanceof AccessibleObject &&
+                   ((AccessibleObject) mem)
+                       .getAnnotation( HideDoc.class ) != null ) ) {
                 it.remove();
             }
         }
-        Collections.sort( mems, new Comparator() {
-            public int compare( Object o1, Object o2 ) {
-                return ((Member) o1).getName()
-                      .compareTo( ((Member) o2).getName() );
+        Collections.sort( mems, new Comparator<Member>() {
+            public int compare( Member m1, Member m2 ) {
+                return m1.getName().compareTo( m2.getName() );
             }
         } );
         DefaultTreeModel model = getTreeModel();
-        for ( Iterator it = mems.iterator(); it.hasNext(); ) {
-            model.insertNodeInto( new DefaultMutableTreeNode( it.next() ),
+        for ( Member mem : mems ) {
+            model.insertNodeInto( new DefaultMutableTreeNode( mem ),
                                   parent, parent.getChildCount() );
         }
     }

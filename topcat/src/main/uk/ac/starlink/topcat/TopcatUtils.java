@@ -1,6 +1,10 @@
 package uk.ac.starlink.topcat;
 
+import java.awt.Desktop;
 import java.awt.Dimension;
+import java.awt.Toolkit;
+import java.awt.datatransfer.Clipboard;
+import java.awt.datatransfer.StringSelection;
 import java.io.IOException;
 import java.io.InputStream;
 import java.net.URL;
@@ -22,10 +26,11 @@ import javax.swing.JComponent;
 import javax.swing.JLabel;
 import javax.swing.JOptionPane;
 import javax.swing.SwingUtilities;
-import uk.ac.starlink.ast.AstPackage;
+import javax.swing.table.TableColumnModel;
 import uk.ac.starlink.table.ColumnInfo;
 import uk.ac.starlink.table.DefaultValueInfo;
 import uk.ac.starlink.table.DescribedValue;
+import uk.ac.starlink.table.MetaCopyStarTable;
 import uk.ac.starlink.table.StarTable;
 import uk.ac.starlink.table.ValueInfo;
 import uk.ac.starlink.table.gui.StarTableColumn;
@@ -50,7 +55,14 @@ public class TopcatUtils {
     private static String stilVersion_;
     private static DecimalFormat longFormat_;
     private static Map statusMap_;
+    private static Boolean canBrowse_;
     private static Logger logger_ = Logger.getLogger( "uk.ac.starlink.topcat" );
+
+    static final TopcatCodec DFLT_SESSION_ENCODER;
+    static final TopcatCodec[] SESSION_DECODERS = new TopcatCodec[] {
+        DFLT_SESSION_ENCODER = new TopcatCodec2(),
+        new TopcatCodec1(),
+    };
 
     public static String DEMO_LOCATION = "uk/ac/starlink/topcat/demo";
     public static String DEMO_TABLE = "6dfgs_mini.xml.bz2";
@@ -66,14 +78,6 @@ public class TopcatUtils {
     public static final ValueInfo COLID_INFO =
         new DefaultValueInfo( TopcatJELRowReader.COLUMN_ID_CHAR + "ID",
                               String.class, "Unique column ID" );
-
-    /**
-     * Column auxiliary metadata key identifying the description of
-     * columns which also have an expression (EXPR_INFO) entry.
-     */
-    public static final ValueInfo BASE_DESCRIPTION_INFO =
-        new DefaultValueInfo( "Base Description", String.class,
-                              "Description omitting expression" );
 
     /**
      * Column auxiliary metadata key identifying the text string which
@@ -92,14 +96,6 @@ public class TopcatUtils {
                               "Converts from string to numeric values" );
 
     /**
-     * Parameter key for storing an activation action for a table.
-     */
-    public final static ValueInfo ACTIVATORS_INFO =
-        new DefaultValueInfo( "topcat-activation", String.class,
-                              "Action which can be performed " +
-                              "on row activation" );
-
-    /**
      * Data identifier for epoch-type data.
      */
     public final static ValueInfo TIME_INFO =
@@ -109,47 +105,44 @@ public class TopcatUtils {
     }
 
     /**
-     * Returns the 'base description' of a column info.  This is the same
-     * as the description, except for synthetic columns, where it
-     * doesn't contain a respresentation of the algebraic expression.
+     * Returns the table represented by the current state of a given
+     * TopcatModel in a form suitable for persisting into one of the
+     * known serialization formats.
      *
-     * @param  info  column info
-     * @return  base description of <tt>colinfo</tt>
+     * <p>This basicaly uses {@link TopcatModel#getApparentStarTable},
+     * but may apply a few extra tweaks for a table that is known to be
+     * about to be saved.
+     *
+     * @param   tcModel   topcat model
+     * @return   saveable table
      */
-    public static String getBaseDescription( ColumnInfo info ) {
-        DescribedValue descValue = info.getAuxDatum( BASE_DESCRIPTION_INFO );
-        if ( descValue == null ) { 
-            return info.getDescription();
-        }
-        else {
-            Object desc = descValue.getValue();
-            return desc instanceof String ? (String) desc 
-                                          : info.getDescription();
-        }
-    }
+    public static StarTable getSaveTable( TopcatModel tcModel ) {
 
-    /**
-     * Sets the 'base description' of a column info.  This sets the
-     * future result of calls to {@link #getBaseDescription} and also
-     * the description string itself
-     * ({@link uk.ac.starlink.table.ColumnInfo#getDescription}).
-     *
-     * @param  info  column info to modify
-     * @param  desc  base description string (don't include expression text)
-     */
-    public static void setBaseDescription( ColumnInfo info, String desc ) {
-        DescribedValue descValue = info.getAuxDatum( BASE_DESCRIPTION_INFO );
-        if ( descValue == null ) {
-            info.setDescription( desc );
-        }
-        else {
-            descValue.setValue( desc );
-            String descrip = desc;
-            String expr = getExpression( info );
-            if ( expr != null && expr.trim().length() > 0 ) {
-                descrip += " (" + expr + ")";
+        /* Get the apparent table. */
+        StarTable table =
+            new MetaCopyStarTable( tcModel.getApparentStarTable() );
+
+        /* Identify synthetic columns, and adjust their column descriptions
+         * to include the expression that defines them.
+         * Before a table save (though not session save) operation is
+         * an appropriate time to do this, since the expression calculation
+         * behaviour will be lost following this serialization. */
+        int ncol = table.getColumnCount();
+        for ( int icol = 0; icol < ncol; icol++ ) {
+            ColumnInfo cinfo = table.getColumnInfo( icol );
+            String expr =
+                (String) cinfo.getAuxDatumValue( EXPR_INFO, String.class );
+            if ( expr != null ) {
+                String desc0 = cinfo.getDescription();
+                String descrip = desc0 == null || desc0.trim().length() == 0
+                               ? "Expression: " + expr
+                               : desc0 + " (Expression: " + expr + ")";
+                cinfo.setDescription( descrip );
             }
         }
+
+        /* Return the result. */
+        return table;
     }
 
     /**
@@ -296,6 +289,62 @@ public class TopcatUtils {
     }
 
     /**
+     * Returns the values from a row of a given table as a list of
+     * DescribedValues, suitable for use as parameters (per-value metadata)
+     * of a StarTable.
+     *
+     * @param  tcModel  table supplying values
+     * @param  lrow    row index
+     * @return   list of described values
+     */
+    public static List<DescribedValue> getRowAsParameters( TopcatModel tcModel,
+                                                           long lrow ) {
+        StarTable table = tcModel.getDataModel();
+        TableColumnModel tcm = tcModel.getColumnModel();
+        int ncol = tcm.getColumnCount();
+        List<DescribedValue> list = new ArrayList<DescribedValue>( ncol );
+        try {
+            Object[] row = table.getRow( lrow );
+            for ( int icol = 0; icol < ncol; icol++ ) {
+                int jcol = tcm.getColumn( icol ).getModelIndex();
+                ValueInfo info =
+                    new DefaultValueInfo( table.getColumnInfo( jcol ) );
+                list.add( new DescribedValue( info, row[ jcol ] ) );
+            }
+        }
+        catch ( IOException e ) {
+            logger_.log( Level.WARNING, "Trouble reading parameters: " + e, e );
+        }
+        return list;
+    }
+
+    /**
+     * Sets the text content of the system clipboard(s).
+     * This is somewhat OS-dependent.  X11 uses a PRIMARY selection
+     * (middle mouse button) alongside the CLIPBOARD selection
+     * (explicit cut'n'paste).  JTextComponents fill both, though
+     * not under exactly the same circumstances.  This method sets the
+     * text for both if both are available.
+     * This may not replicate exactly the behaviour expected by X clients,
+     * but I think it's what users would want to happen.  I may be wrong.
+     *
+     * @param  txt  text to set as clipboard contents
+     */
+    public static void setClipboardText( String txt ) {
+        StringSelection selection = new StringSelection( txt );
+        Toolkit toolkit = Toolkit.getDefaultToolkit();
+
+        /* Set the system clipboard to the given text. */
+        toolkit.getSystemClipboard().setContents( selection, null );
+
+        /* If there's a primary clipboard, set the text there too. */
+        Clipboard primary = toolkit.getSystemSelection();
+        if ( primary != null ) {
+            primary.setContents( selection, selection );
+        }
+    }
+
+    /**
      * Alerts the user that the system has run out of memory, and provides
      * the option of some useful tips.
      *
@@ -422,6 +471,26 @@ public class TopcatUtils {
             canJel_ = Boolean.valueOf( can );
         }
         return canJel_.booleanValue();
+    }
+
+    /**
+     * Returns a browse-capable desktop instance, or null if none is available.
+     *
+     * @return  desktop
+     */
+    public synchronized static Desktop getBrowserDesktop() {
+        if ( canBrowse_ == null ) {
+            boolean canBrowse =
+                   Desktop.isDesktopSupported()
+                && Desktop.getDesktop().isSupported( Desktop.Action.BROWSE );
+            if ( ! canBrowse ) {
+                logger_.warning( "Can't send URLs to browser"
+                               + " (no Desktop.Action.BROWSE" );
+            }
+            canBrowse_ = Boolean.valueOf( canBrowse );
+        }
+        return canBrowse_.booleanValue() ? Desktop.getDesktop()
+                                         : null;
     }
 
     /**
@@ -583,6 +652,41 @@ public class TopcatUtils {
         if ( opt == JOptionPane.OK_OPTION && name != null ) {
             tcModel.addSubset( new BitsRowSubset( name, matchMask ) );
         }
+    }
+
+    /**
+     * Encodes a TopcatModel as a StarTable including per-table session
+     * information, suitable for serialization.
+     *
+     * @param  tcModel   model
+     * @return   table
+     */
+    public static StarTable encodeSession( TopcatModel tcModel ) {
+        StarTable table = DFLT_SESSION_ENCODER.encode( tcModel );
+        assert DFLT_SESSION_ENCODER.isEncoded( table );
+        return table;
+    }
+
+    /**
+     * Attempts to unpack a StarTable into a TopcatModel containing
+     * per-table application session information.
+     * For this to work it must have been written using one of
+     * the TopcatCodec formats that this application is aware of.
+     * If not, null is returned.
+     *
+     * @param  table  encoded table
+     * @param  location  table location string
+     * @param  controlWindow  control window, or null if necessary
+     * @return   topcat model, or null
+     */
+    public static TopcatModel decodeSession( StarTable table, String location,
+                                             ControlWindow controlWindow ) {
+        for ( TopcatCodec codec : SESSION_DECODERS ) {
+            if ( codec.isEncoded( table ) ) {
+                return codec.decode( table, location, controlWindow );
+            }
+        }
+        return null;
     }
 
     /**

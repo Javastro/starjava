@@ -15,9 +15,13 @@ import uk.ac.starlink.ttools.plot.Style;
 import uk.ac.starlink.ttools.plot2.Axis;
 import uk.ac.starlink.ttools.plot2.LayerOpt;
 import uk.ac.starlink.ttools.plot2.PlotUtil;
+import uk.ac.starlink.ttools.plot2.Ranger;
 import uk.ac.starlink.ttools.plot2.ReportMap;
 import uk.ac.starlink.ttools.plot2.Scaler;
 import uk.ac.starlink.ttools.plot2.Scaling;
+import uk.ac.starlink.ttools.plot2.Scalings;
+import uk.ac.starlink.ttools.plot2.Span;
+import uk.ac.starlink.ttools.plot2.Subrange;
 import uk.ac.starlink.ttools.plot2.config.ConfigKey;
 import uk.ac.starlink.ttools.plot2.config.ConfigMap;
 import uk.ac.starlink.ttools.plot2.config.ConfigMeta;
@@ -81,7 +85,8 @@ public class DensogramPlotter
      * @param   hasWeight   true to permit histogram weighting
      */
     public DensogramPlotter( FloatingCoord xCoord, boolean hasWeight ) {
-        super( xCoord, hasWeight, "Densogram", ResourceIcon.FORM_DENSOGRAM );
+        super( xCoord, hasWeight, (ConfigKey<Unit>) null,
+               "Densogram", ResourceIcon.FORM_DENSOGRAM );
     }
 
     public String getPlotterDescription() {
@@ -98,6 +103,7 @@ public class DensogramPlotter
             "A smoothing kernel, whose width and shape may be varied,",
             "is applied to each data point.",
             "</p>",
+            getWeightingDescription(),
             "<p>This is a rather unconventional way to represent density data,",
             "and this plotting mode is probably not very useful.",
             "But hey, nobody's forcing you to use it.",
@@ -122,11 +128,13 @@ public class DensogramPlotter
         RampKeySet.Ramp ramp = RAMP_KEYSET.createValue( config );
         BinSizer sizer = config.get( SMOOTHSIZER_KEY );
         Kernel1dShape kernelShape = config.get( KERNEL_KEY );
+        Combiner combiner = Combiner.SUM;
         boolean cumul = config.get( StyleKeys.CUMULATIVE );
         int extent = config.get( EXTENT_KEY );
         double position = config.get( POSITION_KEY );
         return new DensoStyle( baseColor, ramp.getShader(), ramp.getScaling(),
-                               kernelShape, sizer, cumul, extent, position );
+                               ramp.getDataClip(), kernelShape, combiner,
+                               sizer, cumul, extent, position );
     }
 
     protected void paintBins( PlanarSurface surface, BinArray binArray,
@@ -135,10 +143,14 @@ public class DensogramPlotter
         /* Get the data values for each pixel position. */
         Axis xAxis = surface.getAxes()[ 0 ];
         boolean xLog = surface.getLogFlags()[ 0 ];
+        Combiner combiner = style.combiner_;
         Kernel1d kernel = createKernel( style.kernelShape_, style.sizer_,
-                                        xAxis, xLog );
+                                        xAxis, xLog,
+                                        ! combiner.getType().isExtensive() );
         double[] bins = getDataBins( binArray, xAxis, kernel,
-                                     Normalisation.NONE, style.cumul_ );
+                                     Normalisation.NONE,
+                                     style.combiner_.getType(), Unit.UNIT,
+                                     style.cumul_ );
 
         /* Work out the Y axis bounds. */
         Rectangle bounds = surface.getPlotBounds();
@@ -152,39 +164,39 @@ public class DensogramPlotter
         int np = ixhi - ixlo;
 
         /* Get range. */
-        double ymin = 0;
-        double ymax = 0;
+        Scaling scaling = style.scaling_;
+        Ranger ranger = Scalings.createRanger( new Scaling[] { scaling } );
         for ( int ip = 0; ip < np; ip++ ) {
-            int ix = ixlo + ip;
-            double dy = bins[ ix ];
-            ymin = Math.min( ymin, dy );
-            ymax = Math.max( ymax, dy );
+            ranger.submitDatum( bins[ ixlo + ip ] );
         }
+        Span span = ranger.createSpan();
 
         /* Do the painting. */
-        Scaler scaler = style.scaling_.createScaler( ymin, ymax );
-        float[] baseRgba = style.baseColor_.getRGBComponents( null );
-        float[] rgba = new float[ 4 ];
-        Color color0 = g.getColor();
-        boolean isLog = style.scaling_.isLogLike();
-        for ( int ip = 0; ip < np; ip++ ) {
-            int ix = ixlo + ip;
-            int gx = binArray.getGraphicsCoord( ix );
-            double dy = bins[ ix ];
-            if ( dy != 0 ) {
-                double sy = scaler.scaleValue( dy );
-                if ( isLog && sy < 0 ) {
-                    sy = 0;
+        if ( span.getHigh() > span.getLow() ) {
+            Scaler scaler = span.createScaler( scaling, style.dataclip_ );
+            float[] baseRgba = style.baseColor_.getRGBComponents( null );
+            float[] rgba = new float[ 4 ];
+            Color color0 = g.getColor();
+            boolean isLog = scaler.isLogLike();
+            for ( int ip = 0; ip < np; ip++ ) {
+                int ix = ixlo + ip;
+                int gx = binArray.getGraphicsCoord( ix );
+                double dy = bins[ ix ];
+                if ( ! Double.isNaN( dy ) ) {
+                    double sy = scaler.scaleValue( dy );
+                    if ( isLog && sy < 0 ) {
+                        sy = 0;
+                    }
+                    System.arraycopy( baseRgba, 0, rgba, 0, 4 );
+                    style.shader_.adjustRgba( rgba, (float) sy );
+                    Color color =
+                        new Color( rgba[ 0 ], rgba[ 1 ], rgba[ 2 ], rgba[ 3 ] );
+                    g.setColor( color );
+                    g.fillRect( gx, gy0, 1, style.extent_ );
                 }
-                System.arraycopy( baseRgba, 0, rgba, 0, 4 );
-                style.shader_.adjustRgba( rgba, (float) sy );
-                Color color =
-                    new Color( rgba[ 0 ], rgba[ 1 ], rgba[ 2 ], rgba[ 3 ] );
-                g.setColor( color );
-                g.fillRect( gx, gy0, 1, style.extent_ );
             }
+            g.setColor( color0 );
         }
-        g.setColor( color0 );
     }
 
     protected LayerOpt getLayerOpt( DensoStyle style ) {
@@ -194,8 +206,13 @@ public class DensogramPlotter
     protected int getPixelPadding( DensoStyle style, PlanarSurface surf ) {
         Kernel1d kernel =
             createKernel( style.kernelShape_, style.sizer_,
-                          surf.getAxes()[ 0 ], surf.getLogFlags()[ 0 ] );
+                          surf.getAxes()[ 0 ], surf.getLogFlags()[ 0 ],
+                          ! style.combiner_.getType().isExtensive() );
         return getEffectiveExtent( kernel );
+    }
+
+    protected Combiner getCombiner( DensoStyle style ) {
+        return style.combiner_;
     }
 
     protected void extendPixel1dCoordinateRanges( Range[] ranges,
@@ -226,7 +243,9 @@ public class DensogramPlotter
         final Color baseColor_;
         final Shader shader_;
         final Scaling scaling_;
+        final Subrange dataclip_;
         final Kernel1dShape kernelShape_;
+        final Combiner combiner_;
         final BinSizer sizer_;
         final boolean cumul_;
         final int extent_;
@@ -238,19 +257,24 @@ public class DensogramPlotter
          * @param  baseColor   base colour
          * @param  shader    colour ramp shader
          * @param  scaling   colour ramp scaling function
+         * @param  dataclip  input value subrange
          * @param  kernelShape   smoothing kernel shape
+         * @param  combiner   pixel bin aggregation mode
          * @param  sizer    smoothing width specification
          * @param  cumul  are bins painted cumulatively
          * @param  extent   height in pixels of density bar
          * @param  position   fractional location of density bar (0..1)
          */
         public DensoStyle( Color baseColor, Shader shader, Scaling scaling,
-                           Kernel1dShape kernelShape, BinSizer sizer,
-                           boolean cumul, int extent, double position ) {
+                           Subrange dataclip, Kernel1dShape kernelShape,
+                           Combiner combiner, BinSizer sizer, boolean cumul,
+                           int extent, double position ) {
             baseColor_ = baseColor;
             shader_ = shader;
             scaling_ = scaling;
+            dataclip_ = dataclip;
             kernelShape_ = kernelShape;
+            combiner_ = combiner;
             sizer_ = sizer;
             cumul_ = cumul;
             extent_ = extent;
@@ -267,7 +291,9 @@ public class DensogramPlotter
             code = 23 * code + baseColor_.hashCode();
             code = 23 * code + shader_.hashCode();
             code = 23 * code + scaling_.hashCode();
+            code = 23 * code + dataclip_.hashCode();
             code = 23 * code + kernelShape_.hashCode();
+            code = 23 * code + combiner_.hashCode();
             code = 23 * code + sizer_.hashCode();
             code = 23 * code + ( cumul_ ? 13 : 17 );
             code = 23 * code + extent_;
@@ -282,7 +308,9 @@ public class DensogramPlotter
                 return this.baseColor_.equals( other.baseColor_ )
                     && this.shader_.equals( other.shader_ )
                     && this.scaling_.equals( other.scaling_ )
+                    && this.dataclip_.equals( other.dataclip_ )
                     && this.kernelShape_.equals( other.kernelShape_ )
+                    && this.combiner_.equals( other.combiner_ )
                     && this.sizer_.equals( other.sizer_ )
                     && this.cumul_ == other.cumul_
                     && this.extent_ == other.extent_

@@ -7,7 +7,7 @@ import uk.ac.starlink.ttools.plot2.DataGeom;
 import uk.ac.starlink.ttools.plot2.PlotType;
 import uk.ac.starlink.ttools.plot2.Plotter;
 import uk.ac.starlink.ttools.plot2.SurfaceFactory;
-import uk.ac.starlink.ttools.plot2.config.ConfigKey;
+import uk.ac.starlink.ttools.plot2.config.PerUnitConfigKey;
 import uk.ac.starlink.ttools.plot2.config.StyleKeys;
 import uk.ac.starlink.ttools.plot2.data.Coord;
 import uk.ac.starlink.ttools.plot2.data.FloatingCoord;
@@ -26,9 +26,10 @@ import uk.ac.starlink.ttools.plot2.layer.LinearFitPlotter;
 import uk.ac.starlink.ttools.plot2.layer.LabelPlotter;
 import uk.ac.starlink.ttools.plot2.layer.MarkForm;
 import uk.ac.starlink.ttools.plot2.layer.MultiPointForm;
-import uk.ac.starlink.ttools.plot2.layer.Normalisation;
 import uk.ac.starlink.ttools.plot2.layer.PairLinkForm;
+import uk.ac.starlink.ttools.plot2.layer.PlaneCorrelationCoordSet;
 import uk.ac.starlink.ttools.plot2.layer.PlaneEllipseCoordSet;
+import uk.ac.starlink.ttools.plot2.layer.PolygonForms;
 import uk.ac.starlink.ttools.plot2.layer.SizeForm;
 import uk.ac.starlink.ttools.plot2.layer.ShapeForm;
 import uk.ac.starlink.ttools.plot2.layer.ShapeMode;
@@ -36,6 +37,7 @@ import uk.ac.starlink.ttools.plot2.layer.ShapePlotter;
 import uk.ac.starlink.ttools.plot2.layer.SizeXyForm;
 import uk.ac.starlink.ttools.plot2.layer.Stats1Plotter;
 import uk.ac.starlink.ttools.plot2.layer.TracePlotter;
+import uk.ac.starlink.ttools.plot2.layer.Unit;
 import uk.ac.starlink.ttools.plot2.paper.PaperTypeSelector;
 
 /**
@@ -48,73 +50,34 @@ import uk.ac.starlink.ttools.plot2.paper.PaperTypeSelector;
  */
 public class PlanePlotType implements PlotType {
 
-    private static final SurfaceFactory SURFACE_FACTORY =
-        new PlaneSurfaceFactory();
-    private static final PlanePlotType INSTANCE = new PlanePlotType();
-    private final DataGeom[] dataGeoms_;
-    private final String[] axisNames_;
+    private static PlaneDataGeom DATAGEOM = PlaneDataGeom.INSTANCE;
+    private static final PlanePlotType INSTANCE =
+        new PlanePlotType( createDefaultPlotters(), true );
+    private final SurfaceFactory surfFact_;
+    private final Plotter[] plotters_;
 
     /**
-     * Private constructor for singleton.
+     * Constructor.
+     *
+     * @param  plotters  available plotters for use with this plot type
+     * @param  has2dMetric  true if it may make sense to measure distances
+     *                      that are not parallel to either axis
      */
-    private PlanePlotType() {
-        dataGeoms_ = new DataGeom[] { PlaneDataGeom.INSTANCE };
-        Coord[] coords = dataGeoms_[ 0 ].getPosCoords();
-        axisNames_ = new String[ coords.length ];
-        for ( int i = 0; i < coords.length; i++ ) {
-            axisNames_[ i ] = ((FloatingCoord) coords[ i ])
-                             .getInput().getMeta().getLongName();
-        };
+    public PlanePlotType( Plotter[] plotters, boolean has2dMetric ) {
+        plotters_ = plotters;
+        surfFact_ = new PlaneSurfaceFactory( has2dMetric );
     }
 
     public DataGeom[] getPointDataGeoms() {
-        return dataGeoms_;
+        return new DataGeom[] { DATAGEOM };
     }
 
     public Plotter[] getPlotters() {
-        List<Plotter> list = new ArrayList<Plotter>();
-        ShapeForm[] forms = new ShapeForm[] {
-            MarkForm.SINGLE,
-            SizeForm.getInstance(),
-            SizeXyForm.getInstance(),
-            MultiPointForm
-           .createVectorForm( "XYVector",
-                              new CartesianVectorCoordSet( axisNames_ ), true ),
-            MultiPointForm
-           .createErrorForm( "XYError",
-                             CartesianErrorCoordSet
-                            .createAllAxesErrorCoordSet( axisNames_ ),
-                             StyleKeys.ERROR_SHAPE_2D ),
-            MultiPointForm
-           .createEllipseForm( "XYEllipse", new PlaneEllipseCoordSet(), true ),
-            PairLinkForm.getInstance(),
-            MarkForm.PAIR,
-        };
-        Plotter[] shapePlotters =
-            ShapePlotter.createShapePlotters( forms, ShapeMode.MODES_2D );
-        list.addAll( Arrays.asList( shapePlotters ) );
-        ConfigKey<Normalisation> normKey = StyleKeys.NORMALISE;
-        list.addAll( Arrays.asList( new Plotter[] {
-            new LinePlotter(),
-            new LinearFitPlotter( true ),
-            new LabelPlotter(),
-            new ContourPlotter(),
-            new GridPlotter( true ),
-            new FillPlotter( true ),
-            new TracePlotter( true ),
-            new HistogramPlotter( PlaneDataGeom.X_COORD, true, normKey ),
-            new FixedKernelDensityPlotter( PlaneDataGeom.X_COORD, true,
-                                           normKey ),
-            new KnnKernelDensityPlotter( PlaneDataGeom.X_COORD, true, normKey ),
-            new DensogramPlotter( PlaneDataGeom.X_COORD, true ),
-            new Stats1Plotter( PlaneDataGeom.X_COORD, true, normKey ),
-            FunctionPlotter.PLANE,
-        } ) );
-        return list.toArray( new Plotter[ 0 ] );
+        return plotters_.clone();
     }
 
     public SurfaceFactory getSurfaceFactory() {
-        return SURFACE_FACTORY;
+        return surfFact_;
     }
 
     public PaperTypeSelector getPaperTypeSelector() {
@@ -132,5 +95,61 @@ public class PlanePlotType implements PlotType {
      */
     public static PlanePlotType getInstance() {
         return INSTANCE;
+    }
+
+    /**
+     * Assembles the list of plotters available to a normal plane plot window.
+     *
+     * @return  plane plotter list
+     */
+    private static Plotter[] createDefaultPlotters() {
+        Coord[] coords = DATAGEOM.getPosCoords();
+        String[] axisNames = new String[ coords.length ];
+        for ( int i = 0; i < coords.length; i++ ) {
+            axisNames[ i ] = ((FloatingCoord) coords[ i ])
+                            .getInput().getMeta().getLongName();
+        };
+        List<Plotter> list = new ArrayList<Plotter>();
+        ShapeForm[] forms = new ShapeForm[] {
+            MarkForm.SINGLE,
+            SizeForm.getInstance(),
+            SizeXyForm.getInstance(),
+            MultiPointForm
+           .createVectorForm( "XYVector",
+                              new CartesianVectorCoordSet( axisNames ), true ),
+            MultiPointForm
+           .createErrorForm( "XYError",
+                             CartesianErrorCoordSet
+                            .createAllAxesErrorCoordSet( axisNames ),
+                             StyleKeys.ERROR_SHAPE_2D ),
+            PlaneEllipseCoordSet.createForm(),
+            PlaneCorrelationCoordSet.createForm(),
+            PairLinkForm.getInstance(),
+            MarkForm.PAIR,
+            PolygonForms.QUAD,
+            MarkForm.QUAD,
+            PolygonForms.ARRAY,
+        };
+        Plotter[] shapePlotters =
+            ShapePlotter.createShapePlotters( forms, ShapeMode.MODES_2D );
+        list.addAll( Arrays.asList( shapePlotters ) );
+        PerUnitConfigKey<Unit> unitKey = null;
+        list.addAll( Arrays.asList( new Plotter[] {
+            new LinePlotter(),
+            new LinearFitPlotter( true ),
+            new LabelPlotter(),
+            new ContourPlotter( true ),
+            new GridPlotter( true ),
+            new FillPlotter( true ),
+            new TracePlotter( true ),
+            new HistogramPlotter( PlaneDataGeom.X_COORD, true, unitKey ),
+            new FixedKernelDensityPlotter( PlaneDataGeom.X_COORD, true,
+                                           unitKey ),
+            new KnnKernelDensityPlotter( PlaneDataGeom.X_COORD, true, unitKey ),
+            new DensogramPlotter( PlaneDataGeom.X_COORD, true ),
+            new Stats1Plotter( PlaneDataGeom.X_COORD, true, unitKey ),
+            FunctionPlotter.PLANE,
+        } ) );
+        return list.toArray( new Plotter[ 0 ] );
     }
 }

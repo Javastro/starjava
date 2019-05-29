@@ -11,12 +11,10 @@ import javax.swing.table.TableColumn;
 import javax.swing.table.TableColumnModel;
 import uk.ac.starlink.table.ColumnData;
 import uk.ac.starlink.table.ColumnInfo;
-import uk.ac.starlink.table.DefaultValueInfo;
 import uk.ac.starlink.table.DescribedValue;
 import uk.ac.starlink.table.gui.LabelledComponentStack;
 import uk.ac.starlink.table.gui.StarTableColumn;
 import uk.ac.starlink.table.gui.UCDSelector;
-import uk.ac.starlink.util.gui.CustomComboBoxRenderer;
 
 /**
  * A dialogue window which queries the user for the characteristics of a
@@ -25,7 +23,6 @@ import uk.ac.starlink.util.gui.CustomComboBoxRenderer;
 public class SyntheticColumnQueryWindow extends QueryWindow {
 
     private final TopcatModel tcModel;
-    private final OptionsListModel subsets;
     private final TableColumnModel columnModel;
     private JTextField nameField;
     private JTextField unitField;
@@ -50,7 +47,6 @@ public class SyntheticColumnQueryWindow extends QueryWindow {
         super( "Define Synthetic Column", parent );
         this.tcModel = tcModel;
         this.columnModel = tcModel.getColumnModel();
-        this.subsets = tcModel.getSubsets();
         LabelledComponentStack stack = getStack();
 
         /* Name field. */
@@ -78,9 +74,7 @@ public class SyntheticColumnQueryWindow extends QueryWindow {
         typeField.addItem( long.class );
         typeField.addItem( float.class );
         typeField.addItem( double.class );
-        CustomComboBoxRenderer renderer = new ClassComboBoxRenderer();
-        renderer.setNullRepresentation( "(auto)" );
-        typeField.setRenderer( renderer );
+        typeField.setRenderer( new ClassComboBoxRenderer( "(auto)" ) );
         typeField.setSelectedIndex( 0 );
 
         // Don't add this option for now - it's not that useful, since
@@ -238,7 +232,7 @@ public class SyntheticColumnQueryWindow extends QueryWindow {
         String expr = getExpression();
         String ucd = getUCD();
         Class clazz = getExpressionType();
-        DefaultValueInfo info = new DefaultValueInfo( name );
+        ColumnInfo info = new ColumnInfo( name );
         if ( desc != null ) {
             info.setDescription( desc );
         }
@@ -344,7 +338,7 @@ public class SyntheticColumnQueryWindow extends QueryWindow {
             };
         qwin.setColumnName( baseName );
         qwin.setUnit( baseInfo.getUnitString() );
-        qwin.setDescription( TopcatUtils.getBaseDescription( baseInfo ) );
+        qwin.setDescription( baseInfo.getDescription() );
         qwin.setUCD( baseInfo.getUCD() );
         DescribedValue colId = baseInfo.getAuxDatum( TopcatUtils.COLID_INFO );
         if ( colId != null ) {

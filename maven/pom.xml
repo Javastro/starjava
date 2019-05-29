@@ -63,15 +63,15 @@
       <starlink.rv.version>1.0</starlink.rv.version>
       <starlink.soapserver.version>0.4</starlink.soapserver.version>
       <starlink.sog.version>0.3</starlink.sog.version>
-      <starlink.splat.version>3.11-3</starlink.splat.version>
+      <starlink.splat.version>3.11-4</starlink.splat.version>
       <starlink.srb.version>0.1</starlink.srb.version>
       <starlink.startask.version>0.1</starlink.startask.version>
-      <starlink.table.version>3.2</starlink.table.version>
+      <starlink.table.version>3.3-3</starlink.table.version>
       <starlink.tamfits.version>0.96a</starlink.tamfits.version>
       <starlink.task.version>0.2</starlink.task.version>
-      <starlink.topcat.version>4.4</starlink.topcat.version>
+      <starlink.topcat.version>4.6-3</starlink.topcat.version>
       <starlink.treeview.version>3.0</starlink.treeview.version>
-      <starlink.ttools.version>3.1</starlink.ttools.version>
+      <starlink.ttools.version>3.1-6</starlink.ttools.version>
       <starlink.util.version>1.0</starlink.util.version>
       <starlink.vo.version>0.2</starlink.vo.version>
       <starlink.votable.version>2.0</starlink.votable.version>

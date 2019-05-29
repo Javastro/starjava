@@ -7,13 +7,18 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.HashMap;
-import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 import java.util.logging.Logger;
 import javax.swing.Icon;
+import uk.ac.starlink.table.DefaultValueInfo;
+import uk.ac.starlink.table.DescribedValue;
+import uk.ac.starlink.table.HealpixTableInfo;
+import uk.ac.starlink.table.StarTable;
+import uk.ac.starlink.table.ValueInfo;
+import uk.ac.starlink.ttools.cone.HealpixTiling;
+import uk.ac.starlink.ttools.func.Tilings;
 import uk.ac.starlink.ttools.gui.ResourceIcon;
-import uk.ac.starlink.ttools.plot.Range;
 import uk.ac.starlink.ttools.plot.Shader;
 import uk.ac.starlink.ttools.plot.Shaders;
 import uk.ac.starlink.ttools.plot.Style;
@@ -25,9 +30,12 @@ import uk.ac.starlink.ttools.plot2.Drawing;
 import uk.ac.starlink.ttools.plot2.LayerOpt;
 import uk.ac.starlink.ttools.plot2.PlotLayer;
 import uk.ac.starlink.ttools.plot2.PlotUtil;
+import uk.ac.starlink.ttools.plot2.Ranger;
 import uk.ac.starlink.ttools.plot2.ReportMap;
 import uk.ac.starlink.ttools.plot2.Scaler;
 import uk.ac.starlink.ttools.plot2.Scaling;
+import uk.ac.starlink.ttools.plot2.Span;
+import uk.ac.starlink.ttools.plot2.Subrange;
 import uk.ac.starlink.ttools.plot2.Surface;
 import uk.ac.starlink.ttools.plot2.config.ComboBoxSpecifier;
 import uk.ac.starlink.ttools.plot2.config.ConfigKey;
@@ -45,8 +53,9 @@ import uk.ac.starlink.ttools.plot2.data.DataSpec;
 import uk.ac.starlink.ttools.plot2.data.DataStore;
 import uk.ac.starlink.ttools.plot2.data.FloatingCoord;
 import uk.ac.starlink.ttools.plot2.data.InputMeta;
-import uk.ac.starlink.ttools.plot2.data.IntegerCoord;
+import uk.ac.starlink.ttools.plot2.data.Tuple;
 import uk.ac.starlink.ttools.plot2.data.TupleSequence;
+import uk.ac.starlink.ttools.plot2.geom.HealpixDataGeom;
 import uk.ac.starlink.ttools.plot2.geom.Rotation;
 import uk.ac.starlink.ttools.plot2.geom.SkySurface;
 import uk.ac.starlink.ttools.plot2.geom.SkySurfaceFactory;
@@ -68,23 +77,11 @@ public class HealpixPlotter
     private final int icHealpix_;
     private final int icValue_;
 
-    /** Maximum HEALPix level supported by this plotter. */
-    public static final int MAX_LEVEL = 13;
+    /** Currently always works with HEALPix NESTED scheme. */
+    public static final boolean IS_NEST = true;
 
-    /** Coordinate for HEALPix index. */
-    public static final IntegerCoord HEALPIX_COORD =
-        new IntegerCoord(
-            new InputMeta( "healpix", "HEALPix index" )
-           .setShortDescription( "HEALPix index" )
-           .setXmlDescription( new String[] {
-                "<p>HEALPix index indicating the sky position of the tile",
-                "whose value is plotted.",
-                "If not supplied, the assumption is that the supplied table",
-                "contains one row for each HEALPix tile at a given level,",
-                "in ascending order.",
-                "</p>",
-            } )
-        , false, IntegerCoord.IntType.INT );
+    /** Maximum HEALPix level supported by this plotter. */
+    public static final int MAX_LEVEL = HealpixTiling.MAX_LEVEL;
 
     /** Coordinate for value determining tile colours. */
     public static final FloatingCoord VALUE_COORD =
@@ -113,37 +110,76 @@ public class HealpixPlotter
             } )
         , false );
 
-    private static final AuxScale SCALE = AuxScale.COLOR;
-    private static final String DEGRADE_NAME = "degrade";
-    private static final String COMBINER_NAME = "combiner";
-    private static final ConfigKey<Integer> DEGRADE_KEY =
-        IntegerConfigKey.createSpinnerKey(
-            new ConfigMeta( "degrade", "Degrade" )
-           .setShortDescription( "HEALPix level degradation" )
-           .setXmlDescription( new String[] {
-                "<p>Allows the HEALPix grid to be drawn at a less detailed",
-                "level than the level at which the input data are supplied.",
-                "A value of zero (the default) means that the HEALPix tiles",
-                "are painted with the same resolution as the input data,",
-                "but a higher value will degrade resolution of the plot tiles;",
-                "each plotted tile will correspond to",
-                "4^<code>" + DEGRADE_NAME + "</code> input tiles.",
-                "The way that values are combined within each painted tile",
-                "is controlled by the",
-                "<code>" + COMBINER_NAME + "</code> value.",
-                "</p>"
-            } )
-        , 0, 0, MAX_LEVEL );
+
+    /** Config key for scaling angle unit. */
+    public static final ConfigKey<SolidAngleUnit> ANGLE_KEY =
+        SkyDensityPlotter.ANGLE_KEY;
+
+    /** Config key for HEALPix level degradation. */
+    public static final ConfigKey<Integer> DEGRADE_KEY;
+
+    /** Config key for degrade combination mode. */
+    public static final ConfigKey<Combiner> COMBINER_KEY;
+
+    /** Config key for transparency. */
     private static final ConfigKey<Double> TRANSPARENCY_KEY =
         StyleKeys.TRANSPARENCY;
-    private static final RampKeySet RAMP_KEYS = StyleKeys.AUX_RAMP;
+
+    /** Config key for view sky system. */
     private static final ConfigKey<SkySys> VIEWSYS_KEY =
         SkySurfaceFactory.VIEWSYS_KEY;
+
+    private static final AuxScale SCALE = AuxScale.COLOR;
+
+    static {
+        ConfigMeta degradeMeta = new ConfigMeta( "degrade", "Degrade" );
+        ConfigMeta combineMeta = new ConfigMeta( "combine", "Combine" );
+        degradeMeta.setShortDescription( "HEALPix level degradation" );
+        degradeMeta.setXmlDescription( new String[] {
+            "<p>Allows the HEALPix grid to be drawn at a less detailed",
+            "level than the level at which the input data are supplied.",
+            "A value of zero (the default) means that the HEALPix tiles",
+            "are painted with the same resolution as the input data,",
+            "but a higher value will degrade resolution of the plot tiles;",
+            "each plotted tile will correspond to",
+            "4^<code>" + degradeMeta.getShortName() + "</code> input tiles.",
+            "The way that values are combined within each painted tile",
+            "is controlled by the",
+            "<code>" + combineMeta.getShortName() + "</code> value.",
+            "</p>"
+        } );
+        combineMeta.setShortDescription( "Tile degrade combination mode" );
+        combineMeta.setXmlDescription( new String[] {
+            "<p>Defines how values degraded to a lower HEALPix level",
+            "are combined together to produce the value assigned to the",
+            "larger tile, and hence its colour.",
+            "This is mostly useful in the case that",
+            "<code>" + degradeMeta.getShortName() + "</code>&gt;0.",
+            "</p>",
+            "<p>For density-like values",
+            "(<code>" + Combiner.DENSITY + "</code>,",
+            "<code>" + Combiner.WEIGHTED_DENSITY + "</code>)",
+            "the scaling is additionally influenced by the",
+            "<code>" + ANGLE_KEY.getMeta().getShortName() + "</code>",
+            "parameter.",
+            "</p>",
+        } );
+        DEGRADE_KEY =
+            IntegerConfigKey.createSpinnerKey( degradeMeta, 0, 0, MAX_LEVEL );
+        COMBINER_KEY =
+                new OptionConfigKey<Combiner>( combineMeta, Combiner.class,
+                                               Combiner.getKnownCombiners(),
+                                               Combiner.MEAN ) {
+            public String getXmlDescription( Combiner combiner ) {
+                return combiner.getDescription();
+            }
+        }.setOptionUsage()
+         .addOptionsXml();
+    }
+
+    private static final RampKeySet RAMP_KEYS = StyleKeys.AUX_RAMP;
     private static final Logger logger_ =
         Logger.getLogger( "uk.ac.starlink.ttools.plot2.layer" );
-
-    /** ConfigKey for degrading combiner. */
-    public static final ConfigKey<Combiner> COMBINER_KEY = createCombinerKey();
 
     /**
      * Constructor.
@@ -153,8 +189,7 @@ public class HealpixPlotter
      */
     public HealpixPlotter( boolean transparent ) {
         super( "Healpix", ResourceIcon.PLOT_HEALPIX,
-               CoordGroup.createCoordGroup( 0, new Coord[] { HEALPIX_COORD,
-                                                             VALUE_COORD } ),
+               CoordGroup.createCoordGroup( 1, new Coord[] { VALUE_COORD } ),
                false );
         icHealpix_ = 0;
         icValue_ = 1;
@@ -192,6 +227,7 @@ public class HealpixPlotter
         keyList.add( VIEWSYS_KEY );
         keyList.add( DEGRADE_KEY );
         keyList.add( COMBINER_KEY );
+        keyList.add( ANGLE_KEY );
         if ( transparent_ ) {
             keyList.add( TRANSPARENCY_KEY );
         }
@@ -208,30 +244,50 @@ public class HealpixPlotter
         SkySys viewSys = config.get( VIEWSYS_KEY );
         int degrade = config.get( DEGRADE_KEY );
         Combiner combiner = config.get( COMBINER_KEY );
+        SolidAngleUnit angle = config.get( ANGLE_KEY );
         Rotation rotation = Rotation.createRotation( dataSys, viewSys );
         Scaling scaling = ramp.getScaling();
+        Subrange dataclip = ramp.getDataClip();
         float scaleAlpha = 1f - config.get( TRANSPARENCY_KEY ).floatValue();
         Shader shader = Shaders.fade( ramp.getShader(), scaleAlpha );
-        return new HealpixStyle( dataLevel, degrade, rotation, scaling, shader,
-                                 combiner );
+        return new HealpixStyle( dataLevel, degrade, rotation, scaling,
+                                 dataclip, shader, combiner, angle );
     }
 
-    public PlotLayer createLayer( DataGeom geom, DataSpec dataSpec,
+    public PlotLayer createLayer( DataGeom geom, final DataSpec dataSpec,
                                   HealpixStyle style ) {
-        int dataLevel = style.dataLevel_ >= 0
-                  ? style.dataLevel_
-                  : guessDataLevel( dataSpec.getSourceTable().getRowCount() );
+        if ( ! (geom instanceof HealpixDataGeom) ) {
+            throw new IllegalArgumentException( "DataGeom not Healpix: "
+                                              + geom );
+        }
+        StarTable table = dataSpec.getSourceTable();
+        List<DescribedValue> tparams = table.getParameters();
+        HealpixTableInfo hpxInfo = HealpixTableInfo.isHealpix( tparams )
+                                 ? HealpixTableInfo.fromParams( tparams )
+                                 : null;
+        int dataLevel = -1;
+        if ( dataLevel < 0 && style.dataLevel_ >= 0 ) {
+            dataLevel = style.dataLevel_;
+        }
+        if ( dataLevel < 0 && hpxInfo != null ) {
+            dataLevel = hpxInfo.getLevel();
+        }
+        if ( dataLevel < 0 ) {
+            dataLevel = guessDataLevel( table.getRowCount() );
+        }
         if ( dataLevel >= 0 ) {
+            final int nside = 1 << dataLevel;
             IndexReader rdr =
                   dataSpec.isCoordBlank( icHealpix_ )
                 ? new IndexReader() {
-                      public long getHealpixIndex( TupleSequence tseq ) {
-                          return tseq.getRowIndex();
+                      public long getHealpixIndex( Tuple tuple ) {
+                          return tuple.getRowIndex();
                       }
                   }
                 : new IndexReader() {
-                      public long getHealpixIndex( TupleSequence tseq ) {
-                          return HEALPIX_COORD.readIntCoord( tseq, icHealpix_ );
+                      public long getHealpixIndex( Tuple tuple ) {
+                          return HealpixDataGeom.HEALPIX_COORD
+                                .readLongCoord( tuple, icHealpix_ );
                       }
                   };
             return new BinsHealpixLayer( geom, dataSpec, style,
@@ -257,7 +313,7 @@ public class HealpixPlotter
     private static int guessDataLevel( long nrow ) {
         if ( nrow > 0 ) {
             for ( int il = 0; il <= MAX_LEVEL; il++ ) {
-                long hprow = 12 * 1 << ( 2 * il );
+                long hprow = 12 * ( 1L << ( 2 * il ) );
 
                 /* If there are the same number of rows as healpix pixels,
                  * or the same plus an extra row for a blank index,
@@ -299,130 +355,11 @@ public class HealpixPlotter
         }
         ConfigKey<Integer> key = new IntegerConfigKey( meta, -1 ) {
             public Specifier<Integer> createSpecifier() {
-                return new ComboBoxSpecifier( levelOptions );
+                return new ComboBoxSpecifier<Integer>( Integer.class,
+                                                       levelOptions );
             }
         };
         return key;
-    }
-
-    /**
-     * Constructs the config key for configuring the Combiner object
-     * used when degrading pixels.
-     *
-     * @return   combiner key
-     */
-    private static ConfigKey<Combiner> createCombinerKey() {
-        ConfigMeta meta = new ConfigMeta( COMBINER_NAME, "Combine");
-        meta.setShortDescription( "Pixel degrade combination mode" );
-        meta.setXmlDescription( new String[] {
-            "<p>Defines how pixel values will be combined if they are",
-            "degraded to a lower resolution than the data HEALPix level.",
-            "This only has any effect if",
-            "<code>" + DEGRADE_KEY.getMeta().getShortName() + "</code>&gt;0.",
-            "</p>",
-        } );
-        Combiner[] options = new Combiner[] {
-            Combiner.SUM,
-            Combiner.MEAN,
-            Combiner.MIN,
-            Combiner.MAX,
-        };
-        return new OptionConfigKey<Combiner>( meta, Combiner.class, options,
-                                              Combiner.SUM ) {
-            public String getXmlDescription( Combiner combiner ) {
-                return combiner.getDescription();
-            }
-        };
-    }
-
-    /**
-     * Constructs a bin list for a given combiner, given also the data
-     * HEALPix level and the degrading factor.
-     * Note that the combination semantics of some of the combiners
-     * (those representing intensive, rather than extensive, quantities)
-     * is somewhat changed by the context in which they are used here;
-     * the submission count is implicitly that of the number of HEALPix
-     * subpixels corresponding to the degrade, rather than just the number
-     * of data values actually submitted.
-     *
-     * @param  combiner  basic combiner
-     * @param  dataLevel   HEALPix level at which data is supplied
-     * @param  viewLevel   HEALPix level at which pixels are to be calculated
-     * @return  bin list for accumulating pixel values
-     */
-    private static BinList createBinList( final Combiner combiner,
-                                          int dataLevel, int viewLevel ) {
-        int degrade = dataLevel - viewLevel;
-        long nbin = 12 * ( 1 << ( 2 * viewLevel ) );
-        boolean isFew = nbin < 1e6;
-        if ( Combiner.MEAN.equals( combiner ) ) {
-            final double factor = 1.0 / ( 1 << ( 2 * degrade ) );
-            final BinList baseList =
-                isFew ? Combiner.SUM.createArrayBinList( (int) nbin )
-                      : Combiner.SUM.createHashBinList( nbin );
-            return new BinList() {
-                public Combiner getCombiner() {
-                    return combiner;
-                }
-                public long getSize() {
-                    return baseList.getSize();
-                }
-                public void submitToBin( long index, double datum ) {
-                    baseList.submitToBin( index, datum );
-                }
-                public BinList.Result getResult() {
-                    return new FactorResult( baseList.getResult(), factor,
-                                             false );
-                }
-            };
-        }
-        else { 
-            if ( ! Arrays.asList( new Combiner[] {
-                       Combiner.SUM, Combiner.MIN, Combiner.MAX,
-                   } ).contains( combiner ) ) {
-                logger_.warning( "Unexpected combiner: " + combiner );
-            }
-            return isFew ? combiner.createArrayBinList( (int) nbin )
-                         : combiner.createHashBinList( nbin );
-        }
-    }
-
-    /**
-     * Wrapper implementation of BinList.Result that multiplies
-     * bin values by a fixed factor.
-     */
-    private static class FactorResult implements BinList.Result {
-        private final BinList.Result baseResult_;
-        private final double factor_;
-        private final boolean isCompacted_;
-
-        /**
-         * Constructor.
-         *
-         * @param  baseResult   base result instance
-         * @param  factor   factor by which bin values are multiplied
-         * @param  isCompacted  if true, compact operation is a no-op
-         */
-        FactorResult( BinList.Result baseResult, double factor,
-                      boolean isCompacted ) {
-            baseResult_ = baseResult;
-            factor_ = factor;
-            isCompacted_ = isCompacted;
-        }
-        public double getBinValue( long index ) {
-            return factor_ * baseResult_.getBinValue( index );
-        }
-        public long getBinCount() {
-            return baseResult_.getBinCount();
-        }
-        public Iterator<Long> indexIterator() {
-            return baseResult_.indexIterator();
-        }
-        public BinList.Result compact() {
-            return isCompacted_
-                 ? this
-                 : new FactorResult( baseResult_.compact(), factor_, true );
-        }
     }
 
     /**
@@ -433,8 +370,10 @@ public class HealpixPlotter
         private final int degrade_;
         private final Rotation rotation_;
         private final Scaling scaling_;
+        private final Subrange dataclip_;
         private final Shader shader_;
         private final Combiner combiner_;
+        private final SolidAngleUnit angle_;
 
         /**
          * Constructor.
@@ -446,18 +385,22 @@ public class HealpixPlotter
          * @param   rotation  sky rotation to be applied before plotting
          * @param   scaling   scaling function for mapping densities to
          *                    colour map entries
+         * @param   dataclip  scaling input range adjustment
          * @param   shader   colour map
          * @param   combiner  combiner, only relevant if degrade is non-zero
+         * @param   angle      solid angle configuration for scaling
          */
         public HealpixStyle( int dataLevel, int degrade, Rotation rotation,
-                             Scaling scaling, Shader shader,
-                             Combiner combiner ) {
+                             Scaling scaling, Subrange dataclip, Shader shader,
+                             Combiner combiner, SolidAngleUnit angle ) {
             dataLevel_ = dataLevel;
             degrade_ = degrade;
             rotation_ = rotation;
             scaling_ = scaling;
+            dataclip_ = dataclip;
             shader_ = shader;
             combiner_ = combiner;
+            angle_ = angle;
         }
 
         /**
@@ -483,8 +426,10 @@ public class HealpixPlotter
             code = 23 * code + degrade_;
             code = 23 * code + rotation_.hashCode();
             code = 23 * code + scaling_.hashCode();
+            code = 23 * code + dataclip_.hashCode();
             code = 23 * code + shader_.hashCode();
-            code = 23 * code + ( degrade_ == 0 ? 0 : combiner_.hashCode() );
+            code = 23 * code + combiner_.hashCode();
+            code = 23 * code + angle_.hashCode();
             return code;
         }
 
@@ -496,9 +441,10 @@ public class HealpixPlotter
                     && this.degrade_ == other.degrade_
                     && this.rotation_.equals( other.rotation_ )
                     && this.scaling_.equals( other.scaling_ )
+                    && this.dataclip_.equals( other.dataclip_ )
                     && this.shader_.equals( other.shader_ )
-                    && ( degrade_ == 0 ||
-                         this.combiner_.equals( other.combiner_ ) );
+                    && this.combiner_.equals( other.combiner_ )
+                    && this.angle_.equals( other.angle_ );
             }
             else {
                 return false;
@@ -533,39 +479,47 @@ public class HealpixPlotter
             hstyle_ = hstyle;
             dataLevel_ = dataLevel;
             indexReader_ = indexReader;
-            viewLevel_ = Math.max( 0, dataLevel_ - hstyle.degrade_ );
+            viewLevel_ = Math.max( 0, dataLevel_ - hstyle_.degrade_ );
             assert hstyle.degrade_ >= 0;
         }
 
+        @Override
         public Map<AuxScale,AuxReader> getAuxRangers() {
             Map<AuxScale,AuxReader> map = new HashMap<AuxScale,AuxReader>();
             map.put( SCALE, new AuxReader() {
                 public int getCoordIndex() {
                     return icValue_;
                 }
+                public ValueInfo getAxisInfo( DataSpec dataSpec ) {
+                    return getCombinedInfo( dataSpec );
+                }
+                public Scaling getScaling() {
+                    return hstyle_.scaling_;
+                }
                 public void adjustAuxRange( Surface surface, DataSpec dataSpec,
                                             DataStore dataStore,
-                                            Object[] knownPlans, Range range ) {
+                                            Object[] knownPlans,
+                                            Ranger ranger ) {
                     TilePlan tplan = getTilePlan( knownPlans );
                     BinList.Result binResult =
                         tplan == null ? readBins( dataSpec, dataStore )
                                       : tplan.binResult_;
                     createTileRenderer( surface )
-                   .extendAuxRange( range, binResult );
+                   .extendAuxRange( ranger, binResult );
                 }
             } );
             return map;
         }
 
         public Drawing createDrawing( Surface surf,
-                                      Map<AuxScale,Range> auxRanges,
+                                      Map<AuxScale,Span> auxSpans,
                                       final PaperType paperType ) {
             final DataSpec dataSpec = getDataSpec();
             final Combiner combiner = hstyle_.combiner_;
             final Shader shader = hstyle_.shader_;
             final Scaler scaler =
-                Scaling.createRangeScaler( hstyle_.scaling_,
-                                           auxRanges.get( SCALE ) );
+                auxSpans.get( SCALE )
+                        .createScaler( hstyle_.scaling_, hstyle_.dataclip_ );
             final SkyTileRenderer renderer = createTileRenderer( surf );
             return new Drawing() {
                 public Object calculatePlan( Object[] knownPlans,
@@ -608,9 +562,13 @@ public class HealpixPlotter
          * @return  tile renderer
          */
         private SkyTileRenderer createTileRenderer( Surface surf ) {
+            double binExtent = Tilings.healpixSqdeg( viewLevel_ )
+                             / hstyle_.angle_.getExtentInSquareDegrees();
+            Combiner.Type ctype = hstyle_.combiner_.getType();
+            double binFactor = ctype.getBinFactor( binExtent );
             return SkyTileRenderer
                   .createRenderer( (SkySurface) surf, hstyle_.rotation_,
-                                   viewLevel_ );
+                                   viewLevel_, binFactor );
         }
 
         /** 
@@ -648,8 +606,9 @@ public class HealpixPlotter
             int degrade = dataLevel_ - viewLevel_;
             assert degrade >= 0;
             int shift = degrade * 2;
-            BinList binList =
-                createBinList( hstyle_.combiner_, dataLevel_, viewLevel_ );
+            long nbin = 12 * ( 1L << ( 2 * viewLevel_ ) );
+            Combiner combiner = hstyle_.combiner_;
+            BinList binList = Combiner.createDefaultBinList( combiner, nbin );
             TupleSequence tseq = dataStore.getTupleSequence( dataSpec );
             while ( tseq.next() ) {
                 double value = tseq.getDoubleValue( icValue_ );
@@ -660,6 +619,30 @@ public class HealpixPlotter
                 }
             }
             return binList.getResult();
+        }
+
+        /**
+         * Returns the metadata for the tile values.
+         *
+         * @param  dataSpec  data specification
+         * @return   metadata for tile values
+         */
+        private ValueInfo getCombinedInfo( DataSpec dataSpec ) {
+            final ValueInfo weightInfo;
+            if ( icValue_ < 0 || dataSpec.isCoordBlank( icValue_ ) ) {
+                weightInfo = new DefaultValueInfo( "1", Double.class,
+                                                   "Weight unspecified"
+                                                 + ", taken as unity" );
+            }
+            else {
+                ValueInfo[] winfos =
+                    dataSpec.getUserCoordInfos( icValue_ );
+                weightInfo = winfos != null && winfos.length == 1
+                           ? winfos[ 0 ]
+                           : new DefaultValueInfo( "Weight", Double.class );
+            }
+            return hstyle_.combiner_
+                  .createCombinedInfo( weightInfo, hstyle_.angle_ );
         }
     }
 
@@ -774,12 +757,11 @@ public class HealpixPlotter
     private interface IndexReader {
 
         /**
-         * Acquires the HEALPix index corresponding to the current row of
-         * a tuple sequence.
+         * Acquires the HEALPix index corresponding to a tuple.
          *
-         * @param  tseq  tuple sequence positioned at row of interest
-         * @param  healpix index at current sequence position
+         * @param  tuple  tuple
+         * @return  healpix index
          */
-        long getHealpixIndex( TupleSequence tseq );
+        long getHealpixIndex( Tuple tuple );
     }
 }

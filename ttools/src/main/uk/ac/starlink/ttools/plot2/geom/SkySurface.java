@@ -10,12 +10,15 @@ import java.awt.Point;
 import java.awt.Rectangle;
 import java.awt.RenderingHints;
 import java.awt.Shape;
+import java.awt.Stroke;
 import java.awt.geom.AffineTransform;
 import java.awt.geom.Area;
 import java.awt.geom.GeneralPath;
 import java.awt.geom.Point2D;
 import java.awt.geom.Rectangle2D;
+import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.List;
 import java.util.logging.Logger;
 import skyview.geometry.Projecter;
 import skyview.geometry.Rotater;
@@ -24,6 +27,7 @@ import skyview.geometry.TransformationException;
 import uk.ac.starlink.ttools.func.CoordsRadians;
 import uk.ac.starlink.ttools.plot.Matrices;
 import uk.ac.starlink.ttools.plot2.Captioner;
+import uk.ac.starlink.ttools.plot2.LabelledLine;
 import uk.ac.starlink.ttools.plot2.PlotUtil;
 import uk.ac.starlink.ttools.plot2.Surface;
 
@@ -46,6 +50,7 @@ public class SkySurface implements Surface {
     private final SkyAxisLabeller axLabeller_;
     private final Color gridColor_;
     private final Color axlabelColor_;
+    private final Color scalebarColor_;
     private final boolean sexagesimal_;
     private final double crowd_;
     private final Captioner captioner_;
@@ -62,6 +67,12 @@ public class SkySurface implements Surface {
     private final double gZoom_;
     private final boolean skyFillsBounds_;
     private final boolean isContinuous_;
+    private static final int SEGMENT_NPIX = 3;
+    private static final LabelUnit[] RAD_UNITS = new LabelUnit[] { 
+        new LabelUnit( "\"", Math.PI / ( 180 * 60 * 60 ) ),
+        new LabelUnit( "'", Math.PI / ( 180 * 60 ) ),
+        new LabelUnit( "\u00b0", Math.PI / ( 180 ) ),
+    };      
     private static final Logger logger_ =
         Logger.getLogger( "uk.ac.starlink.ttools.plot2" );
 
@@ -81,6 +92,7 @@ public class SkySurface implements Surface {
      * @param  axLabeller  sky axis labelling object
      * @param  gridColor   colour for grid drawing, or null if no grid
      * @param  axlabelColor  colour for axis labels, or null if no labels
+     * @param  scalebarColor  colour for scale bar, or null if not drawn
      * @param  sexagesimal  whether to use sexagesimal coordinates
      * @param  crowd   tick mark crowding factor, 1 is normal
      * @param  captioner  text rendering object
@@ -89,7 +101,8 @@ public class SkySurface implements Surface {
     public SkySurface( Rectangle plotBounds, Projection projection,
                        double[] rotmat, double zoom, double xoff, double yoff,
                        SkySys viewSystem, SkyAxisLabeller axLabeller,
-                       Color gridColor, Color axlabelColor, boolean sexagesimal,
+                       Color gridColor, Color axlabelColor, Color scalebarColor,
+                       boolean sexagesimal,
                        double crowd, Captioner captioner, boolean antialias ) {
         gxlo_ = plotBounds.x;
         gxhi_ = plotBounds.x + plotBounds.width;
@@ -98,6 +111,7 @@ public class SkySurface implements Surface {
         viewSystem_ = viewSystem;
         gridColor_ = gridColor;
         axlabelColor_ = axlabelColor;
+        scalebarColor_ = scalebarColor;
         sexagesimal_ = sexagesimal;
         crowd_ = crowd;
         captioner_ = captioner;
@@ -224,7 +238,85 @@ public class SkySurface implements Surface {
             axLabeller_.createAxisAnnotation( gl, captioner_ )
                        .drawLabels( g2 );
         }
+        if ( scalebarColor_ != null ) {
+            paintScaleBar( g2, scalebarColor_ );
+        }
         g2.setRenderingHint( RenderingHints.KEY_ANTIALIASING, aa0 );
+        g2.setColor( color0 );
+    }
+
+    /**
+     * Paints a distance scale in the corner of the plot region.
+     *
+     * @param   g  graphics context
+     * @param   fg   scale bar foreground colour
+     */
+    private void paintScaleBar( Graphics2D g2, Color fg ) {
+
+        /* Define approximate start and end points for scale line. */
+        double fstart = 0.05;
+        double fend = 0.20;
+        int x0 = (int) PlotUtil.scaleValue( gxlo_, gxhi_, fstart );
+        int y0 = (int) PlotUtil.scaleValue( gylo_, gyhi_, 1. - fstart );
+        int x1 = (int) PlotUtil.scaleValue( gxlo_, gxhi_, fend, false );
+        Point gp0 = new Point( x0, y0 );
+        Point gp1 = new Point( x1, y0 );
+
+        /* Work out a round number sky distance of about the same extent
+         * as the approximate scale line. */
+        double s0 = screenDistanceRadians( gp0, gp1 );
+        SkyDistance dist = SkyDistance.getRoundDistance( s0 );
+        if ( dist == null ) {
+            return;
+        }
+
+        /* Iteratively determine the endpoints of a line with exactly
+         * (to pixel accuracy) the sky extent of the round number
+         * sky distance. */
+        double distRad = dist.getRadians();
+        int x2 = (int) PlotUtil.scaleValue( x0, x1, distRad / s0 );
+        Point gp2 = new Point( x2, y0 );
+        boolean isOver = screenDistanceRadians( gp0, gp2 ) > distRad;
+        boolean done = false;
+        for ( ; !done && x2 > x0 + 16 && x2 < gxhi_ - 16;
+              x2 += isOver ? -1 : +1 ) {
+            gp2 = new Point( x2, y0 );
+            done = ( screenDistanceRadians( gp0, gp2 ) > distRad ) ^ isOver;
+        }
+        if ( !done ) {
+            return;
+        }
+
+        /* Paint the scale line with background for contrast. */
+        Color color0 = g2.getColor();
+        Stroke stroke0 = g2.getStroke();
+        g2.setColor( Color.WHITE );
+        g2.setStroke( new BasicStroke( 3, BasicStroke.CAP_SQUARE,
+                                       BasicStroke.JOIN_MITER ) );
+        g2.drawLine( gp0.x, gp0.y, gp2.x, gp2.y );
+        g2.drawLine( gp0.x, gp0.y - 3, gp0.x, gp0.y + 3 );
+        g2.drawLine( gp2.x, gp0.y - 3, gp2.x, gp0.y + 3 );
+        g2.setStroke( new BasicStroke( 1, BasicStroke.CAP_SQUARE,
+                                       BasicStroke.JOIN_MITER ) );
+        g2.setColor( fg );
+        g2.drawLine( gp0.x, gp0.y, gp2.x, gp2.y );
+        g2.drawLine( gp0.x, gp0.y - 3, gp0.x, gp0.y + 3 );
+        g2.drawLine( gp2.x, gp0.y - 3, gp2.x, gp0.y + 3 );
+
+        /* Paint the caption with background for contrast. */
+        String caption = dist.getCaption();
+        g2.setColor( new Color( 0xa0ffffff, true ) );
+        int tx = gp0.x + 5 + captioner_.getPad();
+        int ty = gp0.y - captioner_.getPad();
+        g2.translate( tx, ty );
+        Rectangle bounds = captioner_.getCaptionBounds( caption );
+        g2.fillRect( bounds.x - 5, bounds.y, bounds.width + 10, bounds.height );
+        g2.setColor( fg );
+        captioner_.drawCaption( caption, g2 );
+        g2.translate( -tx, -ty );
+
+        /* Restore graphics context. */
+        g2.setStroke( stroke0 );
         g2.setColor( color0 );
     }
 
@@ -233,13 +325,91 @@ public class SkySurface implements Surface {
     }
 
     /**
-     * Attempts to constructs a GridLiner object which can
-     * draw grid lines on this plot.
-     * The work is done by classes from the SkyView package.
+     * Returns the projection used by this sky surface.
+     *
+     * @return  projection
+     */
+    public Projection getProjection() {
+        return projection_;
+    }
+
+    /**
+     * Returns the rotation matrix corresponding to this view of the sky.
+     *
+     * @return  9-element rotation matrix
+     */
+    public double[] getRotation() {
+        return rotmat_;
+    }
+
+    /**
+     * Returns the zoom factor; 1 means the sky is approximately the
+     * same size as the plot bounds.
+     *
+     * @return  zoom factor
+     */
+    public double getZoom() {
+        return zoom_;
+    }
+
+    /**
+     * Returns the dimensionless X offset of the plot centre from the
+     * plot bounds centre.
+     *
+     * @return  dimensionless X offset
+     */
+    public double getOffsetX() {
+        return xoff_;
+    }
+
+    /**
+     * Returns the dimensionless Y offset of the plot centre from the
+     * plot bounds centre.
+     *
+     * @return  dimensionless Y offset
+     */
+    public double getOffsetY() {
+        return yoff_;
+    }
+
+    /**
+     * Returns the sky system into which coordinates are projected.
+     *
+     * @return  view sky system
+     */
+    public SkySys getViewSystem() {
+        return viewSystem_;
+    }
+
+    /**
+     * Attempts to construct a GridLiner object which can
+     * draw default grid lines on this plot.
      *
      * @return   gridliner, or null on failure
      */
     private GridLiner createGridder() {
+        return createGridder( null, sexagesimal_, crowd_, crowd_ );
+    }
+
+    /**
+     * Attempts to construct a GridLiner object to draw grid lines on
+     * this plot.
+     *
+     * <p>The work is done by classes from the SkyView package.
+     *
+     * @param  rotation   additional rotation to apply to sky system
+     *                    before grid lines are plotted;
+     *                    may be null for no additional rotation
+     * @param  sexagesimal  true for sexagesimal labels, false for decimal
+     * @param  loncrowd   longitude tick mark crowding factor, 1 is normal
+     * @param  latcrowd   latitude tick mark crowding factor, 1 is normal
+     * @return   gridliner, or null on failure
+     */
+    public GridLiner createGridder( Rotation rotation, boolean sexagesimal,
+                                    double loncrowd, double latcrowd ) {
+        double[] rotmat = rotation == null
+                        ? rotmat_
+                        : Matrices.mmMult( rotmat_, rotation.getMatrix() );
         if ( projection_ instanceof SkyviewProjection ) {
             Projecter projecter =
                 ((SkyviewProjection) projection_).getSkyviewProjecter();
@@ -247,7 +417,7 @@ public class SkySurface implements Surface {
                                         gZoom_, 0, 0, -gZoom_ );
             Rotater rotater;
             try {
-                rotater = new Rotater( Matrices.toPal( rotmat_ ) );
+                rotater = new Rotater( Matrices.toPal( rotmat ) );
             }
             catch ( TransformationException e ) {
                 assert false;
@@ -257,9 +427,9 @@ public class SkySurface implements Surface {
             if ( plotBounds.width < 32 || plotBounds.height < 32 ) {
                 return null;
             }
-            GridLiner gl = new GridLiner( plotBounds, rotater, projecter,
-                                          scaler, sexagesimal_,
-                                          crowd_, crowd_ );
+            GridLiner gl =
+                new GridLiner( plotBounds, rotater, projecter,
+                               scaler, sexagesimal, loncrowd, latcrowd );
             try {
                 gl.grid();
                 return gl;
@@ -453,6 +623,24 @@ public class SkySurface implements Surface {
         return null;
     }
 
+    /**
+     * Attempts to turn a graphics position into a sky position.
+     * This convenience function just calls
+     * <code>graphicsToData(gpos,null)</code>,
+     * since the iterable argument is ignored for the SkySurface.
+     *
+     * @param   gpos  graphics position
+     * @return   3-element unit vector representing data position,
+     *           or null if gpos out of range
+     */
+    public double[] graphicsToData( Point2D gpos ) {
+        return graphicsToData( gpos, null );
+    }
+
+    public boolean isContinuousLine( double[] dpos0, double[] dpos1 ) {
+        return projection_.isContinuousLine( dpos0, dpos1 );
+    }
+
     public String formatPosition( double[] dpos ) {
         double pixRad = 2.0 * Math.PI / gZoom_;
         double x = dpos[ 0 ];
@@ -465,6 +653,35 @@ public class SkySurface implements Surface {
         }
         return sexagesimal_ ? formatPositionSex( lonRad, latRad, pixRad )
                             : formatPositionDec( lonRad, latRad, pixRad );
+    }
+
+    /**
+     * Returns the approximate sky longitude and latitude coordinates
+     * of a given sperical position vector.
+     * They are rounded to an appropriate decimal precision
+     * for presentation to the user.
+     *
+     * @param  r3  3-element direction cosine vector
+     * @return  2-element (longitude,latitude) array giving approximate
+     *          (rounded) coordinates of the given spherical position
+     *          in degrees
+     */
+    double[] getRoundedLonLatDegrees( double[] r3 ) {
+        double pixRad = 2.0 * Math.PI / gZoom_;
+        double x = r3[ 0 ];
+        double y = r3[ 1 ];
+        double z = r3[ 2 ];
+        double latRad = Math.PI * 0.5 - Math.acos( z );
+        double lonRad = Math.atan2( y, x );
+        while ( lonRad < 0 ) {
+            lonRad += 2 * Math.PI;
+        }
+        double degFact = 180. / Math.PI;
+        double degEpsilon = degFact * pixRad * 0.1;
+        return new double[] {
+            PlotUtil.roundNumber( degFact * lonRad, degEpsilon ),
+            PlotUtil.roundNumber( degFact * latRad, degEpsilon ),
+        };
     }
 
     /**
@@ -515,12 +732,82 @@ public class SkySurface implements Surface {
      *          or NaN if one of the positions is not on the sky
      */
     public double screenDistanceRadians( Point2D gp1, Point2D gp2 ) {
-        double[] dp1 = graphicsToData( gp1, null );
-        double[] dp2 = graphicsToData( gp2, null );
+        double[] dp1 = graphicsToData( gp1 );
+        double[] dp2 = graphicsToData( gp2 );
         return dp1 == null || dp2 == null
              ? Double.NaN
              : Math.atan2( Matrices.mod( Matrices.cross( dp1, dp2 ) ),
                            Matrices.dot( dp1, dp2 ) );
+    }
+
+    /**
+     * Returns a labelled line corresponding to the (shorter) great circle
+     * arc between two graphics points.
+     *
+     * @param   gp1  start point in graphics space
+     * @param   gp2  end point in graphics space
+     * @return  labelled line, or null if it can't be done, for instance
+     *          if not both points are on the sky
+     */
+    public LabelledLine createLine( Point2D gp1, Point2D gp2 ) {
+
+        /* Get sky positions. */
+        double[] dp1 = graphicsToData( gp1 );
+        double[] dp2 = graphicsToData( gp2 );
+        if ( dp1 == null || dp2 == null ) {
+            return null;
+        }
+
+        /* Get label indicating distance in human-readable terms. */
+        double distRad = screenDistanceRadians( gp1, gp2 );
+        double epsRad = Math.sqrt( Math.max( pixelAreaSteradians( gp1 ),
+                                             pixelAreaSteradians( gp2 ) ) );
+        String label = Double.isNaN( distRad ) || Double.isNaN( epsRad )
+                     ? null
+                     : LabelUnit.formatValue( distRad, epsRad, RAD_UNITS );
+
+        /* Work out the number of segments we will need to have a reasonably
+         * smooth line - average one point every few pixels. */
+        double gdist = Math.hypot( gp2.getX() - gp1.getX(),
+                                   gp2.getY() - gp1.getY() );
+        int np = Math.max( 2, (int) Math.ceil( gdist / SEGMENT_NPIX ) );
+
+        /* Assemble a list of the required number of vertices
+         * by taking points spaced equally between the end points
+         * through the interior of the unit sphere (and rescaling
+         * vectors to unit extent as required). */
+        List<Point2D.Double> pList = new ArrayList<Point2D.Double>( np );
+        double[] dpLast = null;
+        double scale = 1.0 / ( np - 1 );
+        for ( int ip = 0; ip < np; ip++ ) {
+            double frac = ip * scale;
+            double dx = PlotUtil.scaleValue( dp1[ 0 ], dp2[ 0 ], frac );
+            double dy = PlotUtil.scaleValue( dp1[ 1 ], dp2[ 1 ], frac );
+            double dz = PlotUtil.scaleValue( dp1[ 2 ], dp2[ 2 ], frac );
+            double r = Math.sqrt( dx * dx + dy * dy + dz * dz );
+            if ( r > 0 ) {
+                double[] dp = new double[] { dx / r, dy / r, dz / r };
+                Point2D.Double gpos = new Point2D.Double();
+                if ( dataToGraphics( dp, false, gpos ) ) {
+                    if ( dp != null && dpLast != null &&
+                         ! projection_.isContinuousLine( dp, dpLast ) ) {
+                        pList.add( null );
+                    }
+                    pList.add( gpos );
+                }
+                else {
+                    return new LabelledLine( gp1, gp2, label );
+                }
+                dpLast = dp;
+            }
+        }
+
+        /* Turn the vertex list into a LabelledLine; if it didn't work for
+         * some reason, fall back to a straight line in graphics space. */
+        Point2D[] points = pList.size() >= 2
+                         ? pList.toArray( new Point2D.Double[ 0 ] )
+                         : new Point2D[] { gp1, gp2 };
+        return new LabelledLine( points, label );
     }
 
     /**
@@ -532,8 +819,8 @@ public class SkySurface implements Surface {
      * @param  latRad  latitude in radians
      * @param  pixRad  approximate size of a screen pixel in radians
      */
-    private static String formatPositionSex( double lonRad, double latRad,
-                                             double pixRad ) {
+    public static String formatPositionSex( double lonRad, double latRad,
+                                            double pixRad ) {
         int secondDp = getDecimalPlaces( pixRad / Math.PI * 12 * 60 * 60 );
         int arcsecDp = getDecimalPlaces( pixRad / Math.PI * 180 * 60 * 60 );
         String lonSex =
@@ -562,8 +849,8 @@ public class SkySurface implements Surface {
      * @param  latRad  latitude in radians
      * @param  pixRad  approximate size of a screen pixel in radians
      */
-    private static String formatPositionDec( double lonRad, double latRad,
-                                             double pixRad ) {
+    public static String formatPositionDec( double lonRad, double latRad,
+                                            double pixRad ) {
         double lonDeg = lonRad * 180 / Math.PI;
         double latDeg = latRad * 180 / Math.PI;
         double pixDeg = pixRad * 180 / Math.PI;
@@ -662,7 +949,7 @@ public class SkySurface implements Surface {
     public SkyAspect flatPan( Point2D pos0, Point2D pos1 ) {
         double xoff1 = xoff_ + ( pos1.getX() - pos0.getX() ) / gScale_;
         double yoff1 = yoff_ + ( pos1.getY() - pos0.getY() ) / gScale_;
-        return createAspect( projection_, rotmat_, zoom_, xoff1, yoff1 );
+        return createAspect( rotmat_, zoom_, xoff1, yoff1 );
     }
 
     /**
@@ -677,7 +964,7 @@ public class SkySurface implements Surface {
         double zoom1 = zoom_ * factor;
         double xoff1 = xoff_ + ( pos.getX() - gXoff_ ) / gZoom_ * dz;
         double yoff1 = yoff_ + ( pos.getY() - gYoff_ ) / gZoom_ * dz;
-        return createAspect( projection_, rotmat_, zoom1, xoff1, yoff1 );
+        return createAspect( rotmat_, zoom1, xoff1, yoff1 );
     }
 
     /**
@@ -696,7 +983,7 @@ public class SkySurface implements Surface {
                                                graphicsToProjected( pos1 ) );
         return rotmat1 == null
              ? flatPan( pos0, pos1 )
-             : createAspect( projection_, rotmat1, zoom_, xoff_, yoff_ );
+             : createAspect( rotmat1, zoom_, xoff_, yoff_ );
     }
 
     /**
@@ -718,7 +1005,7 @@ public class SkySurface implements Surface {
         double[] rotmat1 = projection_.projRotate( rotmat_, ppos0, ppos1 );
         return rotmat1 == null
              ? flatZoom( pos, factor )
-             : createAspect( projection_, rotmat1, zoom1, xoff_, yoff_ );
+             : createAspect( rotmat1, zoom1, xoff_, yoff_ );
     }
 
     /**
@@ -738,12 +1025,12 @@ public class SkySurface implements Surface {
         Point2D.Double ppos1 = graphicsToProjected( surfCenter );
         double[] rotmat1 = projection_.projRotate( rotmat_, ppos0, ppos1 );
         if ( rotmat1 != null ) {
-            return createAspect( projection_, rotmat1, zoom1, xoff_, yoff_ );
+            return createAspect( rotmat1, zoom1, xoff_, yoff_ );
         }
         else {
             double xoff1 = - ppos0.x * zoom1;
             double yoff1 =   ppos0.y * zoom1;
-            return createAspect( projection_, rotmat_, zoom1, xoff1, yoff1 );
+            return createAspect( rotmat_, zoom1, xoff1, yoff1 );
         }
     }
 
@@ -790,6 +1077,7 @@ public class SkySurface implements Surface {
                 && PlotUtil.equals( this.axLabeller_, other.axLabeller_ )
                 && PlotUtil.equals( this.gridColor_, other.gridColor_ )
                 && PlotUtil.equals( this.axlabelColor_, other.axlabelColor_ )
+                && PlotUtil.equals( this.scalebarColor_, other.scalebarColor_ )
                 && this.sexagesimal_ == other.sexagesimal_
                 && this.crowd_ == other.crowd_
                 && PlotUtil.equals( this.captioner_, other.captioner_ )
@@ -816,6 +1104,7 @@ public class SkySurface implements Surface {
         code = 23 * code + PlotUtil.hashCode( axLabeller_ );
         code = 23 * code + PlotUtil.hashCode( gridColor_ );
         code = 23 * code + PlotUtil.hashCode( axlabelColor_ );
+        code = 23 * code + PlotUtil.hashCode( scalebarColor_ );
         code = 23 * code + ( sexagesimal_ ? 5 : 13 );
         code = 23 * code + Float.floatToIntBits( (float) crowd_ );
         code = 23 * code + PlotUtil.hashCode( captioner_ );
@@ -828,7 +1117,6 @@ public class SkySurface implements Surface {
      * This method contains an assertion that the returned aspect has
      * the same reflection state as this one.
      *
-     * @param  projection  sky projection
      * @param  rotmat  9-element rotation matrix
      * @param  zoom    zoom factor; 1 means the sky is approximately
      *                 the same size as plot bounds
@@ -837,8 +1125,8 @@ public class SkySurface implements Surface {
      * @param  yoff  y offset of plot centre from plot bounds centre
      *               in dimensionless units; 0 is centred
      */
-    private SkyAspect createAspect( Projection proj, double[] rotmat,
-                                    double zoom, double xoff, double yoff ) {
+    private SkyAspect createAspect( double[] rotmat, double zoom,
+                                    double xoff, double yoff ) {
 
         /* Check that the reflection status of the returned aspect is the
          * same as that for this surface's aspect.  Although that's not an
@@ -848,6 +1136,6 @@ public class SkySurface implements Surface {
          * same value for the aspect represented by this surface and the
          * one being generated. */
         assert Matrices.det( rotmat_ ) * Matrices.det( rotmat ) >= 0;
-        return new SkyAspect( proj, rotmat, zoom, xoff, yoff );
+        return new SkyAspect( rotmat, zoom, xoff, yoff );
     }
 }

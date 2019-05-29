@@ -3,6 +3,7 @@ package uk.ac.starlink.votable;
 import java.net.URL;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.logging.Logger;
 import javax.xml.transform.dom.DOMSource;
 import org.w3c.dom.Document;
 import org.w3c.dom.Element;
@@ -36,6 +37,8 @@ import uk.ac.starlink.votable.dom.DelegatingElement;
 public class VOElement extends DelegatingElement {
 
     private final int iseq_;
+    private static final Logger logger_ =
+        Logger.getLogger( "uk.ac.starlink.votable" );
 
     /**
      * Constructs a VOElement from a DOM element.
@@ -132,7 +135,7 @@ public class VOElement extends DelegatingElement {
      * @return  an array of VOElement children of this one
      */
     public VOElement[] getChildren() {
-        List children = new ArrayList();
+        List<VOElement> children = new ArrayList<VOElement>();
         for ( Node ch = getFirstChild(); ch != null;
               ch = ch.getNextSibling() ) {
             if ( ch instanceof VOElement ) {
@@ -142,7 +145,7 @@ public class VOElement extends DelegatingElement {
                 throw new AssertionError();
             }
         }
-        return (VOElement[]) children.toArray( new VOElement[ 0 ] );
+        return children.toArray( new VOElement[ 0 ] );
     }
 
     /**
@@ -161,16 +164,16 @@ public class VOElement extends DelegatingElement {
      *         name <tt>tagname</tt>
      */
     public VOElement[] getChildrenByName( String votagname ) {
-        List children = new ArrayList();
+        List<VOElement> children = new ArrayList<VOElement>();
         for ( Node ch = getFirstChild(); ch != null;
               ch = ch.getNextSibling() ) {
             if ( ch instanceof Element &&
                  getVOTagName( (Element) ch ).equals( votagname ) ) {
                 assert ch instanceof VOElement;
-                children.add( ch );
+                children.add( (VOElement) ch );
             }
         }
-        return (VOElement[]) children.toArray( new VOElement[ 0 ] );
+        return children.toArray( new VOElement[ 0 ] );
     }
 
     /**
@@ -280,6 +283,44 @@ public class VOElement extends DelegatingElement {
     }
 
     /**
+     * Returns an element from the same document whose ID-typed attribute
+     * matches the value of a given (reference) attribute of this element.
+     * The result is constrained to have a particular tag name;
+     * if no such element exists, null is returned.
+     *
+     * @param  refAtt   name of referencing attribute of this element
+     * @param  votagname  the unqualified element name in the VOTable
+     *         namespace required (such as "TABLE")
+     * @return   element with required tag name, or null
+     */
+    public VOElement getReferencedElement( String refAtt, String votagname ) {
+        if ( hasAttribute( refAtt ) ) {
+            String ref = getAttribute( refAtt );
+            Document doc = getOwnerDocument();
+            if ( ref != null && ref.trim().length() > 0 && doc != null ) {
+                Element refEl = doc.getElementById( ref );
+                if ( refEl instanceof VOElement &&
+                     votagname.equals( getVOTagName( refEl ) ) ) {
+                    return (VOElement) refEl;
+                }
+                else if ( refEl == null ) {
+                    String msg = new StringBuffer()
+                        .append( "Failed to find element referenced from <" )
+                        .append( getTagName() )
+                        .append( " " )
+                        .append( refAtt )
+                        .append( "='" )
+                        .append( ref )
+                        .append( "'/>" )
+                        .toString();
+                    logger_.warning( msg );
+                }
+            }
+        }
+        return null;
+    }
+
+    /**
      * Returns a NodeList of all descendant Elements with a given
      * unqualified tag name in the VOTable namespace, in the order
      * in which they are encountered in a preorder traversal of this
@@ -293,14 +334,14 @@ public class VOElement extends DelegatingElement {
      * @return  list of matching element nodes
      */
     public NodeList getElementsByVOTagName( String voTagName ) {
-        final List findList = new ArrayList();
+        final List<Element> findList = new ArrayList<Element>();
         addChildrenByVOTagName( this, voTagName, findList );
         return new NodeList() {
             public int getLength() {
                 return findList.size();
             }
             public Node item( int i ) {
-                return (Node) findList.get( i );
+                return findList.get( i );
             }
         };
     }
@@ -313,7 +354,7 @@ public class VOElement extends DelegatingElement {
      * @return  elList  list of Elements to append new selected descendants to
      */
     private void addChildrenByVOTagName( Element el, String voTagName,
-                                         List elList ) {
+                                         List<Element> elList ) {
          
         for ( Node child = el.getFirstChild(); child != null;
               child = child.getNextSibling() ) { 

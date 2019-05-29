@@ -72,6 +72,8 @@ public class TapSchemaInterrogator {
     public static final MetaQuerier<SchemaMeta> SCHEMA_QUERIER =
         createSchemaQuerier();
 
+    private static final AdqlSyntax syntax_ = AdqlSyntax.getInstance();
+
     private static final Logger logger_ =
         Logger.getLogger( "uk.ac.starlink.vo" );
 
@@ -338,7 +340,14 @@ public class TapSchemaInterrogator {
         int ncol = table.getColumnCount();
         for ( int icol = 0; icol < ncol; icol++ ) {
             String name = table.getColumnInfo( icol ).getName();
-            if ( ! name.toLowerCase().matches( ".*size.*" ) ) {
+
+            /* Avoid the 'size' or '"size"' column here.  This is mandated
+             * for TAP_SCHEMA.columns in TAP 1.0, but it's a lot of trouble
+             * to deal with because it's an ADQL reserved word.
+             * In practice there is confusion about whether to delimit it
+             * or not.  Moreover, at least since ADQL 1.1 it is deprecated
+             * in favour of arraysize which contains more useful information. */
+            if ( ! "size".equals( syntax_.unquote( name ).toLowerCase() ) ) {
                 list.add( name );
             }
         }
@@ -359,6 +368,17 @@ public class TapSchemaInterrogator {
                            + objType + " entries" );
             logger_.info( "Orphaned " + objType + "s: " + map.keySet() );
         }
+    }
+
+    /**
+     * Returns an untyped object cast to String, or null if it has
+     * some other run-time type.
+     * 
+     * @param  obj  object
+     * @return  <code>((String) obj)</code> or null
+     */
+    private static String stringOrNull( Object obj ) {
+        return obj instanceof String ? (String) obj : null;
     }
 
     /**
@@ -440,7 +460,12 @@ public class TapSchemaInterrogator {
             cPrincipal = "principal",
             cStd = "std",
         };
+
+        /* The following columns appear in TAP 1.1 but not 1.0, so it's
+         * not a good idea to specify them as mandatory. */
         final String cColumnIndex = "column_index";
+        final String cArraysize = "arraysize";
+        final String cXtype = "xtype";
         final String[] flagAtts = { cIndexed, cPrincipal, cStd };
         return new MetaQuerier<ColumnMeta>( "TAP_SCHEMA.columns", attCols,
                                             false, "table_name",
@@ -460,13 +485,11 @@ public class TapSchemaInterrogator {
                     }
                 }
                 cmeta.flags_ = flagList.toArray( new String[ 0 ] );
-                cmeta.extras_ = colset.getExtras( row );
-                for ( Iterator<String> it = cmeta.extras_.keySet().iterator();
-                      it.hasNext(); ) {
-                    if ( cColumnIndex.equalsIgnoreCase( it.next() ) ) {
-                        it.remove();
-                    }
-                }
+                Map<String,Object> extras = colset.getExtras( row );
+                extras.remove( cColumnIndex );
+                cmeta.arraysize_ = stringOrNull( extras.remove( cArraysize ) );
+                cmeta.xtype_ = stringOrNull( extras.remove( cXtype ) );
+                cmeta.extras_ = extras;
                 return cmeta;
             }
         };
@@ -886,7 +909,7 @@ public class TapSchemaInterrogator {
         ColSet( String[] queryCols, String[] stdCols ) {
             querycols_ = toLowers( queryCols );
             Collection<String> stdcols =
-                new HashSet( Arrays.asList( toLowers( stdCols ) ) );
+                new HashSet<String>( Arrays.asList( toLowers( stdCols ) ) );
             icolMap_ = new HashMap<String,Integer>();
             List<String> extrasList = new ArrayList<String>();
             int nc = querycols_.length;

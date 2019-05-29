@@ -10,17 +10,20 @@ import java.util.List;
 import java.util.HashMap;
 import java.util.Map;
 import javax.swing.Icon;
+import uk.ac.starlink.table.ValueInfo;
 import uk.ac.starlink.ttools.gui.ResourceIcon;
 import uk.ac.starlink.ttools.plot.ErrorMode;
 import uk.ac.starlink.ttools.plot.ErrorRenderer;
 import uk.ac.starlink.ttools.plot.Pixellator;
-import uk.ac.starlink.ttools.plot.Range;
 import uk.ac.starlink.ttools.plot2.AuxReader;
 import uk.ac.starlink.ttools.plot2.AuxScale;
 import uk.ac.starlink.ttools.plot2.DataGeom;
 import uk.ac.starlink.ttools.plot2.Glyph;
 import uk.ac.starlink.ttools.plot2.Pixer;
 import uk.ac.starlink.ttools.plot2.PlotUtil;
+import uk.ac.starlink.ttools.plot2.Ranger;
+import uk.ac.starlink.ttools.plot2.Scaling;
+import uk.ac.starlink.ttools.plot2.Span;
 import uk.ac.starlink.ttools.plot2.Surface;
 import uk.ac.starlink.ttools.plot2.config.ConfigKey;
 import uk.ac.starlink.ttools.plot2.config.ConfigMap;
@@ -29,8 +32,10 @@ import uk.ac.starlink.ttools.plot2.config.StyleKeys;
 import uk.ac.starlink.ttools.plot2.data.Coord;
 import uk.ac.starlink.ttools.plot2.data.DataSpec;
 import uk.ac.starlink.ttools.plot2.data.DataStore;
+import uk.ac.starlink.ttools.plot2.data.Tuple;
 import uk.ac.starlink.ttools.plot2.data.TupleSequence;
 import uk.ac.starlink.ttools.plot2.geom.CubeSurface;
+import uk.ac.starlink.ttools.plot2.geom.GPoint3D;
 import uk.ac.starlink.ttools.plot2.paper.Paper;
 import uk.ac.starlink.ttools.plot2.paper.PaperType2D;
 import uk.ac.starlink.ttools.plot2.paper.PaperType3D;
@@ -50,14 +55,14 @@ import uk.ac.starlink.ttools.plot2.paper.PaperType3D;
  * @author   Mark Taylor
  * @since    18 Feb 2013
  */
-public class MultiPointForm implements ShapeForm {
+public abstract class MultiPointForm implements ShapeForm {
 
     private final String name_;
     private final Icon icon_;
     private final String description_;
     private final MultiPointCoordSet extraCoordSet_;
-    private final boolean canScale_;
     private final MultiPointConfigKey rendererKey_;
+    private final ConfigKey[] otherKeys_;
 
     /**
      * Constructor.
@@ -67,23 +72,44 @@ public class MultiPointForm implements ShapeForm {
      * @param  description  XML description
      * @param  extraCoordSet  defines the extra positional coordinates 
      *                        used to plot multipoint shapes
-     * @param  canScale  true if a configuration option to scale the shapes
-     *                   should be supplied
      * @param  rendererKey  config key for the renderer; provides option to
      *                      vary the shape, but any renderer specified by it
      *                      must be expecting data corresponding to the
      *                      <code>extraCoordSet</code> parameter
+     * @param  otherKeys    additional config keys
      */
     public MultiPointForm( String name, Icon icon, String description,
-                           MultiPointCoordSet extraCoordSet, boolean canScale,
-                           MultiPointConfigKey rendererKey ) {
+                           MultiPointCoordSet extraCoordSet,
+                           MultiPointConfigKey rendererKey,
+                           ConfigKey[] otherKeys ) {
         name_ = name;
         icon_ = icon;
         description_ = description;
         extraCoordSet_ = extraCoordSet;
-        canScale_ = canScale;
         rendererKey_ = rendererKey;
+        otherKeys_ = otherKeys;
     }
+
+    /**
+     * Returns a fixed constant by which to scale all (autoscaled or not
+     * autoscaled) offset values before plotting.
+     *
+     * @param  config  config map
+     * @return  constant scaling factor
+     */
+    protected abstract double getScaleFactor( ConfigMap config );
+
+    /**
+     * Indicates whether autoscaling should be applied.
+     * If true, before plotting is carried out a scan of all the
+     * data values is performed to determine the range of values,
+     * and the supplied offsets are scaled accordingly,
+     * so that the largest ones are a reasonable size on the screen.
+     *
+     * @param  config  config map
+     * @return   true for autoscaling false to use raw values
+     */
+    protected abstract boolean isAutoscale( ConfigMap config );
 
     public int getPositionCount() {
         return 1;
@@ -108,18 +134,15 @@ public class MultiPointForm implements ShapeForm {
     public ConfigKey[] getConfigKeys() {
         List<ConfigKey> list = new ArrayList<ConfigKey>();
         list.add( rendererKey_ );
-        if ( canScale_ ) {
-            list.add( StyleKeys.SCALE );
-            list.add( StyleKeys.AUTOSCALE );
-        }
+        list.addAll( Arrays.asList( otherKeys_ ) );
         return list.toArray( new ConfigKey[ 0 ] );
     }
 
     public Outliner createOutliner( ConfigMap config ) {
         ErrorRenderer renderer = config.get( rendererKey_ );
         ErrorMode[] errorModes = rendererKey_.getErrorModes();
-        double scale = canScale_ ? config.get( StyleKeys.SCALE ) : 1;
-        boolean isAutoscale = canScale_ && config.get( StyleKeys.AUTOSCALE );
+        double scale = getScaleFactor( config );
+        boolean isAutoscale = isAutoscale( config );
         return new MultiPointOutliner( renderer, errorModes, scale,
                                        isAutoscale );
     }
@@ -145,50 +168,45 @@ public class MultiPointForm implements ShapeForm {
             "The plotted markers are typically little arrows,",
             "but there are other options.",
             "</p>",
-            "<p>In some cases such delta values may be",
-            "the actual magnitude required for the plot,",
-            "but often the vector data represents a value",
-            "which has a different magnitude or is in different units",
-            "to the positional data.",
-            "As a convenience for this case, the plotter can optionally",
-            "scale the magnitudes of all the vectors",
-            "to make them a sensible size,",
-            "so by default the largest ones are a few tens of pixels long.",
-            "This auto-scaling is in operation by default,",
-            "but it can be turned off or adjusted with the scaling and",
-            "auto-scaling options.",
-            "</p>",
         } );
-        return new MultiPointForm( name, ResourceIcon.FORM_VECTOR,
-                                   descrip, extraCoordSet, canScale,
-                                   StyleKeys.VECTOR_SHAPE );
+        if ( canScale ) {
+            descrip += getDefaultScalingDescription( "vector" );
+        }
+        return createDefaultForm( name, ResourceIcon.FORM_VECTOR, descrip,
+                                  extraCoordSet, StyleKeys.VECTOR_SHAPE,
+                                  canScale );
     }
 
     /**
-     * Returns a MultiPointForm instance for drawing ellipses around the
-     * central position.
+     * Returns XML text suitable for inclusion in a MultiPointForm description
+     * explaining how the scaling of marker sizes is controlled.
+     * This corresponds to the behaviour of the
+     * {@link #createDefaultForm createDefaultForm} method.
      *
-     * @param  name  form name
-     * @param  extraCoordSet  3-element coord set containing major/minor
-     *                        radius (order not significant) and
-     *                        position angle in degrees
-     * @param  canScale  whether to offer vector size scaling
-     * @return  new vector form instance
+     * @param   shapename   human-readable name of the shape being plotted
+     *                      by this form
+     * @return  description text &lt;p&gt; element
      */
-    public static MultiPointForm
-                  createEllipseForm( String name,
-                                     MultiPointCoordSet extraCoordSet,
-                                     boolean canScale ) {
-        String descrip = PlotUtil.concatLines( new String[] {
-            "<p>Plots an ellipse (or rectangle, triangle,",
-            "or other similar figure)",
-            "defined by two principal radii and",
-            "an optional rotation angle.",
+    public static String getDefaultScalingDescription( String shapename ) {
+        return PlotUtil.concatLines( new String[] {
+            "<p>In some cases the supplied data values",
+            "give the actual extents in data coordinates",
+            "for the plotted " + shapename + "s",
+            "but sometimes the data is on a different scale",
+            "or in different units to the positional coordinates.",
+            "As a convenience for this case, the plotter can optionally",
+            "scale the magnitudes of all the " + shapename + "s",
+            "to make them a reasonable size on the plot,",
+            "so by default the largest ones are a few tens of pixels long.",
+            "This auto-scaling is turned off by default,",
+            "but it can be activated with the",
+            "<code>" + StyleKeys.AUTOSCALE.getMeta().getShortName() + "</code>",
+            "option.",
+            "Whether autoscaling is on or off, the",
+            "<code>" + StyleKeys.SCALE.getMeta().getShortName() + "</code>",
+            "option can be used to apply a fixed scaling factor.",
             "</p>",
         } );
-        return new MultiPointForm( name, ResourceIcon.FORM_ELLIPSE,
-                                   descrip, extraCoordSet, canScale,
-                                   StyleKeys.ELLIPSE_SHAPE );
     }
 
     /**
@@ -211,8 +229,57 @@ public class MultiPointForm implements ShapeForm {
             "ellipses, rectangles etc aligned with the axes.",
             "</p>",
         } );
-        return new MultiPointForm( name, ResourceIcon.FORM_ERROR, descrip,
-                                   extraCoordSet, false, rendererKey );
+        return createDefaultForm( name, ResourceIcon.FORM_ERROR, descrip,
+                                  extraCoordSet, rendererKey, false );
+    }
+
+    /**
+     * Returns a new MultiPointForm with scaling in one of two default
+     * configurations, depending on the value of the supplied canScale
+     * parameter.  If true, then the StyleKeys SCALE and AUTOSCALE keys
+     * are used to configure scaling, and if false, no scaling is provided.
+     *
+     * @param  name   shapeform name
+     * @param  icon   shapeform icon
+     * @param  description  XML description
+     * @param  extraCoordSet  defines the extra positional coordinates 
+     *                        used to plot multipoint shapes
+     * @param  rendererKey  config key for the renderer; provides option to
+     *                      vary the shape, but any renderer specified by it
+     *                      must be expecting data corresponding to the
+     *                      <code>extraCoordSet</code> parameter
+     * @param  canScale   true for standard scaling configuration,
+     *                    false for no scaling
+     */
+    public static MultiPointForm
+            createDefaultForm( String name, Icon icon, String description, 
+                               MultiPointCoordSet extraCoordSet,
+                               MultiPointConfigKey rendererKey,
+                               boolean canScale ) {
+        if ( canScale ) {
+            return new MultiPointForm( name, icon, description, extraCoordSet,
+                                       rendererKey, new ConfigKey[] {
+                                           StyleKeys.SCALE, StyleKeys.AUTOSCALE,
+                                       } ) {
+                protected double getScaleFactor( ConfigMap config ) {
+                    return config.get( StyleKeys.SCALE );
+                }
+                protected boolean isAutoscale( ConfigMap config ) {
+                    return config.get( StyleKeys.AUTOSCALE );
+                }
+            };
+        }
+        else {
+            return new MultiPointForm( name, icon, description, extraCoordSet,
+                                       rendererKey, new ConfigKey[ 0 ] ) {
+                protected double getScaleFactor( ConfigMap config ) {
+                    return 1;
+                }
+                protected boolean isAutoscale( ConfigMap config ) {
+                    return false;
+                }
+            };
+        }
     }
 
     /**
@@ -270,7 +337,7 @@ public class MultiPointForm implements ShapeForm {
 
         public ShapePainter create2DPainter( final Surface surface,
                                              final DataGeom geom,
-                                             Map<AuxScale,Range> auxRanges,
+                                             Map<AuxScale,Span> auxSpans,
                                              final PaperType2D paperType ) {
             int ndim = surface.getDataDimCount();
             final int nextra = extraCoordSet_.getPointCount();
@@ -278,15 +345,15 @@ public class MultiPointForm implements ShapeForm {
             final double[][] dposExtras = new double[ nextra ][ ndim ];
             final Point2D.Double gpos0 = new Point2D.Double();
             final int icExtra = getExtrasCoordIndex( geom );
-            double scale = scale_ * getBaseScale( surface, auxRanges );
+            double scale = scale_ * getBaseScale( surface, auxSpans );
             final Offsetter offsetter = createOffsetter( surface, scale );
             return new ShapePainter() {
-                public void paintPoint( TupleSequence tseq, Color color,
+                public void paintPoint( Tuple tuple, Color color,
                                         Paper paper ) {
-                    if ( geom.readDataPos( tseq, 0, dpos0 ) &&
+                    if ( geom.readDataPos( tuple, 0, dpos0 ) &&
                          surface.dataToGraphics( dpos0, true, gpos0 ) &&
-                         extraCoordSet_.readPoints( tseq, icExtra, dpos0,
-                                                    dposExtras ) ) {
+                         extraCoordSet_.readPoints( tuple, icExtra, geom,
+                                                    dpos0, dposExtras ) ) {
                         int[] xoffs = new int[ nextra ];
                         int[] yoffs = new int[ nextra ];
                         offsetter.calculateOffsets( dpos0, gpos0, dposExtras,
@@ -302,32 +369,30 @@ public class MultiPointForm implements ShapeForm {
 
         public ShapePainter create3DPainter( final CubeSurface surface,
                                              final DataGeom geom,
-                                             Map<AuxScale,Range> auxRanges,
+                                             Map<AuxScale,Span> auxSpans,
                                              final PaperType3D paperType ) {
             int ndim = surface.getDataDimCount();
             final int nextra = extraCoordSet_.getPointCount();
             final double[] dpos0 = new double[ ndim ];
             final double[][] dposExtras = new double[ nextra ][ ndim ];
-            final Point2D.Double gpos0 = new Point2D.Double();
+            final GPoint3D gpos0 = new GPoint3D();
             final int icExtra = getExtrasCoordIndex( geom );
-            final double[] zloc = new double[ 1 ];
-            double scale = scale_ * getBaseScale( surface, auxRanges );
+            double scale = scale_ * getBaseScale( surface, auxSpans );
             final Offsetter offsetter = createOffsetter( surface, scale );
             return new ShapePainter() {
-                public void paintPoint( TupleSequence tseq, Color color,
+                public void paintPoint( Tuple tuple, Color color,
                                         Paper paper ) {
-                    if ( geom.readDataPos( tseq, 0, dpos0 ) &&
-                         surface.dataToGraphicZ( dpos0, true, gpos0, zloc ) &&
-                         extraCoordSet_.readPoints( tseq, icExtra, dpos0,
-                                                    dposExtras ) ) {
-                        double dz0 = zloc[ 0 ];
+                    if ( geom.readDataPos( tuple, 0, dpos0 ) &&
+                         surface.dataToGraphicZ( dpos0, true, gpos0 ) &&
+                         extraCoordSet_.readPoints( tuple, icExtra, geom,
+                                                    dpos0, dposExtras ) ) {
                         int[] xoffs = new int[ nextra ];
                         int[] yoffs = new int[ nextra ];
                         offsetter.calculateOffsets( dpos0, gpos0, dposExtras,
                                                     xoffs, yoffs );
                         Glyph glyph =
                             new MultiPointGlyph( renderer_, xoffs, yoffs );
-                        paperType.placeGlyph( paper, gpos0.x, gpos0.y, dz0,
+                        paperType.placeGlyph( paper, gpos0.x, gpos0.y, gpos0.z,
                                               glyph, color );
                     }
                 }
@@ -363,10 +428,10 @@ public class MultiPointForm implements ShapeForm {
          * Manual adjustment may be applied on top of this value.
          *
          * @param   surface  plot surface
-         * @param   auxRanges  ranges calculated from data by request
+         * @param   auxSpans  ranges calculated from data by request
          */
         private double getBaseScale( Surface surface,
-                                     Map<AuxScale,Range> auxRanges ) {
+                                     Map<AuxScale,Span> auxSpans ) {
 
             /* If no autoscale, just return 1. */
             if ( ! isAutoscale_ ) {
@@ -375,8 +440,8 @@ public class MultiPointForm implements ShapeForm {
 
             /* Otherwise, pick a scale so that the largest sized shape
              * painted will be a few tens of pixels long. */
-            Range sizeRange = auxRanges.get( new SizeScale( this ) );
-            double[] bounds = sizeRange.getFiniteBounds( false );
+            Span sizeSpan = auxSpans.get( new SizeScale( this ) );
+            double[] bounds = sizeSpan.getFiniteBounds( false );
             double gmax = Math.max( -bounds[ 0 ], +bounds[ 1 ] );
             assert gmax >= 0;
             return gmax == 0 ? 1 : 32 / gmax;
@@ -534,9 +599,15 @@ public class MultiPointForm implements ShapeForm {
                 public int getCoordIndex() {
                     return -1;
                 }
+                public ValueInfo getAxisInfo( DataSpec dataSpec ) {
+                    return null;
+                }
+                public Scaling getScaling() {
+                    return null;
+                }
                 public void adjustAuxRange( Surface surface, DataSpec dataSpec,
                                             DataStore dataStore, Object[] plans,
-                                            Range range ) {
+                                            Ranger ranger ) {
                     double[] dpos0 = new double[ ndim ];
                     double[][] dposExtras = new double[ nextra ][ ndim ];
                     Point2D.Double gpos0 = new Point2D.Double();
@@ -547,16 +618,16 @@ public class MultiPointForm implements ShapeForm {
                              surface.dataToGraphics( dpos0, scaleFromVisible_,
                                                      gpos0 ) &&
                              PlotUtil.isPointFinite( gpos0 ) &&
-                             extraCoordSet.readPoints( tseq, icExtra, dpos0,
-                                                       dposExtras ) ) {
+                             extraCoordSet.readPoints( tseq, icExtra, geom,
+                                                       dpos0, dposExtras ) ) {
                             for ( int ie = 0; ie < nextra; ie++ ) {
                                 if ( surface
                                     .dataToGraphicsOffset( dpos0, gpos0,
                                                            dposExtras[ ie ],
                                                            false, gpos1 ) &&
                                     PlotUtil.isPointFinite( gpos1 ) ) {
-                                    range.submit( gpos1.x - gpos0.x );
-                                    range.submit( gpos1.y - gpos0.y );
+                                    ranger.submitDatum( gpos1.x - gpos0.x );
+                                    ranger.submitDatum( gpos1.y - gpos0.y );
                                 }
                             }
                         }

@@ -152,20 +152,21 @@ abstract class FileColumnStore implements ColumnStore {
         return multiply( itemShape_ ) * typeBytes_ * nrow_;
     }
 
-    public void addHeaderInfo( Header hdr, int icol )
+    public void addHeaderInfo( Header hdr, BintableColumnHeader colhead,
+                               int jcol )
             throws HeaderCardException {
-        String forcol = " for column " + icol;
+        String forcol = " for column " + jcol;
 
         /* Column name. */
         String name = info_.getName();
         if ( name != null && name.trim().length() > 0 ) {
-            FitsConstants
-           .addTrimmedValue( hdr, "TTYPE" + icol, name, "label" + forcol );
+            FitsConstants.addTrimmedValue( hdr, colhead.getKeyName( "TTYPE" ),
+                                           name, "label" + forcol );
         }
 
         /* Column format. */
         long nItem = multiply( itemShape_ ) * nrow_;
-        hdr.addValue( "TFORM" + icol, nItem + "" + formatChar_,
+        hdr.addValue( colhead.getKeyName( "TFORM" ), nItem + "" + formatChar_,
                       "format" + forcol );
 
         /* Column dimensions. */
@@ -176,48 +177,35 @@ abstract class FileColumnStore implements ColumnStore {
         }
         dimbuf.append( nrow_ )
               .append( ')' );
-        hdr.addValue( "TDIM" + icol, dimbuf.toString(),
+        hdr.addValue( colhead.getKeyName( "TDIM" ), dimbuf.toString(),
                       "dimensions" + forcol );
 
         /* Column units. */
         String unit = info_.getUnitString();
         if ( unit != null && unit.trim().length() > 0 ) {
-            FitsConstants
-           .addTrimmedValue( hdr, "TUNIT" + icol, unit, "units" + forcol );
+            FitsConstants.addTrimmedValue( hdr, colhead.getKeyName( "TUNIT" ),
+                                           unit, "units" + forcol );
         }
 
         /* Column description. */
         String comm = info_.getDescription();
         if ( comm != null && comm.trim().length() > 0 ) {
-            try {
-                hdr.addValue( "TCOMM" + icol, comm, null );
-            }
-            catch ( HeaderCardException e ) {
-                // never mind.
-            }
+            FitsConstants
+           .addStringValue( hdr, colhead.getKeyName( "TCOMM" ), comm, null );
         }
 
         /* UCD. */
         String ucd = info_.getUCD();
-        if ( ucd != null && ucd.trim().length() > 0 && ucd.length() < 68 ) {
-            try {
-                hdr.addValue( "TUCD" + icol, ucd, null );
-            }
-            catch ( HeaderCardException e ) {
-                // never mind.
-            }
+        if ( ucd != null && ucd.trim().length() > 0 ) {
+            FitsConstants
+           .addStringValue( hdr, colhead.getKeyName( "TUCD" ), ucd, null );
         }
 
         /* Utype. */
         String utype = info_.getUtype();
-        if ( utype != null && utype.trim().length() > 0
-                           && utype.length() < 68 ) {
-            try {
-                hdr.addValue( "TUTYP" + icol, utype, null );
-            }
-            catch ( HeaderCardException e ) {
-                // never mind.
-            }
+        if ( utype != null && utype.trim().length() > 0 ) {
+            FitsConstants
+           .addStringValue( hdr, colhead.getKeyName( "TUTYP" ), utype, null );
         }
     }
 
@@ -323,10 +311,13 @@ abstract class FileColumnStore implements ColumnStore {
 
                 /* FITS bytes (unlike java bytes, and other FITS integer types)
                  * are unsigned, so note the offset in the headers. */
-                public void addHeaderInfo( Header hdr, int icol )
+                public void addHeaderInfo( Header hdr,
+                                           BintableColumnHeader colhead,
+                                           int jcol )
                         throws HeaderCardException {
-                    super.addHeaderInfo( hdr, icol );
-                    hdr.addValue( "TZERO" + icol, -128.0, "unsigned offset" );
+                    super.addHeaderInfo( hdr, colhead, jcol );
+                    hdr.addValue( colhead.getKeyName( "TZERO" ), -128.0,
+                                  "unsigned offset" );
                 }
             };
         }
@@ -418,18 +409,22 @@ abstract class FileColumnStore implements ColumnStore {
                      dims.length > 0 &&
                      dims[ dims.length - 1 ] > 0 )
                  ? (ColumnStore) new FixedArrayColumnStore( info, handler ) {
-                       public void addHeaderInfo( Header hdr, int icol )
+                       public void addHeaderInfo( Header hdr,
+                                                  BintableColumnHeader colhead,
+                                                  int jcol )
                                throws HeaderCardException {
-                           super.addHeaderInfo( hdr, icol );
-                           hdr.addValue( "TZERO" + icol, -128.0,
+                           super.addHeaderInfo( hdr, colhead, jcol );
+                           hdr.addValue( colhead.getKeyName( "TZERO" ), -128.0,
                                          "unsigned offset" );
                        }
                    }
                  : (ColumnStore) new VariableArrayColumnStore( info, handler ) {
-                       public void addHeaderInfo( Header hdr, int icol )
+                       public void addHeaderInfo( Header hdr,
+                                                  BintableColumnHeader colhead,
+                                                  int jcol )
                                throws HeaderCardException {
-                           super.addHeaderInfo( hdr, icol );
-                           hdr.addValue( "TZERO" + icol, -128.0,
+                           super.addHeaderInfo( hdr, colhead, jcol );
+                           hdr.addValue( colhead.getKeyName( "TZERO" ), -128.0,
                                          "unsigned offset" );
                        }
                    };
@@ -732,14 +727,15 @@ abstract class FileColumnStore implements ColumnStore {
             out.write( buf );
         }
 
-        public void addHeaderInfo( Header hdr, int icol )
+        public void addHeaderInfo( Header hdr, BintableColumnHeader colhead,
+                                   int jcol )
                 throws HeaderCardException {
-            super.addHeaderInfo( hdr, icol );
+            super.addHeaderInfo( hdr, colhead, jcol );
             if ( hasNulls_ ) {
                 Number bad = handler_.getBadNumber();
                 if ( bad != null ) {
-                    hdr.addValue( "TNULL" + icol, bad.longValue(),
-                                  "blank value" );
+                    hdr.addValue( colhead.getKeyName( "TNULL" ),
+                                  bad.longValue(), "blank value" );
                 }
             }
         }

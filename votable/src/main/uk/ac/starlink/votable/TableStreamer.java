@@ -17,14 +17,21 @@ import uk.ac.starlink.table.TableSink;
 import uk.ac.starlink.util.StarEntityResolver;
 
 /**
- * Content which goes through a SAX stream and just extracts
+ * ContentHandler which goes through a SAX stream and just extracts
  * the data from a single TABLE element, copying its metadata and data
  * to a given TableSink.
- * <p>
- * A previous version of this class skipped all elements until it
+ *
+ * <p>A previous version of this class skipped all elements until it
  * found the TABLE element it was looking for.  This is a bit too
  * drastic - other parts of the DOM may be required in case the
  * required TABLE references them using by ID using <tt>ref</tt> attributes.
+ * So it was changed to pull out everything until the end of the TABLE
+ * element of interest.
+ *
+ * <p>That still won't get metadata that comes from SAX events after
+ * the end of the TABLE element.  But given the TableSink interface,
+ * in which the metadata is submitted before any of the row data,
+ * there's nothing that can be done about that.
  *
  * @author   Mark Taylor
  */

@@ -29,10 +29,10 @@ import org.astrogrid.samp.gui.SubscribedClientListModel;
 public class SendManager {
 
     private final GuiHubConnector connector_;
+    private final ListModel clientListModel_;
     private final SendComboBoxModel comboBoxModel_;
     private final String mtype_;
 
-    private static final Object BROADCAST = "All Clients";
     private static final Logger logger_ =
         Logger.getLogger( SendManager.class.getName() );
 
@@ -45,9 +45,8 @@ public class SendManager {
     public SendManager( GuiHubConnector connector, String mtype ) {
         connector_ = connector;
         mtype_ = mtype;
-        comboBoxModel_ =
-            new SendComboBoxModel( new SubscribedClientListModel( connector,
-                                                                  mtype ) );
+        clientListModel_ = new SubscribedClientListModel( connector, mtype );
+        comboBoxModel_ = new SendComboBoxModel( clientListModel_ );
     }
 
     /**
@@ -58,6 +57,30 @@ public class SendManager {
      */
     public ComboBoxModel getComboBoxModel() {
         return comboBoxModel_;
+    }
+
+    /**
+     * Returns a list model containing all clients that are potential
+     * targets for this send manager.  If the list is empty, sending
+     * won't do anything.  Note the content is not the same as for
+     * {@link #getComboBoxModel}, since this list contains only
+     * {@link org.astrogrid.samp.Client} instances, not the Broadcast
+     * pseudo-client.
+     *
+     * @return  list with only <code>Client</code> entries
+     */
+    public ListModel getClientListModel() {
+        return clientListModel_;
+    }
+
+    /**
+     * Returns the client currently selected for sending.
+     * If null, a broadcast is indicated.
+     *
+     * @return  selected destination client, or null for broadcast
+     */
+    public Client getSelectedClient() {
+        return comboBoxModel_.getClient();
     }
 
     /**
@@ -111,7 +134,8 @@ public class SendManager {
     private static class SendComboBoxModel extends AbstractListModel
                                            implements ComboBoxModel {
         private final ListModel clientListModel_;
-        private Object selectedItem_ = BROADCAST;
+        private final Object broadcast_;
+        private Object selectedItem_;
 
         /**
          * Constructor.
@@ -121,6 +145,13 @@ public class SendManager {
          */
         SendComboBoxModel( ListModel clientListModel ) {
             clientListModel_ = clientListModel;
+            broadcast_ = new Object() {
+                @Override
+                public String toString() {
+                    return "All Clients (" + clientListModel_.getSize() + ")";
+                }
+            };
+            selectedItem_ = broadcast_;
 
             /* Watch the underlying client model for changes and 
              * update this one accordingly. */
@@ -134,11 +165,13 @@ public class SendManager {
                     fireIntervalAdded( evt.getSource(),
                                        adjustIndex( evt.getIndex0() ),
                                        adjustIndex( evt.getIndex1() ) );
+                    fireContentsChanged( evt.getSource(), 0, 0 );
                 }
                 public void intervalRemoved( ListDataEvent evt ) {
                     fireIntervalRemoved( evt.getSource(),
                                          adjustIndex( evt.getIndex0() ),
                                          adjustIndex( evt.getIndex1() ) );
+                    fireContentsChanged( evt.getSource(), 0, 0 );
                 }
                 private int adjustIndex( int index ) {
                     return index >= 0 ? index + 1
@@ -152,7 +185,7 @@ public class SendManager {
         }
 
         public Object getElementAt( int index ) {
-            return index == 0 ? BROADCAST
+            return index == 0 ? broadcast_
                               : clientListModel_.getElementAt( index - 1 );
         }
 

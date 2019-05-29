@@ -271,6 +271,64 @@ public class CoordsRadians {
     }
 
     /**
+     * Calculates the position angle between two points on the sky in radians.
+     * The result is in the range +/-pi.
+     * If point 2 is due east of point 1, the result is +pi/2.
+     * Zero is returned if the points are coincident.
+     *
+     * @param  ra1   right ascension of point 1 in radians
+     * @param  dec1  declination of point 1 in radians
+     * @param  ra2   right ascension of point 2 in radians
+     * @param  dec2  declination of point 2 in radians
+     * @return  bearing in radians of point 2 from point 1
+     */
+    public static double posAngRadians( double ra1, double dec1,
+                                        double ra2, double dec2 ) {
+
+        /* This code is written with reference to the source code of
+         * SLA_DBEAR in (the FORTRAN) SLALIB. */
+        double dra = ra2 - ra1;
+        double y = Math.sin( dra ) * Math.cos( dec2 );
+        double x = Math.sin( dec2 ) * Math.cos( dec1 )
+                 - Math.cos( dec2 ) * Math.sin( dec1 ) * Math.cos( dra );
+        return x == 0 && y == 0
+             ? 0
+             : Math.atan2( y, x );
+    }
+
+    /**
+     * Calculates the distance in three dimensional space
+     * between two points specified in spherical polar coordinates.
+     *
+     * @param   ra1      right ascension of point 1 in radians
+     * @param   dec1     declination of point1 in radians
+     * @param   radius1  distance from origin of point1
+     * @param   ra2      right ascension of point 2 in radians
+     * @param   dec2     declination of point2 in radians
+     * @param   radius2  distance from origin of point2
+     * @return  the linear distance between point1 and point2;
+     *          units are as for <code>radius1</code> and <code>radius2</code>
+     */
+    public static double
+            polarDistanceRadians( double ra1, double dec1, double radius1,
+                                  double ra2, double dec2, double radius2 ) {
+        double theta1 = 0.5 * Math.PI - dec1;
+        double theta2 = 0.5 * Math.PI - dec2;
+        double sd1 = Math.sin( theta1 );
+        double sd2 = Math.sin( theta2 );
+        double x1 = radius1 * Math.cos( ra1 ) * sd1;
+        double x2 = radius2 * Math.cos( ra2 ) * sd2;
+        double y1 = radius1 * Math.sin( ra1 ) * sd1;
+        double y2 = radius2 * Math.sin( ra2 ) * sd2;
+        double z1 = radius1 * Math.cos( theta1 );
+        double z2 = radius2 * Math.cos( theta2 );
+        double dx = x1 - x2;
+        double dy = y1 - y2;
+        double dz = z1 - z2;
+        return Math.sqrt( dx * dx + dy * dy + dz * dz );
+    }
+
+    /**
      * Converts hours to radians.
      *
      * @param  hours   angle in hours

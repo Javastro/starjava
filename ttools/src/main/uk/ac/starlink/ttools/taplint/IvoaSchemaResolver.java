@@ -36,6 +36,9 @@ public class IvoaSchemaResolver implements LSResourceResolver {
     /** Namespace URI for VOSI availability schema. */
     public static final String AVAILABILITY_URI;
 
+    /** Namespace URI for UWS schema. */
+    public static final String UWS_URI;
+
     private static final String TABLES_URI;
     private static final String VORESOURCE_URI;
     private static final String TAPREGEXT_URI;
@@ -43,7 +46,16 @@ public class IvoaSchemaResolver implements LSResourceResolver {
     private static final String VODATASERVICE10_URI;
     private static final String XLINK_URI;
 
-    /** Map of namespace URIs to local schema URLs. */
+    /**
+     * Map of namespace URIs to local schema URLs.
+     * Note that the namespace (map key) does not necessarily match the URL
+     * (map value) in point of minor version number; the minor version number
+     * in the URL may be later than the one in the namespace.
+     * This is deliberate, and is codified and explained in the
+     * XML Versioning document (at time of writing,
+     * <a href="http://ivoa.net/documents/Notes/XMLVers/"
+     *         >PEN-XMLVers-1.0-20160906</a>, sec 2.2.3).
+     */
     private static final Map<String,URL> schemaMap_;
     static {
         Class<?> base = IvoaSchemaResolver.class;
@@ -59,7 +71,7 @@ public class IvoaSchemaResolver implements LSResourceResolver {
                  base.getResource( "VOSIAvailability-v1.0.xsd" ) );
         map.put( TABLES_URI =
                  "http://www.ivoa.net/xml/VOSITables/v1.0",
-                 base.getResource( "VOSITables-v1.0.xsd" ) );
+                 base.getResource( "VOSITables-v1.1.xsd" ) );
         map.put( VORESOURCE_URI =
                  "http://www.ivoa.net/xml/VOResource/v1.0",
                  base.getResource( "VOResource-v1.0.xsd" ) );
@@ -72,6 +84,9 @@ public class IvoaSchemaResolver implements LSResourceResolver {
         map.put( VODATASERVICE10_URI =
                  "http://www.ivoa.net/xml/VODataService/v1.0",
                  base.getResource( "VODataService-v1.0.xsd" ) );
+        map.put( UWS_URI =
+                 "http://www.ivoa.net/xml/UWS/v1.0",
+                 base.getResource( "UWS-v1.1.xsd" ) );
         map.put( XLINK_URI =
                  "http://www.w3.org/1999/xlink",
                  base.getResource( "xlink.xsd" ) );

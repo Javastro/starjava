@@ -11,3 +11,16 @@ http://agdevel.jb.man.ac.uk:8080/nexus/content/repositories/thirdparty/uk/ac/sta
 
 The standard build could try <https://maven.apache.org/ant-tasks/>
 
+Updating
+--------
+
+   git checkout master
+   git pull upstream master
+   git push --follow-tags
+   git checkout maven3support
+   
+
+look for versions that are different (tags will be different on each release)
+
+   find . -name lib -print0 |xargs -0 git diff stil-3.2 stil-3.3-3 
+   find . -name build.xml -print0 |xargs -0 git diff stil-3.2 stil-3.3-3 

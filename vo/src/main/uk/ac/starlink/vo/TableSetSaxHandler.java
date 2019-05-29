@@ -145,6 +145,14 @@ public class TableSetSaxHandler extends DefaultHandler {
             column_.extras_.putAll( getAttMap( atts, new String[] { "std" } ) );
             flagList_ = new ArrayList<String>();
         }
+        else if ( "dataType".equals( tname ) ) {
+            String xtype = atts.getValue( "", "extendedType" );
+            String arraysize = atts.getValue( "", "arraysize" );
+            String xschema = atts.getValue( "", "extendedSchema" );
+            String delim = atts.getValue( "", "delim" );
+            column_.xtype_ = xtype;
+            column_.arraysize_ = arraysize;
+        }
         else if ( "foreignKey".equals( tname ) ) {
             foreign_ = new ForeignMeta();
             linkList_ = new ArrayList<ForeignMeta.Link>();
@@ -420,7 +428,7 @@ public class TableSetSaxHandler extends DefaultHandler {
     private static Map<String,String> getAttMap( Attributes atts,
                                                  String[] ignoreNames ) {
         Collection<String> ignores =
-            new HashSet( Arrays.asList( ignoreNames ) );
+            new HashSet<String>( Arrays.asList( ignoreNames ) );
         Map<String,String> map = new LinkedHashMap<String,String>();
         int n = atts.getLength();
         for ( int i = 0; i < n; i++ ) {

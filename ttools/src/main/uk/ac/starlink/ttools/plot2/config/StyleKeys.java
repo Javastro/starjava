@@ -25,7 +25,6 @@ import uk.ac.starlink.ttools.plot2.PlotUtil;
 import uk.ac.starlink.ttools.plot2.Scaling;
 import uk.ac.starlink.ttools.plot2.Subrange;
 import uk.ac.starlink.ttools.plot2.geom.PlaneSurfaceFactory;
-import uk.ac.starlink.ttools.plot2.layer.Combiner;
 import uk.ac.starlink.ttools.plot2.layer.FillMode;
 import uk.ac.starlink.ttools.plot2.layer.LevelMode;
 import uk.ac.starlink.ttools.plot2.layer.Normalisation;
@@ -58,7 +57,8 @@ public class StyleKeys {
             return null;
         }
         public Specifier<MarkShape> createSpecifier() {
-            return new ComboBoxSpecifier<MarkShape>( MarkStyleSelectors
+            return new ComboBoxSpecifier<MarkShape>( MarkShape.class,
+                                                     MarkStyleSelectors
                                                     .createShapeSelector() );
         }
     }.setOptionUsage()
@@ -78,7 +78,8 @@ public class StyleKeys {
             } )
         , 1 ) {
         public Specifier<Integer> createSpecifier() {
-            return new ComboBoxSpecifier<Integer>( MarkStyleSelectors
+            return new ComboBoxSpecifier<Integer>( Integer.class,
+                                                   MarkStyleSelectors
                                                   .createSizeSelector() );
         }
     };
@@ -106,7 +107,8 @@ public class StyleKeys {
                     return null;
                 }
             };
-            return new ComboBoxSpecifier<XYShape>( shapeSelector );
+            return new ComboBoxSpecifier<XYShape>( XYShape.class,
+                                                   shapeSelector );
         }
     }.setOptionUsage()
      .addOptionsXml();
@@ -199,32 +201,6 @@ public class StyleKeys {
                              "axis labels and other plot annotations" )
             , ColorConfigKey.COLORNAME_BLACK, false );
 
-    /** Config key for density map combination. */
-    public static final ConfigKey<Combiner> COMBINER =
-        new OptionConfigKey<Combiner>(
-            new ConfigMeta( "combine", "Combine" )
-           .setShortDescription( "Value combination mode" )
-           .setXmlDescription( new String[] {
-                "<p>Defines how values contributing to the same",
-                "density map bin are combined together to produce",
-                "the value assigned to that bin (and hence its colour).",
-                "</p>",
-                "<p>For unweighted values (a pure density map),",
-                "it usually makes sense to use",
-                "<code>" + Combiner.COUNT + "</code>.",
-                "However, if the input is weighted by an additional",
-                "data coordinate, one of the other values such as",
-                "<code>" + Combiner.MEAN + "</code>",
-                "may be more revealing.",
-                "</p>",
-            } )
-        , Combiner.class, Combiner.getKnownCombiners(), Combiner.SUM ) {
-        public String getXmlDescription( Combiner combiner ) {
-            return combiner.getDescription();
-        }
-    }.setOptionUsage()
-     .addOptionsXml();
-
     private static final BarStyle.Form[] BARFORMS = new BarStyle.Form[] {
         BarStyle.FORM_OPEN,
         BarStyle.FORM_FILLED,
@@ -256,7 +232,9 @@ public class StyleKeys {
                         return BarStyles.getIcon( (BarStyle.Form) form );
                     }
                 };
-                return new ComboBoxSpecifier<BarStyle.Form>( formSelector );
+                return
+                    new ComboBoxSpecifier<BarStyle.Form>( BarStyle.Form.class,
+                                                          formSelector );
             }
         }.setOptionUsage()
          .addOptionsXml();
@@ -291,7 +269,8 @@ public class StyleKeys {
                                            new BasicStroke(), 2 );
                     }
                 };
-                return new ComboBoxSpecifier<FillMode>( fillSelector );
+                return new ComboBoxSpecifier<FillMode>( FillMode.class,
+                                                        fillSelector );
             }
          }.setOptionUsage()
           .addOptionsXml();
@@ -306,16 +285,35 @@ public class StyleKeys {
                 "cumulatively;",
                 "each bin includes the counts from all previous bins.",
                 "</p>",
+                "<p>Note that setting cumulative true may not make much sense",
+                "with some other parameter values,",
+                "for instance averaging aggregation modes.",
+                "</p>",
             } )
         );
 
     /** Config key for histogram normalisation mode on generic axis. */
     public static final ConfigKey<Normalisation> NORMALISE =
-        createNormalisationKey( false );
-
-    /** Cnofig key for histogram normalisation mode on time axis. */
-    public static final ConfigKey<Normalisation> NORMALISE_TIME =
-        createNormalisationKey( true );
+        new OptionConfigKey<Normalisation>(
+            new ConfigMeta( "normalise", "Normalise" )
+           .setShortDescription( "Normalisation mode" )
+           .setXmlDescription( new String[] {
+                "<p>Defines how, if at all, the bars of histogram-like plots",
+                "are normalised or otherwise scaled vertically.",
+                "</p>",
+                "<p>Note that some of the normalisation options",
+                "may not make much sense with some other parameter values,",
+                "for instance averaging aggregation modes.",
+                "</p>",
+            } )
+            , Normalisation.class, Normalisation.getKnownValues(),
+              Normalisation.NONE
+        ) {
+            public String getXmlDescription( Normalisation norm ) {
+                return norm.getDescription();
+            }
+        }.setOptionUsage()
+         .addOptionsXml();
 
     /** Config key for line antialiasing. */
     public static final ConfigKey<Boolean> ANTIALIAS =
@@ -505,7 +503,7 @@ public class StyleKeys {
                 "<code>" + SCALE_NAME + "</code> parameter.",
                 "</p>",
             } )
-        , Boolean.TRUE );
+        , Boolean.FALSE );
 
     /** Config key for autoscale flag for markers in pixel space. */
     public static final ConfigKey<Boolean> AUTOSCALE_PIX =
@@ -717,6 +715,7 @@ public class StyleKeys {
         return new IntegerConfigKey( meta, dfltThick ) {
             public Specifier<Integer> createSpecifier() {
                 return new ComboBoxSpecifier<Integer>(
+                               Integer.class,
                                new ThicknessComboBox( 5 ) );
             }
         };
@@ -785,110 +784,6 @@ public class StyleKeys {
             MarkShape.FILLED_DIAMOND,
             MarkShape.FILLED_TRIANGLE_UP,
             MarkShape.FILLED_TRIANGLE_DOWN,
-        };
-    }
-
-    /**
-     * Constructs a config key for obtaining normalisation options.
-     *
-     * @param  isTime   true for time axis, false for generic axis
-     * @return  config key
-     */
-    private static ConfigKey<Normalisation>
-            createNormalisationKey( boolean isTime ) {
-
-        /* Prepare time-specific normalisation options. */
-        Normalisation timeNormExample1;
-        Normalisation timeNormExample2;
-        double tSecond = 1.0;
-        double tMinute = 60 * tSecond;
-        double tHour = 60 * tMinute;
-        double tDay = 24 * tHour;
-        double tWeek = 7 * tDay;
-        double tYear = 365.25 * tDay;
-        Normalisation[] timeNorms = new Normalisation[] {
-            timeNormExample1 =
-            createTimeNormalisation( "second", tSecond ),
-            createTimeNormalisation( "minute", tMinute ),
-            createTimeNormalisation( "hour", tHour ),
-            timeNormExample2 =
-            createTimeNormalisation( "day", tDay ),
-            createTimeNormalisation( "week", tWeek ),
-            createTimeNormalisation( "year", tYear ),
-        };
-
-        /* Construct a list of the normalisation options we will
-         * actually offer. */
-        List<Normalisation> normList = new ArrayList<Normalisation>();
-        normList.addAll( Arrays.asList( Normalisation.getKnownValues() ) );
-        if ( isTime ) {
-            normList.addAll( Arrays.asList( timeNorms ) );
-        }
-        Normalisation[] normOpts = normList.toArray( new Normalisation[ 0 ] );
-
-        /* Prepare the metadata object. */
-        ConfigMeta meta = new ConfigMeta( "normalise", "Normalise" );
-        meta.setShortDescription( "Normalisation mode" );
-        meta.setXmlDescription( new String[] {
-            "<p>Defines how, if at all, the bars of histogram-like plots",
-            "are normalised or otherwise scaled vertically.",
-            "</p>",
-
-            /* It shouldn't really be necessary to write this here,
-             * since if the config key instance allows these options
-             * it will document them explicitly.
-             * However, when used for generating STILTS/TOPCAT user
-             * documents, the plotter is only interrogated once,
-             * not once for each plot type, so otherwise this
-             * information would be invisible in the user documentation. */
-            "<p>When used in the time plot only, time-specific options",
-            "like <code>" + timeNormExample1 + "</code>",
-            "and <code>" + timeNormExample2 + "</code>",
-            "are available.",
-            "</p>",
-        } );
-
-        /* Add per-option metadata information. */
-        OptionConfigKey<Normalisation> key =
-                new OptionConfigKey<Normalisation>( meta, Normalisation.class,
-                                                    normOpts,
-                                                    Normalisation.NONE ) {
-            public String getXmlDescription( Normalisation norm ) {
-                return norm.getDescription();
-            }
-        };
-        key.setOptionUsage();
-        key.addOptionsXml();
-        return key;
-    }
-
-    /**
-     * Constructs a normaliser that corresponds to scaling histogram bars
-     * so their height corresponds to frequency over a given time period,
-     * given that the underlying numerical scale for the time axis is in
-     * seconds.
-     *
-     * @param  unitName  name of the time unit the scaler will correspond to
-     * @param  unitSec   length in seconds of the time unit
-     *                   the scaler will correspond to
-     * @return  new normalisation instance
-     */
-    private static Normalisation
-            createTimeNormalisation( String unitName, final double unitSec ) {
-        String descrip = new StringBuffer()
-            .append( "Scales histogram bars so their height is in units of " )
-            .append( "frequency per " )
-            .append( unitName )
-            .append( ". " )
-            .append( "For cumulative plots, this behaves like <code>" )
-            .append( Normalisation.NONE )
-            .append( "</code>." )
-            .toString();
-        return new Normalisation( "per_" + unitName, descrip ) {
-            public double getScaleFactor( double sum, double max,
-                                          double binWidth, boolean cumul ) {
-                return cumul ? 1.0 : unitSec / binWidth;
-            }
         };
     }
 

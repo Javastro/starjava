@@ -52,7 +52,8 @@ public class HashBinList implements BinList {
         return new Result() {
             public double getBinValue( long index ) {
                 Combiner.Container container = map_.get( new Long( index ) );
-                return container == null ? Double.NaN : container.getResult();
+                return container == null ? Double.NaN
+                                         : container.getCombinedValue();
             }
             public long getBinCount() {
                 return map_.size();
@@ -78,8 +79,9 @@ public class HashBinList implements BinList {
                     for ( Iterator<Long> it = indexIterator(); it.hasNext(); ) {
                         Long key = it.next();
                         Combiner.Container container = map_.get( key );
-                        double val = container == null ? Double.NaN
-                                                       : container.getResult();
+                        double val = container == null
+                                   ? Double.NaN
+                                   : container.getCombinedValue();
                         cmap.put( key, new Double( val ) );
                     }
                     return createHashResult( cmap );
@@ -89,6 +91,15 @@ public class HashBinList implements BinList {
                 }
             }
         };
+    }
+
+    /**
+     * Returns the hash used to store this bin list's state.
+     *
+     * @return  index-&gt;container map
+     */
+    public Map<Long,Combiner.Container> getMap() {
+        return map_;
     }
 
     /**

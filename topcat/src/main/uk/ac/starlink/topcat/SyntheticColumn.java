@@ -11,7 +11,6 @@ import java.util.logging.Logger;
 import uk.ac.starlink.table.ColumnData;
 import uk.ac.starlink.table.ColumnInfo;
 import uk.ac.starlink.table.DescribedValue;
-import uk.ac.starlink.table.DefaultValueInfo;
 import uk.ac.starlink.table.ValueInfo;
 import uk.ac.starlink.ttools.jel.RandomJELRowReader;
 
@@ -41,7 +40,9 @@ public class SyntheticColumn extends ColumnData {
      * Constructs a new synthetic column from an algebraic expression 
      * applied to a table.
      *
-     * @param  vinfo  template for the new column
+     * @param  cinfo   metadata for the new column;
+     *                 note this object may be modified as required by
+     *                 the supplied expression
      * @param  expression  algebraic expression for the value of this
      *         column
      * @param  resultType  a Class for the result, presumably one of the
@@ -49,10 +50,10 @@ public class SyntheticColumn extends ColumnData {
      *         a suitable class is chosen automatically.
      * @param  rowReader  context for JEL expression evaluation
      */
-    public SyntheticColumn( ValueInfo vinfo, String expression,
+    public SyntheticColumn( ColumnInfo cinfo, String expression,
                             Class resultType, RandomJELRowReader rowReader )
             throws CompilationException {
-        super( vinfo );
+        super( cinfo );
         setExpression( expression, resultType, rowReader );
     }
 
@@ -92,24 +93,16 @@ public class SyntheticColumn extends ColumnData {
         /* Store the value of the expression in the column metadata. */
         ValueInfo exprInfo = TopcatUtils.EXPR_INFO;
         colinfo.setAuxDatum( new DescribedValue( exprInfo, expression ) );
-        
-        /* We also want to store the information in the column's
-         * Description, since this gives a better chance of it being
-         * serialized when the table is saved.  To do this we stash 
-         * away the original value of the description in a new value 
-         * (BASE_DESCRIPTION) and append the expression to the base
-         * description.  We have to do it like this to prevent the
-         * expressions getting repeatedly added onto the end if they
-         * are changed. */
-        ValueInfo basedescInfo = TopcatUtils.BASE_DESCRIPTION_INFO;
-        DescribedValue basedescValue = colinfo.getAuxDatum( basedescInfo );
-        if ( basedescValue == null ) {
-            basedescValue = new DescribedValue( basedescInfo, 
-                                                colinfo.getDescription() );
-            colinfo.setAuxDatum( basedescValue );
-        }
-        colinfo.setDescription( basedescValue.getValue() + 
-                                " (" + expression + ")" );
+    }
+
+    /**
+     * Returns the JEL expression that provides this column's value.
+     *
+     * @return  expression
+     */
+    public String getExpression() {
+        return getColumnInfo().getAuxDatum( TopcatUtils.EXPR_INFO )
+              .getValue().toString();
     }
 
     public Object readValue( long lrow ) throws IOException {

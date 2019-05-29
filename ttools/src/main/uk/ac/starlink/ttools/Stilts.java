@@ -3,6 +3,7 @@ package uk.ac.starlink.ttools;
 import java.io.IOException;
 import java.io.InputStream;
 import java.util.logging.Level;
+import uk.ac.starlink.fits.FitsConstants;
 import uk.ac.starlink.task.Task;
 import uk.ac.starlink.ttools.mode.ProcessingMode;
 import uk.ac.starlink.ttools.task.LineInvoker;
@@ -37,10 +38,14 @@ public class Stilts {
         Loader.setHttpAgent( "STILTS" + "/" + getVersion() ); 
         Loader.setDefaultProperty( "java.awt.Window.locationByPlatform",
                                    "true" );
-        PropertyAuthenticator.installInstance( true );
-        URLUtils.installCustomHandlers();
         LineInvoker invoker = new LineInvoker( "stilts", taskFactory_ );
-        int status = invoker.invoke( args );
+        int status = invoker.invoke( args, new Runnable() {
+            public void run() {
+                URLUtils.installCustomHandlers();
+                FitsConstants.configureHierarch();
+                PropertyAuthenticator.installInstance( true );
+            }
+        } );
         if ( status != 0 ) {
             System.exit( status );
         }
@@ -93,6 +98,7 @@ public class Stilts {
         taskFactory_.register( "calc", taskPkg + "Calc" );
         taskFactory_.register( "cdsskymatch", taskPkg + "CdsUploadSkyMatch" );
         taskFactory_.register( "coneskymatch", taskPkg + "MultiCone" );
+        taskFactory_.register( "datalinklint", taskPkg + "DatalinkLint" );
         taskFactory_.register( "funcs", taskPkg + "ShowFunctions" );
         taskFactory_.register( "pixfoot", taskPkg + "PixFootprint" );
         taskFactory_.register( "pixsample", taskPkg + "PixSample" );

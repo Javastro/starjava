@@ -6,6 +6,7 @@ import uk.ac.starlink.ttools.plot2.PlotUtil;
 import uk.ac.starlink.ttools.plot2.ReportMap;
 import uk.ac.starlink.ttools.plot2.config.ConfigKey;
 import uk.ac.starlink.ttools.plot2.config.ConfigMap;
+import uk.ac.starlink.ttools.plot2.config.PerUnitConfigKey;
 import uk.ac.starlink.ttools.plot2.data.FloatingCoord;
 
 /**
@@ -21,22 +22,26 @@ public class FixedKernelDensityPlotter extends AbstractKernelDensityPlotter {
      *
      * @param   xCoord  X axis coordinate
      * @param   hasWeight   true to permit histogram weighting
-     * @param   normKey   config key for normalisation options
+     * @param   unitKey  config key to select X axis physical units,
+     *                   or null if no unit selection required
      */
-    public FixedKernelDensityPlotter( FloatingCoord xCoord,
-                                      boolean hasWeight,
-                                      ConfigKey<Normalisation> normKey ) {
-        super( xCoord, hasWeight, normKey, "KDE", ResourceIcon.FORM_KDE );
+    public FixedKernelDensityPlotter( FloatingCoord xCoord, boolean hasWeight,
+                                      PerUnitConfigKey<Unit> unitKey ) {
+        super( xCoord, hasWeight, unitKey, "KDE", ResourceIcon.FORM_KDE );
     }
 
     protected ConfigKey[] getKernelConfigKeys() {
         return new ConfigKey[] {
             SMOOTHSIZER_KEY,
+            getCombinerKey(),
         };
     }
 
     protected KernelFigure createKernelFigure( ConfigMap config ) {
-        return new FixedKernelFigure( config.get( SMOOTHSIZER_KEY ) );
+        BinSizer sizer = config.get( SMOOTHSIZER_KEY );
+        Combiner combiner = config.get( getCombinerKey() );
+        boolean isLikeMean = ! combiner.getType().isExtensive();
+        return new FixedKernelFigure( sizer, isLikeMean );
     }
 
     public String getPlotterDescription() {
@@ -61,6 +66,7 @@ public class FixedKernelDensityPlotter extends AbstractKernelDensityPlotter {
             "will be at the pixel level,",
             "hence in most cases not visually apparent.",
             "</p>",
+            getWeightingDescription(),
         } );
     }
 
@@ -69,19 +75,25 @@ public class FixedKernelDensityPlotter extends AbstractKernelDensityPlotter {
      */
     private static class FixedKernelFigure implements KernelFigure {
         private final BinSizer binSizer_;
+        private final boolean isMean_;
 
         /**
          * Constructor.
          *
          * @param  binSizer   determines smoothing widths
+         * @param   isMean   true if the smoothing is to suitable for
+         *                   intensive quantities like the mean,
+         *                   false for extensive quantities like a sum
          */
-        FixedKernelFigure( BinSizer binSizer ) {
+        FixedKernelFigure( BinSizer binSizer, boolean isMean ) {
             binSizer_ = binSizer;
+            isMean_ = isMean;
         }
 
         public Kernel1d createKernel( Kernel1dShape shape, Axis xAxis,
                                       boolean xLog ) {
-            return Pixel1dPlotter.createKernel( shape, binSizer_, xAxis, xLog );
+            return Pixel1dPlotter
+                  .createKernel( shape, binSizer_, xAxis, xLog, isMean_ );
         }
 
         public ReportMap getReportMap( boolean xLog, double dlo, double dhi ) {
@@ -95,6 +107,7 @@ public class FixedKernelDensityPlotter extends AbstractKernelDensityPlotter {
         public int hashCode() {
             int code = 23452304;
             code = 23 * code + binSizer_.hashCode();
+            code = 23 * code + ( isMean_ ? 29 : 37 );
             return code;
         }
 
@@ -102,7 +115,8 @@ public class FixedKernelDensityPlotter extends AbstractKernelDensityPlotter {
         public boolean equals( Object o ) {
             if ( o instanceof FixedKernelFigure ) {
                 FixedKernelFigure other = (FixedKernelFigure) o;
-                return this.binSizer_.equals( other.binSizer_ );
+                return this.binSizer_.equals( other.binSizer_ )
+                    && this.isMean_ == other.isMean_;
             }
             else {
                 return false;

@@ -9,15 +9,18 @@ import java.io.Writer;
 import java.lang.reflect.Array;
 import java.net.URL;
 import java.util.ArrayList;
-import java.util.Iterator;
+import java.util.Collections;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.TreeSet;
+import java.util.concurrent.atomic.AtomicLong;
 import java.util.logging.Logger;
 import uk.ac.starlink.fits.FitsConstants;
 import uk.ac.starlink.fits.FitsTableSerializer;
 import uk.ac.starlink.fits.FitsTableWriter;
 import uk.ac.starlink.fits.StandardFitsTableSerializer;
+import uk.ac.starlink.fits.WideFits;
 import uk.ac.starlink.table.ColumnInfo;
 import uk.ac.starlink.table.DefaultValueInfo;
 import uk.ac.starlink.table.DescribedValue;
@@ -28,6 +31,8 @@ import uk.ac.starlink.table.ValueInfo;
 import uk.ac.starlink.table.WrapperStarTable;
 import uk.ac.starlink.util.Base64OutputStream;
 import uk.ac.starlink.util.IntList;
+import uk.ac.starlink.votable.datalink.ServiceDescriptor;
+import uk.ac.starlink.votable.datalink.ServiceParam;
 
 /**
  * Class which knows how to serialize a table's fields and data to 
@@ -43,62 +48,112 @@ import uk.ac.starlink.util.IntList;
  * @author   Mark Taylor (Starlink)
  */
 public abstract class VOSerializer {
+
     private final StarTable table_;
     private final DataFormat format_;
-    private final List paramList_;
+    private final List<DescribedValue> paramList_;
     private final String ucd_;
     private final String utype_;
     private final String description_;
+    private final ServiceDescriptor[] servDescrips_;
+    final Map<MetaEl,String> coosysMap_;
+    final Map<MetaEl,String> timesysMap_;
 
     final static Logger logger = Logger.getLogger( "uk.ac.starlink.votable" );
+    private static final AtomicLong idSeq_ = new AtomicLong();
 
     /**
      * Constructs a new serializer which can write a given StarTable.
      *
      * @param  table  the table to write
      * @param  format  the data format being used
+     * @param  version  output VOTable version
      */
-    private VOSerializer( StarTable table, DataFormat format ) {
+    private VOSerializer( StarTable table, DataFormat format,
+                          VOTableVersion version ) {
         table_ = table;
         format_ = format;
 
         /* Doctor the table's parameter list.  Take out items which are
          * output specially so that only the others get output as PARAM
          * elements. */
-        paramList_ = new ArrayList();
+        paramList_ = new ArrayList<DescribedValue>();
         String description = null;
         String ucd = null;
         String utype = null;
-        for ( Iterator it = table.getParameters().iterator(); it.hasNext(); ) {
-            Object obj = it.next();
-            if ( obj instanceof DescribedValue ) {
-                DescribedValue dval = (DescribedValue) obj;
-                ValueInfo pinfo = dval.getInfo();
-                String pname = pinfo.getName();
-                Class pclazz = pinfo.getContentClass();
-                Object value = dval.getValue();
-                if ( pname != null && pclazz != null ) {
-                    if ( pname.equalsIgnoreCase( "description" ) &&
-                         pclazz == String.class ) {
-                        description = (String) value;
+        List<ServiceDescriptor> sdList = new ArrayList<ServiceDescriptor>();
+        for ( DescribedValue dval : table.getParameters() ) {
+            ValueInfo pinfo = dval.getInfo();
+            String pname = pinfo.getName();
+            Class pclazz = pinfo.getContentClass();
+            Object value = dval.getValue();
+            if ( pname != null && pclazz != null ) {
+                if ( pname.equalsIgnoreCase( "description" ) &&
+                     pclazz == String.class ) {
+                    description = (String) value;
+                }
+                else if ( pname.equals( VOStarTable.UCD_INFO.getName() )
+                       && pclazz == String.class ) {
+                    ucd = (String) value;
+                }
+                else if ( pname.equals( VOStarTable.UTYPE_INFO.getName() ) 
+                       && pclazz == String.class ) {
+                    utype = (String) value;
+                }
+                else if ( ServiceDescriptor.class.isAssignableFrom( pclazz ) ) {
+                    if ( value instanceof ServiceDescriptor ) {
+                        sdList.add( (ServiceDescriptor) value );
                     }
-                    else if ( pname.equals( VOStarTable.UCD_INFO.getName() )
-                           && pclazz == String.class ) {
-                        ucd = (String) value;
-                    }
-                    else if ( pname.equals( VOStarTable.UTYPE_INFO.getName() ) 
-                           && pclazz == String.class ) {
-                        utype = (String) value;
-                    }
-                    else {
-                        paramList_.add( dval );
-                    }
+                }
+                else {
+                    paramList_.add( dval );
                 }
             }
         }
         description_ = description;
         ucd_ = ucd;
         utype_ = utype;
+        servDescrips_ = sdList.toArray( new ServiceDescriptor[ 0 ] );
+
+        /* Get a base identifier that can be used to prepend to XML ID values.
+         * As long as this is unique per output XML document,
+         * ID namespace clashes can be avoided.
+         * We do it here by incrementing a static variable.
+         * That is not absolutely 100% bulletproof, but it will give
+         * a value that's unique per JVM, so as long as you're not using
+         * multiple JVMs to put together a single VOTable document,
+         * (or, more likely, combining generated XML with unedited XML
+         * pulled in from a previously generated VOTable document)
+         * you should be OK.
+         * It would be possible to make this approach more robust
+         * by initialising the idSeq_ variable with some kind of
+         * pseudo-random value. */
+        String baseId = "t" + Long.toString( idSeq_.incrementAndGet() );
+
+        /* Prepare COOSYS and TIMESYS elements.  Identify the materially
+         * different *SYS elements that will be required, and store them
+         * as keys in a map, with values that are newly constructed but
+         * unique-per-JVM identifiers, for later use. */
+        coosysMap_ = new LinkedHashMap<MetaEl,String>();
+        timesysMap_ = new LinkedHashMap<MetaEl,String>();
+        int ncol = table.getColumnCount();
+        int ics = 0;
+        int its = 0;
+        for ( int ic = 0; ic < ncol; ic++ ) {
+            ColumnInfo colinfo = table.getColumnInfo( ic );
+            MetaEl coosys = getCoosys( colinfo );
+            if ( coosys != null && ! coosysMap_.containsKey( coosys ) ) {
+                String id = baseId + "-coosys-" + ++ics;
+                coosysMap_.put( coosys, id );
+            }
+            if ( version.allowTimesys() ) {
+                MetaEl timesys = getTimesys( colinfo );
+                if ( timesys != null && ! timesysMap_.containsKey( timesys ) ) {
+                    String id = baseId + "-timesys-" + ++its;
+                    timesysMap_.put( timesys, id );
+                }
+            }
+        }
     }
 
     /**
@@ -181,15 +236,16 @@ public abstract class VOSerializer {
 
     /**
      * Writes any PARAM and INFO elements associated with this serializer's
-     * table.  These should generally go in the RESOURCE element
-     * in which the table will be contained.
+     * table.  These should generally go in the TABLE element.
      * 
      * @param   writer  destination stream
      */
     public void writeParams( BufferedWriter writer ) throws IOException {
-        for ( Iterator it = paramList_.iterator(); it.hasNext(); ) {
-            DescribedValue param = (DescribedValue) it.next();
-            DefaultValueInfo pinfo = new DefaultValueInfo( param.getInfo() );
+        for  ( DescribedValue param : paramList_ ) {
+            ValueInfo pinfo0 = param.getInfo();
+            DefaultValueInfo pinfo = pinfo0 instanceof ColumnInfo
+                                   ? new ColumnInfo( (ColumnInfo) pinfo0 )
+                                   : new DefaultValueInfo( pinfo0 );
             Object pvalue = param.getValue();
 
             /* Adjust the info so that its dimension sizes are fixed,
@@ -236,11 +292,19 @@ public abstract class VOSerializer {
             if ( encoder != null ) {
                 String valtext = encoder.encodeAsText( pvalue );
                 String content = encoder.getFieldContent();
+                Map<String,String> attMap = new LinkedHashMap<String,String>();
 
+                /* Note that in practice, the COOSYS/TIMESYS elements will not
+                 * be used here, since at present the ValueInfo object
+                 * defining the PARAM, unlike ColumnInfo objects defining
+                 * FIELDs, does not have the aux metadata items
+                 * required for storing the relevant metadata.
+                 * This is probably a STIL design fault. */
+                attMap.putAll( getFieldAttributes( encoder, coosysMap_,
+                                                   timesysMap_ ) );
+                attMap.put( "value", valtext );
                 writer.write( "<PARAM" );
-                writer.write( formatAttributes( encoder
-                                               .getFieldAttributes() ) );
-                writer.write( formatAttribute( "value", valtext ) );
+                writer.write( formatAttributes( attMap ) );
                 if ( content.length() > 0 ) {
                     writer.write( ">" );
                     writer.write( content );
@@ -295,12 +359,204 @@ public abstract class VOSerializer {
     }
 
     /**
+     * Writes the service descriptor parameters of this serializer's table
+     * as a sequence of zero or more RESOURCE elements.
+     * Each has attributes type="meta" and utype="adhoc:service".
+     *
+     * @param  writer  destination stream
+     */
+    public void writeServiceDescriptors( BufferedWriter writer )
+            throws IOException {
+        for ( ServiceDescriptor sd : servDescrips_ ) {
+            writeServiceDescriptor( writer, sd );
+        }
+    }
+
+    /**
+     * Writes a service descriptor object as a RESOURCE element with
+     * utype="adhoc:service".
+     *
+     * @param   writer  destination stream
+     * @param   sdesc   service descriptor object
+     * @see   <a href="http://www.ivoa.net/documents/DataLink/"
+     *           >DataLink-1.0, sec 4</a>
+     */
+    private void writeServiceDescriptor( BufferedWriter writer,
+                                         ServiceDescriptor sdesc )
+            throws IOException {
+        String sdId = sdesc.getDescriptorId();
+        String sdName = sdesc.getName();
+        String sdDescription = sdesc.getDescription();
+        StringBuffer rtag = new StringBuffer()
+            .append( "<RESOURCE" )
+            .append( formatAttribute( "type", "meta" ) )
+            .append( formatAttribute( "utype", "adhoc:service" ) );
+        if ( sdName != null ) {
+            rtag.append( formatAttribute( "name", sdName ) );
+        }
+        if ( sdId != null && sdId.length() > 0 ) {
+            rtag.append( formatAttribute( "ID", sdId ) );
+        }
+        rtag.append( ">" );
+        writer.write( rtag.toString() );
+        writer.newLine();
+        if ( sdDescription != null ) {
+            writer.write( "  <DESCRIPTION>"
+                        + formatText( sdDescription.trim() )
+                        + "</DESCRIPTION>" );
+            writer.newLine();
+        }
+        writeStringParam( writer, "accessURL", sdesc.getAccessUrl() );
+        writeStringParam( writer, "standardID", sdesc.getStandardId() );
+        writeStringParam( writer, "resourceIdentifier",
+                                  sdesc.getResourceIdentifier() );
+        ServiceParam[] sdParams = sdesc.getInputParams();
+        if ( sdParams.length > 0 ) {
+            writer.write( "  <GROUP"
+                        + formatAttribute( "name", "inputParams" )
+                        + ">" );
+            writer.newLine();
+            for ( ServiceParam sdParam : sdParams ) {
+                writeServiceParam( writer, sdParam );
+            }
+            writer.write( "  </GROUP>" );
+            writer.newLine();
+        }
+        writer.write( "</RESOURCE>" );
+        writer.newLine();
+    }
+
+    /**
+     * Writes a PARAM element with a given value, if the value is not blank.
+     * If the value is null or the empty string, no output is written.
+     *
+     * @param  writer  destination stream
+     * @param  pname   parameter name
+     * @parma  pvalue  parameter value
+     */
+    private void writeStringParam( BufferedWriter writer,
+                                   String pname, String pvalue )
+            throws IOException {
+        if ( pvalue != null && pvalue.length() > 0 ) {
+            StringBuffer sbuf = new StringBuffer()
+                .append( "  <PARAM" )
+                .append( formatAttribute( "name", pname ) )
+                .append( formatAttribute( "datatype", "char" ) )
+                .append( formatAttribute( "arraysize", "*" ) )
+                .append( formatAttribute( "value", pvalue ) )
+                .append( "/>" );
+            writer.write( sbuf.toString() );
+            writer.newLine();
+        }
+    }
+
+    /**
+     * Serialises a ServiceParam object as a PARAM element,
+     * assumed to be within an inputParams GROUP.
+     *
+     * @param  writer  destination stream
+     * @param  param   service parameter object
+     */
+    private void writeServiceParam( BufferedWriter writer, ServiceParam param )
+            throws IOException {
+        int[] arraysize = param.getArraysize();
+        String name = param.getName();
+        String datatype = param.getDatatype();
+        String value = param.getValue();
+        Map<String,String> atts = new LinkedHashMap<String,String>();
+        atts.put( "name", name == null ? "??" : name );
+        atts.put( "datatype", datatype == null ? "char" : datatype );
+        if ( arraysize != null && arraysize.length > 0 ) {
+            atts.put( "arraysize", DefaultValueInfo.formatShape( arraysize ) );
+        }
+        atts.put( "value", value == null ? "" : value );
+        atts.put( "unit", param.getUnit() );
+        atts.put( "ucd", param.getUcd() );
+        atts.put( "utype", param.getUtype() );
+        atts.put( "xtype", param.getXtype() );
+        atts.put( "ref", param.getRef() );
+        for ( String aname :
+              new String[] { "unit", "ucd", "utype", "xtype", "ref", } ) {
+            String aval = atts.get( aname );
+            if ( aval == null || aval.length() == 0 ) {
+                atts.remove( aname );
+            }
+        }
+        writer.write( "    <PARAM" + formatAttributes( atts ) + ">" );
+        writer.newLine();
+        String descrip = param.getDescription();
+        if ( descrip != null && descrip.trim().length() > 0 ) {
+            writer.write( "      <DESCRIPTION>"
+                        + formatText( descrip )
+                        + "</DESCRIPTION>" );
+            writer.newLine();
+        }
+        String[] options = param.getOptions();
+        String[] minmax = param.getMinMax();
+        String min = minmax == null ? null : minmax[ 0 ];
+        String max = minmax == null ? null : minmax[ 1 ];
+        if ( min != null || max != null || options != null ) {
+            writer.write( "      <VALUES>" );
+            writer.newLine();
+            if ( min != null ) {
+                writer.write( "        <MIN"
+                            + formatAttribute( "value", min )
+                            + "/>" );
+                writer.newLine();
+            }
+            if ( max != null ) {
+                writer.write( "        <MAX"
+                            + formatAttribute( "value", max )
+                            + "/>" );
+                writer.newLine();
+            }
+            if ( options != null ) {
+                for ( String opt : options ) {
+                    writer.write( "        <OPTION"
+                                + formatAttribute( "value", opt )
+                                + "/>" );
+                    writer.newLine();
+                }
+            }
+            writer.write( "      </VALUES>" );
+            writer.newLine();
+        }
+        writer.write( "    </PARAM>" );
+        writer.newLine();
+    }
+
+    /**
      * Outputs the TABLE element start tag and all of its content before
      * the DATA element.
+     * Other items legal where a TABLE can appear may be prepended
+     * if required.
      *
      * @param   writer  output stream
      */
     public void writePreDataXML( BufferedWriter writer ) throws IOException {
+
+        /* If we have COOSYS or TIMESYS elements, write them.
+         * The schema constrains where these are allowed to go.
+         * Although in some cases they
+         * can go on their own before a TABLE element, depending on what
+         * comes before that might not be allowed.  It's always safe
+         * (at least in VOTable 1.2+, though not 1.1) to wrap them
+         * in their own RESOURCE at the same level as a TABLE. */
+        if ( coosysMap_.size() + timesysMap_.size() > 0 ) {
+            writer.write( "<RESOURCE>" );
+            writer.newLine();
+            Map<MetaEl,String> metamap = new LinkedHashMap<MetaEl,String>();
+            metamap.putAll( coosysMap_ );
+            metamap.putAll( timesysMap_ );
+            for ( Map.Entry<MetaEl,String> entry : metamap.entrySet() ) {
+                MetaEl meta = entry.getKey();
+                String id = entry.getValue();
+                writer.write( "  " + meta.toXml( id ) );
+                writer.newLine();
+            }
+            writer.write( "</RESOURCE>" );
+            writer.newLine();
+        }
 
         /* Output TABLE element start tag. */
         writer.write( "<TABLE" );
@@ -348,8 +604,8 @@ public abstract class VOSerializer {
     public void writePostDataXML( BufferedWriter writer ) throws IOException {
         writer.write( "</TABLE>" );
         writer.newLine();
+        writeServiceDescriptors( writer );
     }
-
 
     /**
      * Turns a name,value pair into an attribute assignment suitable for
@@ -368,6 +624,11 @@ public abstract class VOSerializer {
            .append( name )
            .append( '=' )
            .append( '"' );
+
+        /* Assemble the string, counting the number of single and double
+         * quote substitutions required. */
+        int nquot = 0;
+        int napos = 0;
         for ( int i = 0; i < vleng; i++ ) {
             char c = value.charAt( i );
             switch ( c ) {
@@ -382,13 +643,52 @@ public abstract class VOSerializer {
                     break;
                 case '"':
                     buf.append( "&quot;" );
+                    nquot++;
                     break;
+                case '\'':
+                    napos++;
+                    // fall through
                 default:
                     buf.append( ensureLegalXml( c ) );
             }
         }
         buf.append( '"' );
-        return buf.toString();
+
+        /* We're probably done; most likely there were no single or double
+         * quotes.  But if it turns out that the output had lots of
+         * double quotes and not so many single quotes, redo it with
+         * single quotes on the outside to get a tidier result. */
+        if ( nquot <= napos ) {
+            return buf.toString();
+        }
+        else {
+            buf.setLength( 0 );
+            buf.append( ' ' )
+               .append( name )
+               .append( '=' )
+               .append( '\'' );
+            for ( int i = 0; i < vleng; i++ ) {
+                char c = value.charAt( i );
+                switch ( c ) {
+                    case '<':
+                        buf.append( "&lt;" );
+                        break;
+                    case '>':
+                        buf.append( "&gt;" );
+                        break;
+                    case '&':
+                        buf.append( "&amp;" );
+                        break;
+                    case '\'':
+                        buf.append( "&apos;" );
+                        break;
+                    default:
+                        buf.append( ensureLegalXml( c ) );
+                }
+            }
+            buf.append( '\'' );
+            return buf.toString();
+        }
     }
 
     /**
@@ -449,12 +749,10 @@ public abstract class VOSerializer {
      * @param  atts  Map of name,value pairs
      * @return  a string of name="value" assignments
      */
-    private static String formatAttributes( Map atts ) {
+    private static String formatAttributes( Map<String,String> atts ) {
         StringBuffer sbuf = new StringBuffer();
-        for ( Iterator it = new TreeSet( atts.keySet() ).iterator();
-              it.hasNext(); ) {
-            String attname = (String) it.next();
-            String attval = (String) atts.get( attname );
+        for ( String attname : new TreeSet<String>( atts.keySet() ) ) {
+            String attval = atts.get( attname );
             sbuf.append( formatAttribute( attname, attval ) );
         }
         return sbuf.toString();
@@ -468,7 +766,8 @@ public abstract class VOSerializer {
      * @param  writer    destination stream
      */
     private static void writeFieldElement( BufferedWriter writer,
-                                           String content, Map attributes )
+                                           String content,
+                                           Map<String,String> attributes )
             throws IOException {
         writer.write( "<FIELD" + formatAttributes( attributes ) );
         if ( content != null && content.length() > 0 ) {
@@ -602,18 +901,20 @@ public abstract class VOSerializer {
 
         /* Return a serializer. */
         if ( dataFormat == DataFormat.TABLEDATA ) {
-            return new TabledataVOSerializer( table, magicNulls );
+            return new TabledataVOSerializer( table, version, magicNulls );
         }
         else if ( dataFormat == DataFormat.FITS ) {
             return new FITSVOSerializer(
-                table, new StandardFitsTableSerializer( table, false ) );
+                table, version,
+                new StandardFitsTableSerializer( table, false,
+                                                 (WideFits) null ) );
         }
         else if ( dataFormat == DataFormat.BINARY ) {
-            return new BinaryVOSerializer( table, magicNulls );
+            return new BinaryVOSerializer( table, version, magicNulls );
         }
         else if ( dataFormat == DataFormat.BINARY2 ) {
             if ( version.allowBinary2() ) {
-                return new Binary2VOSerializer( table, magicNulls );
+                return new Binary2VOSerializer( table, version, magicNulls );
             }
             else {
                 throw new IllegalArgumentException( "BINARY2 format not legal "
@@ -635,14 +936,16 @@ public abstract class VOSerializer {
      *
      * @param  table  table for serialization
      * @param  fitser  fits serializer
+     * @param  version  output VOTable version
+     * @return  serializer
      */
     public static VOSerializer makeFitsSerializer( StarTable table,
-                                                   FitsTableSerializer fitser )
+                                                   FitsTableSerializer fitser,
+                                                   VOTableVersion version )
             throws IOException {
         table = prepareForSerializer( table, false, true );
-        return new FITSVOSerializer( table, fitser );
+        return new FITSVOSerializer( table, version, fitser );
     }
-
 
     //
     // A couple of non-public static methods follow which are used by
@@ -686,9 +989,15 @@ public abstract class VOSerializer {
      *
      * @param  encoders  the list of encoders (some may be null)
      * @param  table   the table being serialized
+     * @param  coosysMap   MetaEl-&gt;ID map for COOSYS elements
+     *                     that will be available
+     * @param  timesysMap  MetaEl-&gt;ID map for TIMESYS elements
+     *                     that will be available
      * @param  writer  destination stream
      */
     private static void outputFields( Encoder[] encoders, StarTable table,
+                                      Map<MetaEl,String> coosysMap,
+                                      Map<MetaEl,String> timesysMap,
                                       BufferedWriter writer )
             throws IOException {
         int ncol = encoders.length;
@@ -696,7 +1005,8 @@ public abstract class VOSerializer {
             Encoder encoder = encoders[ icol ];
             if ( encoder != null ) {
                 String content = encoder.getFieldContent();
-                Map atts = encoder.getFieldAttributes();
+                Map<String,String> atts =
+                    getFieldAttributes( encoder, coosysMap, timesysMap );
                 writeFieldElement( writer, content, atts );
             }
             else {
@@ -707,20 +1017,21 @@ public abstract class VOSerializer {
         }
     }
 
-
     /**
      * TABLEDATA implementation of VOSerializer.
      */
     private static class TabledataVOSerializer extends VOSerializer {
         private final Encoder[] encoders;
 
-        TabledataVOSerializer( StarTable table, boolean magicNulls ) {
-            super( table, DataFormat.TABLEDATA );
+        TabledataVOSerializer( StarTable table, VOTableVersion version,
+                               boolean magicNulls ) {
+            super( table, DataFormat.TABLEDATA, version );
             encoders = getEncoders( table, magicNulls );
         }
 
         public void writeFields( BufferedWriter writer ) throws IOException {
-            outputFields( encoders, getTable(), writer );
+            outputFields( encoders, getTable(), coosysMap_, timesysMap_,
+                          writer );
         }
      
         public void writeInlineDataElement( BufferedWriter writer )
@@ -785,8 +1096,9 @@ public abstract class VOSerializer {
          * @param  tagname  the name of the XML element that contains the data
          */
         private StreamableVOSerializer( StarTable table, DataFormat format,
+                                        VOTableVersion version,
                                         String tagname ) {
-            super( table, format );
+            super( table, format, version );
             this.tagname = tagname;
         }
 
@@ -860,13 +1172,15 @@ public abstract class VOSerializer {
     private static class BinaryVOSerializer extends StreamableVOSerializer {
         private final Encoder[] encoders;
 
-        BinaryVOSerializer( StarTable table, boolean magicNulls ) {
-            super( table, DataFormat.BINARY, "BINARY" );
+        BinaryVOSerializer( StarTable table, VOTableVersion version,
+                            boolean magicNulls ) {
+            super( table, DataFormat.BINARY, version, "BINARY" );
             encoders = getEncoders( table, magicNulls );
         }
 
         public void writeFields( BufferedWriter writer ) throws IOException {
-            outputFields( encoders, getTable(), writer );
+            outputFields( encoders, getTable(), coosysMap_, timesysMap_,
+                          writer );
         }
 
         public void streamData( DataOutput out ) throws IOException {
@@ -895,13 +1209,15 @@ public abstract class VOSerializer {
     private static class Binary2VOSerializer extends StreamableVOSerializer {
         private final Encoder[] encoders;
 
-        Binary2VOSerializer( StarTable table, boolean magicNulls ) {
-            super( table, DataFormat.BINARY2, "BINARY2" );
+        Binary2VOSerializer( StarTable table, VOTableVersion version,
+                             boolean magicNulls ) {
+            super( table, DataFormat.BINARY2, version, "BINARY2" );
             encoders = getEncoders( table, magicNulls );
         }
 
         public void writeFields( BufferedWriter writer ) throws IOException {
-            outputFields( encoders, getTable(), writer );
+            outputFields( encoders, getTable(), coosysMap_, timesysMap_,
+                          writer );
         }
 
         public void streamData( DataOutput out ) throws IOException {
@@ -953,9 +1269,10 @@ public abstract class VOSerializer {
 
         private final FitsTableSerializer fitser;
 
-        FITSVOSerializer( StarTable table, FitsTableSerializer fitser )
+        FITSVOSerializer( StarTable table, VOTableVersion version,
+                          FitsTableSerializer fitser )
                 throws IOException {
-            super( table, DataFormat.FITS, "FITS" );
+            super( table, DataFormat.FITS, version, "FITS" );
             this.fitser = fitser;
         }
 
@@ -978,7 +1295,8 @@ public abstract class VOSerializer {
                         Encoder.getEncoder( getTable().getColumnInfo( icol ),
                                             true, false );
                     String content = encoder.getFieldContent();
-                    Map atts = encoder.getFieldAttributes();
+                    Map<String,String> atts =
+                        getFieldAttributes( encoder, coosysMap_, timesysMap_ );
 
                     /* Modify the datatype attribute to match what the FITS
                      * serializer will write. */
@@ -1074,6 +1392,155 @@ public abstract class VOSerializer {
         }
         public void write(int b) throws IOException {
             writer.write( b );
+        }
+    }
+
+    /**
+     * Returns the attributes required for a FIELD parameter given the
+     * Encoder being used to write the column in question.
+     *
+     * @param  encoder   encoder to write FIELD data
+     * @param  coosysMap   MetaEl-&gt;ID map for COOSYS elements that will be
+     *                     available in the output document
+     * @param  timesysMap  MetaEl-&gt;ID map for TIMESYS elements that will be
+     *                     available in the output document
+     * @return   map of FIELD attribute name-&gt;value pairs
+     */
+    private static Map<String,String>
+            getFieldAttributes( Encoder encoder, Map<MetaEl,String> coosysMap,
+                                Map<MetaEl,String> timesysMap ) {
+
+        /* Query encoder for basic items. */
+        Map<String,String> map = encoder.getFieldAttributes();
+
+        /* Add a ref attribute pointing to a COOSYS or TIMESYS element if one
+         * that matches the requirements of the element in question
+         * has been provided.  Note this relies on the fact that
+         * the MetaEl class has suitable equality semantics. */
+        ValueInfo info = encoder.getInfo();
+        if ( info instanceof ColumnInfo ) {
+            ColumnInfo colinfo = (ColumnInfo) info;
+            MetaEl coosys = getCoosys( colinfo );
+            MetaEl timesys = getTimesys( colinfo );
+            String csId = coosysMap != null ? coosysMap.get( coosys ) : null;
+            String tsId = timesysMap != null ? timesysMap.get( timesys ) : null;
+            if ( csId != null ) {
+                map.put( "ref", csId );
+            }
+            else if ( tsId != null ) {
+                map.put( "ref", tsId );
+            }
+        }
+        return map;
+    }
+
+    /**
+     * Returns the MetaEl object corresponding to the COOSYS metadata
+     * for a given ColumnInfo, if such metadata is present.
+     *
+     * @param  cinfo  column metadata
+     * @retun   MetaEl object representing COOSYS, or null if none required
+     */
+    private static MetaEl getCoosys( ColumnInfo cinfo ) {
+        Map<String,String> map = new LinkedHashMap<String,String>();
+        addAtt( map, cinfo, VOStarTable.COOSYS_SYSTEM_INFO, "system" );
+        addAtt( map, cinfo, VOStarTable.COOSYS_EPOCH_INFO, "epoch" );
+        addAtt( map, cinfo, VOStarTable.COOSYS_EQUINOX_INFO, "equinox" );
+        return map.size() > 0 ? new MetaEl( "COOSYS", map ) : null;
+    }
+
+    /**
+     * Returns the MetaEl object corresponding to the TIMESYS metadata
+     * for a given ColumnInfo, if such metadata is present.
+     *
+     * @param  cinfo  column metadata
+     * @retun   MetaEl object representing TIMESYS, or null if none required
+     */
+    private static MetaEl getTimesys( ColumnInfo cinfo ) {
+        Map<String,String> map = new LinkedHashMap<String,String>();
+        addAtt( map, cinfo, VOStarTable.TIMESYS_TIMEORIGIN_INFO, "timeorigin" );
+        addAtt( map, cinfo, VOStarTable.TIMESYS_TIMESCALE_INFO, "timescale" );
+        addAtt( map, cinfo, VOStarTable.TIMESYS_REFPOSITION_INFO,
+                "refposition" );
+        return map.size() > 0 ? new MetaEl( "TIMESYS", map ) : null;
+    }
+
+    /**
+     * Utility method to add an item to the MetaEl attribute map
+     * given column metadata.
+     *
+     * @param  map    attribute map to augment
+     * @param  cinfo  column metadata
+     * @param  key    column info aux metadata key for a String item
+     * @param  attname  name of entry in attribute map
+     */
+    private static void addAtt( Map<String,String> map, ColumnInfo cinfo,
+                                ValueInfo key, String attname ) {
+        String value = (String) cinfo.getAuxDatumValue( key, String.class );
+        if ( value != null && value.trim().length() > 0 ) {
+            map.put( attname, value );
+        }
+    }
+
+    /**
+     * Represents an element with a given name and set of relevant attributes.
+     * The implementation is just a very thin wrapper round a
+     * name-&gt;value attribute map.
+     * The equals and hashMap methods are implemented such that
+     * instances with the same element name and attribute values
+     * will evaluate as equal.
+     */
+    private static class MetaEl {
+
+        private final String elName_;
+        private final Map<String,String> attMap_;
+
+        /**
+         * Constructor.
+         *
+         * @param   elName  element name
+         * @param   attMap  attribute name-&gt;value map,
+         *                  <em>excluding</em> the ID attribute
+         */
+        MetaEl( String elName, Map<String,String> attMap ) {
+            elName_ = elName;
+            attMap_ = Collections.unmodifiableMap( attMap );
+        }
+
+        /**
+         * Returns the XML serialization of this object as an element.
+         *
+         * @param   id  value of ID attribute
+         * @return  element XML serialization
+         */
+        public String toXml( String id ) {
+            return new StringBuffer()
+                  .append( "<" )
+                  .append( elName_ )
+                  .append( formatAttribute( "ID", id ) )
+                  .append( formatAttributes( attMap_ ) )
+                  .append( "/>" )
+                  .toString();
+        }
+
+        @Override
+        public int hashCode() {
+            int code = 442041;
+            code = 23 * code + elName_.hashCode();
+            code = 23 * code + attMap_.hashCode();
+            return code;
+        }
+
+        @Override
+        public boolean equals( Object o ) {
+            if ( o instanceof MetaEl ) {
+                MetaEl other = (MetaEl) o;
+                return this.elName_.equals( other.elName_ )
+                    && this.attMap_.equals( other.attMap_ );
+            }
+            else {
+                return false;
+            }
         }
     }
 }

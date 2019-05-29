@@ -6,7 +6,6 @@ import nom.tam.fits.AsciiTable;
 import nom.tam.fits.AsciiTableHDU;
 import nom.tam.fits.BinaryTable;
 import nom.tam.fits.BinaryTableHDU;
-import nom.tam.fits.Data;
 import nom.tam.fits.FitsException;
 import nom.tam.fits.TableData;
 import nom.tam.fits.TableHDU;
@@ -17,6 +16,7 @@ import uk.ac.starlink.fits.FitsConstants;
 import uk.ac.starlink.fits.FitsStarTable;
 import uk.ac.starlink.fits.FitsTableBuilder;
 import uk.ac.starlink.fits.InputFactory;
+import uk.ac.starlink.fits.WideFits;
 import uk.ac.starlink.table.StarTable;
 import uk.ac.starlink.util.DataSource;
 import uk.ac.starlink.util.IOUtils;
@@ -192,7 +192,8 @@ public class TableHDUDataNode extends HDUDataNode {
             IOUtils.skipBytes( strm, datasize );
             InputFactory inFact =
                 InputFactory.createFactory( datsrc, datpos, datasize );
-            return BintableStarTable.createTable( hdr, inFact );
+            return BintableStarTable.createTable( hdr, inFact,
+                                                  WideFits.DEFAULT );
         }
 
         /* If it's a TABLE HDU (ASCII table), make a FitsStarTable. */
@@ -200,7 +201,7 @@ public class TableHDUDataNode extends HDUDataNode {
             AsciiTable tdata = new AsciiTable( hdr );
             tdata.read( strm );
             tdata.getData();
-            TableHDU thdu = new AsciiTableHDU( hdr, (Data) tdata );
+            TableHDU thdu = new AsciiTableHDU( hdr, tdata );
             return new FitsStarTable( thdu );
         }
 

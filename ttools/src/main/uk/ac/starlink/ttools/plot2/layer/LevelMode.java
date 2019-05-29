@@ -72,7 +72,7 @@ public abstract class LevelMode {
     /**
      * Calculates the contour levels for a given data array.
      *
-     * @param   array  data array
+     * @param   array  data array; NaN elements are permitted and ignored
      * @param   nLevel   number of requested levels; actual level count
      *                   may not be the same as this depending on data
      * @param   offset  offset from zero of the value of the first contour,
@@ -149,13 +149,12 @@ public abstract class LevelMode {
                                                 int nLevel, double offset,
                                                 boolean isCounts ) {
         double[] limits = getCutLimits( array, NCLIP, true );
-        double loThresh = isCounts ? 1 : 0;
-        double min = Math.max( loThresh, limits[ 0 ] );
-        double max = Math.max( loThresh, limits[ 1 ] );
+        double min = isCounts ? Math.max( 1, limits[ 0 ] ) : limits[ 0 ];
+        double max = isCounts ? Math.max( 1, limits[ 1 ] ) : limits[ 1 ];
         if ( ! ( max > min ) ) {
             return new double[ 0 ];
         }
-        double step = Math.log( max / min ) / nLevel;
+        double step = ( Math.log( max ) - Math.log( min ) ) / nLevel;
         double[] levels = new double[ nLevel ];
         for ( int il = 0; il < nLevel; il++ ) {
             levels[ il ] = min * Math.exp( step * ( il + offset ) );
@@ -183,7 +182,7 @@ public abstract class LevelMode {
         int ngood = 0;
         for ( int ip = 0; ip < npix; ip++ ) {
             double v = array.getValue( ip );
-            if ( ! isCounts || v > 0 ) {
+            if ( ! Double.isNaN( v ) && ( ! isCounts || v > 0 ) ) {
                 values[ ngood++ ] = (float) v;
             }
         }
@@ -191,7 +190,6 @@ public abstract class LevelMode {
             return new double[ 0 ];
         }
         Arrays.sort( values, 0, ngood );
-        Arrays.fill( values, ngood, values.length, Float.MAX_VALUE );
 
         /* Populate the levels by picking equally spaced distances along
          * the sorted array.  There is a threshold for the smallest
@@ -206,11 +204,11 @@ public abstract class LevelMode {
             int index =
                 (int) ( lastIndex
                       + ( ngood - lastIndex ) * 1. / ( nLevel + offset - il ) );
-            index = Math.min( index, values.length - 1 );
+            index = Math.min( index, ngood - 1 );
             double level = values[ index ];
             if ( isCounts && level - lastLevel < 1 ) {
                 level = lastLevel + 1;
-                index = Arrays.binarySearch( values, (float) level );
+                index = Arrays.binarySearch( values, 0, ngood, (float) level );
                 if ( index < 0 ) {
                     index = - ( index + 1 );
                 }
@@ -235,10 +233,12 @@ public abstract class LevelMode {
                                           boolean isLog ) {
         double[] tops = new double[ nExclude + 1 ];
         double[] bots = new double[ nExclude + 1 ];
+        Arrays.fill( tops, Double.NEGATIVE_INFINITY );
+        Arrays.fill( bots, Double.POSITIVE_INFINITY );
         int np = array.getLength();
         for ( int ip = 0; ip < np; ip++ ) {
             double c = array.getValue( ip );
-            if ( ! isLog || c > 0 ) {
+            if ( ! Double.isNaN( c ) && ( ! isLog || c > 0 ) ) {
                 if ( c > tops[ 0 ] ) {
                     tops[ 0 ] = c;
                     Arrays.sort( tops );

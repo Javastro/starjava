@@ -5,13 +5,16 @@ import java.util.Arrays;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
-import uk.ac.starlink.ttools.plot.Range;
 import uk.ac.starlink.ttools.plot.Shader;
 import uk.ac.starlink.ttools.plot.Shaders;
 import uk.ac.starlink.ttools.plot2.Captioner;
+import uk.ac.starlink.ttools.plot2.PlotUtil;
+import uk.ac.starlink.ttools.plot2.Scaler;
 import uk.ac.starlink.ttools.plot2.Scaling;
+import uk.ac.starlink.ttools.plot2.Scalings;
 import uk.ac.starlink.ttools.plot2.ShadeAxis;
 import uk.ac.starlink.ttools.plot2.ShadeAxisFactory;
+import uk.ac.starlink.ttools.plot2.Span;
 import uk.ac.starlink.ttools.plot2.Subrange;
 import uk.ac.starlink.ttools.plot2.config.ConfigKey;
 import uk.ac.starlink.ttools.plot2.config.ConfigMap;
@@ -59,18 +62,14 @@ public class RampKeySet implements KeySet<RampKeySet.Ramp> {
         }
         shaderList.addAll( Arrays.asList( Shaders.getCustomShaders() ) );
 
-        shaderKey_ = new ShaderConfigKey(
-            new ConfigMeta( axname + "map", axName + " Shader" )
-           .setShortDescription( "Color map for " + axName + " shading" )
-           .setXmlDescription( new String[] {
-                "<p>Color map used for",
-                axName,
-                "axis shading.",
-                "</p>",
-            } )
-            , shaderList.toArray( new Shader[ 0 ] ), shaderList.get( 0 )
-        ).appendShaderDescription()
-         .setOptionUsage();
+        ConfigMeta shaderMeta = 
+            ShaderConfigKey
+           .createAxisMeta( axname + "map", axName + " Shader", axName );
+        shaderKey_ =
+            new ShaderConfigKey( shaderMeta,
+                                 shaderList.toArray( new Shader[ 0 ] ),
+                                 shaderList.get( 0 ) )
+           .appendShaderDescription();
         keyList.add( shaderKey_ );
 
         ConfigMeta shadeclipMeta =
@@ -148,31 +147,60 @@ public class RampKeySet implements KeySet<RampKeySet.Ramp> {
         };
         keyList.add( quantiseKey_ );
 
-        ConfigMeta scalingMeta = new ConfigMeta( axname + "func", "Scaling" );
-        scalingMeta.setShortDescription( axName + " scaling function" );
-        scalingMeta.setXmlDescription( new String[] {
-            "<p>Defines the way that values in the",
-            axName,
-            "range are mapped to the selected colour ramp.",
-            "</p>",
-        } );
-        scalingKey_ = new OptionConfigKey<Scaling>( scalingMeta, Scaling.class,
-                                                    Scaling.getStretchOptions(),
-                                                    dfltScaling ) {
-            public String getXmlDescription( Scaling scaling ) {
-                return scaling.getDescription();
-            }
-        };
-        scalingKey_.setOptionUsage();
-        scalingKey_.addOptionsXml();
-        keyList.add( scalingKey_ );
-
         dataclipKey_ =
             new SubrangeConfigKey( SubrangeConfigKey
                                   .createAxisSubMeta( axname, axName ) );
         if ( hasDataclip ) {
             keyList.add( dataclipKey_ );
         }
+
+        ConfigMeta scalingMeta = new ConfigMeta( axname + "func", "Scaling" );
+        scalingMeta.setShortDescription( axName + " scaling function" );
+        scalingKey_ =
+                new OptionConfigKey<Scaling>( scalingMeta, Scaling.class,
+                                              Scaling.STRETCHES, dfltScaling ) {
+            public String getXmlDescription( Scaling scaling ) {
+                return scaling.getDescription();
+            }
+        };
+        scalingKey_.setOptionUsage();
+        scalingMeta.setXmlDescription( new String[] {
+            "<p>Defines the way that values in the",
+            axName,
+            "range are mapped to the selected colour ramp.",
+            "</p>",
+            scalingKey_.getOptionsXml(),
+            "<p>For all these options,",
+            "the full range of data values is used,",
+            "and displayed on the colour bar",
+            ( hasDataclip
+              ? "if applicable"
+                + " (though it can be restricted using the"
+                + " <code>" + dataclipKey_.getMeta().getShortName() + "</code>"
+                + " option)"
+              : "if applicable." ),
+            "The <code>" + Scaling.LINEAR + "</code>,",
+                "<code>" + Scaling.LOG + "</code>,",
+                "<code>" + Scaling.SQUARE + "</code> and",
+                "<code>" + Scaling.SQRT + "</code> options",
+            "just apply the named function to the full data range.",
+            "The histogram options on the other hand use a scaling function",
+            "that corresponds to the actual distribution of the data, so that",
+            "there are about the same number of points (or pixels, or whatever",
+            "is being scaled) of each colour.",
+            "The histogram options are somewhat more expensive,",
+            "but can be a good choice if you are exploring data whose",
+            "distribution is unknown or not well-behaved over",
+            "its min-max range.",
+            "The <code>" + Scaling.HISTO + "</code> and ",
+            "<code>" + Scaling.HISTOLOG + "</code> options both",
+            "assign the colours in the same way, but they display the colour",
+            "ramp with linear or logarithmic annotation respectively;",
+            "the <code>" + Scaling.HISTOLOG +"</code> option also ignores",
+            "non-positive values.",
+            "</p>",
+        } );
+        keyList.add( scalingKey_ );
 
         keys_ = keyList.toArray( new ConfigKey[ 0 ] );
     }
@@ -202,22 +230,31 @@ public class RampKeySet implements KeySet<RampKeySet.Ramp> {
             shader = Shaders.quantise( shader, quantise );
         }
 
-        /* Determine configured scaling instance. */
+        /* Construct and return a Ramp instance. */
         Scaling scaling = config.get( scalingKey_ );
         Subrange dataclip = config.get( dataclipKey_ );
-        if ( ! Subrange.isIdentity( dataclip ) ) {
-            scaling = Scaling.subrangeScaling( scaling, dataclip );
-        }
+        return createRamp( shader, scaling, dataclip );
+    }
 
-        /* Construct and return a Ramp instance. */
-        final Shader shader0 = shader;
-        final Scaling scaling0 = scaling;
+    /**
+     * Constructs a Ramp instance.
+     *
+     * @param  shader  shader
+     * @param  scaling  scaling
+     * @param  dataclip  input data scale adjustment
+     * @return  new ramp
+     */
+    private static Ramp createRamp( final Shader shader, final Scaling scaling,
+                                    final Subrange dataclip ) {
         return new Ramp() {
             public Shader getShader() {
-                return shader0;
+                return shader;
             }
             public Scaling getScaling() {
-                return scaling0;
+                return scaling;
+            }
+            public Subrange getDataClip() {
+                return dataclip;
             }
         };
     }
@@ -238,20 +275,22 @@ public class RampKeySet implements KeySet<RampKeySet.Ramp> {
                                     final int rampWidth ) {
         final Shader shader = ramp.getShader();
         final Scaling scaling = ramp.getScaling();
+        final Subrange dataclip = ramp.getDataClip();
         final boolean isLog = scaling.isLogLike();
         return new ShadeAxisFactory() {
             public boolean isLog() {
                 return isLog;
             }
-            public ShadeAxis createShadeAxis( Range range ) {
-                if ( range == null ) {
-                    range = new Range();
+            public ShadeAxis createShadeAxis( Span span ) {
+                if ( span == null ) {
+                    span = PlotUtil.EMPTY_SPAN;
                 }
-                double[] bounds = range.getFiniteBounds( isLog );
-                double lo = bounds[ 0 ];
-                double hi = bounds[ 1 ];
-                return new ShadeAxis( shader, scaling, lo, hi,
-                                      label, captioner, crowding, rampWidth );
+                Scaler scaler = span.createScaler( scaling, dataclip );
+                assert scaler.hashCode() ==
+                       span.createScaler( scaling, dataclip ).hashCode();
+                assert scaler.equals( span.createScaler( scaling, dataclip ) );
+                return new ShadeAxis( shader, scaler, label, captioner,
+                                      crowding, rampWidth );
             }
         };
     }
@@ -275,5 +314,13 @@ public class RampKeySet implements KeySet<RampKeySet.Ramp> {
          * @return  scaling
          */
         Scaling getScaling();
+
+        /**
+         * Returns an adjustment to the default data range which the
+         * defined ramp should cover.
+         *
+         * @return   input value subrange
+         */
+        Subrange getDataClip();
     }
 }

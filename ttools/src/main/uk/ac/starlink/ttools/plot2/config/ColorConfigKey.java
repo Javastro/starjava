@@ -105,16 +105,7 @@ public class ColorConfigKey extends ChoiceConfigKey<Color> {
     }
 
     public Color decodeString( String sval ) {
-        Matcher rgbMatcher = RGB_REGEX.matcher( sval );
-        if ( rgbMatcher.matches() ) {
-            int rgb = Integer.parseInt( rgbMatcher.group( 1 ), 16 );
-            return new Color( rgb );
-        }
-        Color named = NAMED_COLORS.getColor( sval );
-        if ( named != null ) {
-            return named;
-        }
-        return null;
+        return decodeColorName( sval );
     }
 
     public String stringifyValue( Color color ) {
@@ -125,6 +116,7 @@ public class ColorConfigKey extends ChoiceConfigKey<Color> {
         Color[] colors = getOptionMap().values().toArray( new Color[ 0 ] );
         List<Specifier<Color>> specifiers = new ArrayList<Specifier<Color>>();
         specifiers.add( new ComboBoxSpecifier<Color>(
+                            Color.class,
                             new ColorComboBox( colors ) ) );
         specifiers.add( new ChooserColorSpecifier( colors[ 0 ] ) );
         Specifier<Color> basic =
@@ -183,6 +175,26 @@ public class ColorConfigKey extends ChoiceConfigKey<Color> {
             "</p>",
         } );
         return meta;
+    }
+
+    /**
+     * Turns a string into a colour by looking at known colour names
+     * or using RRGGBB syntax.
+     *
+     * @param  sval   string colour identifier
+     * @return  colour named by sval, or null if none is identified
+     */
+    public static Color decodeColorName( String sval ) {
+        Matcher rgbMatcher = RGB_REGEX.matcher( sval );
+        if ( rgbMatcher.matches() ) {
+            int rgb = Integer.parseInt( rgbMatcher.group( 1 ), 16 );
+            return new Color( rgb );
+        }
+        Color named = NAMED_COLORS.getColor( sval );
+        if ( named != null ) {
+            return named;
+        }
+        return null;
     }
 
     /**

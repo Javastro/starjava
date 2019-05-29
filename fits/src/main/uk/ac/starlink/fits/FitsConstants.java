@@ -9,9 +9,11 @@ import java.nio.channels.FileChannel;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
+import java.util.logging.Level;
 import java.util.logging.Logger;
 import nom.tam.fits.BasicHDU;
 import nom.tam.fits.FitsException;
+import nom.tam.fits.FitsFactory;
 import nom.tam.fits.FitsUtil;
 import nom.tam.fits.Header;
 import nom.tam.fits.HeaderCard;
@@ -42,7 +44,7 @@ public class FitsConstants {
     public static final String NDARRAY_PREFIX = "NDA_";
 
     /** Image of end-of-header card. */
-    public static final HeaderCard END_CARD = new HeaderCard( 
+    public static final HeaderCard END_CARD = createHeaderCard(
         "END                                     " +
         "                                        " );
 
@@ -65,6 +67,12 @@ public class FitsConstants {
     /** Standard size of a FITS block in bytes. */
     public static final int FITS_BLOCK = 2880;
 
+    /** Maximum number of columns in standard FITS BINTABLE extension. */
+    public static final int MAX_NCOLSTD = 999;
+
+    /** Whether HIERARCH convention is used; true by default. */
+    public static boolean REQUIRE_HIERARCH = true;
+
     private static final String[] extensions = new String[] {
         ".fits", ".fit", ".fts",
         ".FITS", ".FIT", ".FTS",
@@ -86,8 +94,52 @@ public class FitsConstants {
         return Collections.unmodifiableList( Arrays.asList( extensions ) );
     }
 
+    /**
+     * Ensures that use of the HIERARCH convention when dealing with
+     * FITS headers is set to the state expected for STIL operation.
+     * If this involves changing the current setting, a warning is
+     * issued through the logging system.
+     *
+     * <p>The general idea is that this is only issued once per JVM.
+     * If other components are resetting the hierarch handling that
+     * might not be enough, but there's no mechanism to ensure that
+     * it stays set anyway.
+     *
+     * <p>The main reason this is necessary is that WideFits handling
+     * requires HIERARCH, but there is no per-call configuration of
+     * whether the convention is in use, so it has to be set on a
+     * global basis.
+     */
+    public static void configureHierarch() {
+        boolean isReq = REQUIRE_HIERARCH;
+        if ( FitsFactory.getUseHierarch() != isReq ) {
+            logger.info( "Resetting FITS use of HIERARCH convention "
+                       + ! isReq + " -> " + isReq );
+        }
+        FitsFactory.setUseHierarch( isReq );
+    }
+
     static String originCardName( int naxis ) {
         return NDARRAY_ORIGIN + ( naxis + 1 );
+    }
+
+    /**
+     * Creates a Header instance which does not perform any unsolicited
+     * reordering of the header cards.  Some versions of nom.tam.fits
+     * force the EXTEND keyword to go directly after the NAXISn keywords.
+     * That screws up specification of the FITS-plus magic number,
+     * which is expected to have VOTMETA directly after NAXISn.
+     * Headers created using this method will leave header cards in
+     * the order they are added.
+     *
+     * @return  new empty header
+     * @see <a href="https://github.com/nom-tam-fits/nom-tam-fits/issues/113"
+     *         >nom.tam.fits github discussion</a>
+     */
+    public static Header createUnsortedHeader() {
+        Header hdr = new Header();
+        hdr.setHeaderSorter( null );
+        return hdr;
     }
 
     static int typeToBitpix( Type type ) {
@@ -109,6 +161,16 @@ public class FitsConstants {
         else {
             throw new AssertionError();
         }
+    }
+
+    /**
+     * Create a HeaderCard from a FITS card image.
+     *
+     * @param   cardImage  the 80 character card image
+     * @return  card object
+     */
+    public static HeaderCard createHeaderCard( String cardImage ) {
+        return HeaderCard.create( cardImage );
     }
 
     /**
@@ -225,7 +287,8 @@ public class FitsConstants {
                 while ( need > 0 ) {
                     int len = strm.read( buffer, 80 - need, need );
                     if ( len <= 0 ) {
-                        throw new TruncatedFileException();
+                        throw new TruncatedFileException( "Stream stopped"
+                                                        + " mid-card" );
                     }
                     need -= len;
                 }
@@ -239,7 +302,7 @@ public class FitsConstants {
             }
 
             String cbuf = new String( buffer );
-            HeaderCard fcard = new HeaderCard( cbuf );
+            HeaderCard fcard = createHeaderCard( cbuf );
             if ( firstCard ) {
                 String key = fcard.getKey();
                 if ( key == null || 
@@ -363,12 +426,100 @@ public class FitsConstants {
     public static void addTrimmedValue( Header hdr, String key, String value,
                                         String comment )
             throws HeaderCardException {
-        if ( value != null && value.length() > 68 ) {
+        if ( value != null && getStringValueLength( value ) > 68 ) {
             value = value.substring( 0, 65 ) + "...";
             logger.warning( "Truncated long FITS header card " + key + " = " + 
                             value );
         }
         hdr.addValue( key, value, comment );
+    }
+
+    /**
+     * Attempts to add a string-valued card to the header.  If the value
+     * is too long, no header is added, and a message is emitted through
+     * the logging system.
+     *
+     * @param  hdr  header
+     * @param  key  card key
+     * @param  value  card value
+     * @param  comment  card comment
+     */
+    public static void addStringValue( Header hdr, String key, String value,
+                                       String comment ) {
+        if ( value != null && getStringValueLength( value ) > 68 ) {
+            logger.info( "Ignored long FITS header card " + key + " = " +
+                         value );
+        }
+        else {
+            try {
+                hdr.addValue( key, value, comment );
+            }
+            catch ( HeaderCardException e ) {
+                logger.log( Level.WARNING,
+                            "Failed to add FITS header card " + key + " = "
+                             + value, e );
+            }
+        }
+    }
+
+    /**
+     * Checks that a table with the given number of columns can be written.
+     * If the column count is not exceeded, nothing happens,
+     * but if there are too many columns an informative IOException
+     * is thrown.
+     *
+     * @param  wide   extended column convention
+     *                - may be null for FITS standard behaviour only
+     * @param  ncol   number of columns to write
+     * @throws   IOException  if there are too many columns
+     */
+    public static void checkColumnCount( WideFits wide, int ncol )
+            throws IOException {
+        if ( wide == null ) {
+            if ( ncol > MAX_NCOLSTD ) { 
+                String msg = new StringBuffer()
+                    .append( "Too many columns " ) 
+                    .append( ncol )
+                    .append( " > " ) 
+                    .append( MAX_NCOLSTD )
+                    .append( " (FITS standard hard limit)" )
+                    .toString();
+                throw new IOException( msg );
+            }   
+        }
+        else {
+            int nmax = wide.getExtColumnMax();
+            if ( ncol > nmax ) {
+                String msg = new StringBuffer()
+                    .append( "Too many column " )
+                    .append( ncol )
+                    .append( " > " )
+                    .append( nmax )
+                    .append( " (limit of extended column convention" )
+                    .toString();
+                throw new IOException( msg );
+            }
+        }
+    }
+
+    /**
+     * Returns the number of characters that will be required to encode
+     * a string value into a FITS header card.  This is the length of the
+     * string, adjusted by adding one for every single quote character,
+     * since these are doubled to quote them in string header values.
+     * It does not include the leading and trailing quote characters.
+     * If this value exceeds 68, the string cannot be encoded directly
+     * in a single FITS header card.
+     *
+     * @param  raw string value
+     * @return  number of characters required to represent as a string
+     */
+    private static int getStringValueLength( String str ) {
+        int n = 0;
+        for ( int i = 0; i < str.length(); i++ ) {
+            n += str.charAt( i ) == '\'' ? 2 : 1;
+        }
+        return n;
     }
 
     private static long getRawSize( Header hdr ) {

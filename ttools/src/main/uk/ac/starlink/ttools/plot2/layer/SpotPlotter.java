@@ -7,7 +7,6 @@ import java.awt.Rectangle;
 import java.awt.geom.Point2D;
 import javax.swing.Icon;
 import java.util.Map;
-import uk.ac.starlink.ttools.plot.Range;
 import uk.ac.starlink.ttools.plot.Style;
 import uk.ac.starlink.ttools.plot2.AuxScale;
 import uk.ac.starlink.ttools.plot2.DataGeom;
@@ -17,6 +16,7 @@ import uk.ac.starlink.ttools.plot2.LayerOpt;
 import uk.ac.starlink.ttools.plot2.Pixer;
 import uk.ac.starlink.ttools.plot2.PlotLayer;
 import uk.ac.starlink.ttools.plot2.PlotUtil;
+import uk.ac.starlink.ttools.plot2.Span;
 import uk.ac.starlink.ttools.plot2.Surface;
 import uk.ac.starlink.ttools.plot2.config.ConfigKey;
 import uk.ac.starlink.ttools.plot2.config.ConfigMap;
@@ -26,6 +26,7 @@ import uk.ac.starlink.ttools.plot2.data.DataSpec;
 import uk.ac.starlink.ttools.plot2.data.DataStore;
 import uk.ac.starlink.ttools.plot2.data.TupleSequence;
 import uk.ac.starlink.ttools.plot2.geom.CubeSurface;
+import uk.ac.starlink.ttools.plot2.geom.GPoint3D;
 import uk.ac.starlink.ttools.plot2.paper.Paper;
 import uk.ac.starlink.ttools.plot2.paper.PaperType;
 import uk.ac.starlink.ttools.plot2.paper.PaperType2D;
@@ -81,7 +82,7 @@ public class SpotPlotter extends AbstractPlotter<SpotPlotter.SpotStyle> {
         LayerOpt opt = new LayerOpt( style.getColor(), true );
         return new AbstractPlotLayer( this, geom, dataSpec, style, opt ) {
             public Drawing createDrawing( final Surface surface,
-                                          Map<AuxScale,Range> auxRanges,
+                                          Map<AuxScale,Span> auxSpans,
                                           PaperType paperType ) {
                 if ( paperType instanceof PaperType2D ) {
                     final PaperType2D ptype = (PaperType2D) paperType;
@@ -159,13 +160,12 @@ public class SpotPlotter extends AbstractPlotter<SpotPlotter.SpotStyle> {
         Color spotColor = style.getColor();
         int icPos = getCoordGroup().getPosCoordIndex( 0, geom );
         double[] dpos = new double[ surface.getDataDimCount() ];
-        Point2D.Double gp = new Point2D.Double();
-        double[] dz = new double[ 1 ];
+        GPoint3D gp = new GPoint3D();
         TupleSequence tseq = dataStore.getTupleSequence( dataSpec );
         while ( tseq.next() ) {
             if ( geom.readDataPos( tseq, icPos, dpos ) &&
-                 surface.dataToGraphicZ( dpos, true, gp, dz ) ) {
-                paperType.placeGlyph( paper, gp.x, gp.y, dz[ 0 ],
+                 surface.dataToGraphicZ( dpos, true, gp ) ) {
+                paperType.placeGlyph( paper, gp.x, gp.y, gp.z,
                                       spotGlyph, spotColor );
             }
         }

@@ -2,14 +2,16 @@ package uk.ac.starlink.ttools.plot2.layer;
 
 import java.awt.Rectangle;
 import java.util.Map;
-import uk.ac.starlink.ttools.plot.Range;
 import uk.ac.starlink.ttools.plot2.AuxScale;
 import uk.ac.starlink.ttools.plot2.DataGeom;
 import uk.ac.starlink.ttools.plot2.Pixer;
+import uk.ac.starlink.ttools.plot2.PlotUtil;
+import uk.ac.starlink.ttools.plot2.Span;
 import uk.ac.starlink.ttools.plot2.Surface;
 import uk.ac.starlink.ttools.plot2.data.DataSpec;
 import uk.ac.starlink.ttools.plot2.data.DataStore;
 import uk.ac.starlink.ttools.plot2.data.TupleSequence;
+import uk.ac.starlink.ttools.plot2.geom.CubeSurface;
 
 /**
  * Partial Outliner implementation which calculates its bin plan
@@ -22,7 +24,7 @@ import uk.ac.starlink.ttools.plot2.data.TupleSequence;
 public abstract class PixOutliner implements Outliner {
 
     public Object calculateBinPlan( Surface surface, DataGeom geom,
-                                    Map<AuxScale,Range> auxRanges,
+                                    Map<AuxScale,Span> auxRanges,
                                     DataStore dataStore, DataSpec dataSpec,
                                     Object[] knownPlans ) {
 
@@ -39,8 +41,11 @@ public abstract class PixOutliner implements Outliner {
         /* Otherwise set up a limited PaperType implementation that takes
          * glyphs and turns them into a bit map, and plot the glyphs on it. */
         BinPaper paper = new BinPaper( surface.getPlotBounds() );
+        GlyphPaper.GlyphPaperType ptype = paper.getPaperType();
         ShapePainter painter =
-            create2DPainter( surface, geom, auxRanges, paper.getPaperType() );
+              surface instanceof CubeSurface
+            ? create3DPainter( (CubeSurface) surface, geom, auxRanges, ptype )
+            : create2DPainter( surface, geom, auxRanges, ptype );
         TupleSequence tseq = dataStore.getTupleSequence( dataSpec );
         while( tseq.next() ) {
             painter.paintPoint( tseq, null, paper );
@@ -139,7 +144,7 @@ public abstract class PixOutliner implements Outliner {
          */
         boolean matches( DataGeom geom, DataSpec dataSpec, Surface surface,
                          PixOutliner outliner ) {
-            return geom_.equals( geom )
+            return PlotUtil.equals( geom_, geom )
                 && dataSpec_.equals( dataSpec )
                 && surface_.equals( surface )
                 && outliner_.equals( outliner );

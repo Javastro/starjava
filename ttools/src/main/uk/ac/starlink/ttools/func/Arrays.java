@@ -8,6 +8,7 @@ package uk.ac.starlink.ttools.func;
 import java.io.IOException;
 import java.lang.reflect.Array;
 import uk.ac.starlink.table.Tables;
+import uk.ac.starlink.ttools.build.HideDoc;
 import uk.ac.starlink.ttools.filter.QuantCalc;
 
 /**
@@ -47,16 +48,21 @@ import uk.ac.starlink.ttools.filter.QuantCalc;
  *     <code>multiply</code>,
  *     <code>divide</code>,
  *     <code>reciprocal</code>,
- *     <code>condition</code>.
+ *     <code>condition</code>,
+ *     <code>slice</code>,
+ *     <code>pick</code>.
+ *     Mostly these work on any numeric array type and return
+ *     floating point (double precision) values,
+ *     but some of them (<code>slice</code>, <code>pick</code>)
+ *     have variants for different array types.
  *     </li>
  * <li>The function <code>array</code>,
- *     which lets you assemble an array value from a list of scalar numbers.
- *     This can be used with the aggregating functions here,
- *     but it's generally easier to use the corresponding functions from
- *     the <code>Lists</code> class.
+ *     which lets you assemble a floating point array value from
+ *     a list of scalar numbers.
+ *     There are variants (<code>intArray</code>, <code>stringArray</code>)
+ *     for some different array types. 
  *     </li>
  * </ul>
- *
  *
  * @author   Mark Taylor
  * @since    14 Jul 2008
@@ -568,6 +574,471 @@ public class Arrays {
     }
 
     /**
+     * Returns a sub-sequence of values from a given array.
+     *
+     * <p>The semantics are like python array slicing, though both limits
+     * have to be specified: the output array contains the sequence of
+     * elements in the input array from <code>i0</code> (inclusive)
+     * to <code>i1</code> (exclusive).  If a negative value is given
+     * in either case, it is added to the length of the input array,
+     * so that -1 indicates the last element of the input array.
+     * The indices are capped at 0 and the input array length respectively,
+     * so a large positive value may be used to indicate the end of the array.
+     * If the end index is less than or equal to the start index,
+     * a zero-length array is returned.
+     *
+     * <p><strong>Note:</strong>
+     * This documents the double-precision version of the routine.
+     * Corresponding routines exist for other data types
+     * (<code>float</code>, <code>long</code>, <code>int</code>,
+     * <code>short</code>, <code>byte</code>, <code>String</code>,
+     * <code>Object</code>).
+     *
+     * @example <code>slice(array(10,11,12,13), 0, 3) = [10, 11, 12]</code>
+     * @example <code>slice(array(10,11,12,13), -2, 999) = [12, 13]</code>
+     *
+     * @param   array  input array
+     * @param   i0  index of first element, inclusive
+     *              (may be negative to count back from the end)
+     * @param   i1  index of the last element, exclusive
+     *              (may be negative to count back from the end)
+     * @return   array giving the sequence of
+     *           elements specified by <code>i0</code> and <code>i1</code>
+     */
+    public static double[] slice( double[] array, int i0, int i1 ) {
+        if ( array != null ) {
+            int leng = array.length;
+            int j0 = effectiveIndex( i0, leng );
+            int j1 = effectiveIndex( i1, leng );
+            int count = Math.max( 0, j1 - j0 );
+            double[] out = new double[ count ];
+            System.arraycopy( array, j0, out, 0, count );
+            return out;
+        }
+        else {
+            return null;
+        }
+    }
+
+    @HideDoc
+    public static float[] slice( float[] array, int i0, int i1 ) {
+        if ( array != null ) {
+            int leng = array.length;
+            int j0 = effectiveIndex( i0, leng );
+            int j1 = effectiveIndex( i1, leng );
+            int count = Math.max( 0, j1 - j0 );
+            float[] out = new float[ count ];
+            System.arraycopy( array, j0, out, 0, count );
+            return out;
+        }
+        else {
+            return null;
+        }
+    }
+
+    @HideDoc
+    public static long[] slice( long[] array, int i0, int i1 ) {
+        if ( array != null ) {
+            int leng = array.length;
+            int j0 = effectiveIndex( i0, leng );
+            int j1 = effectiveIndex( i1, leng );
+            int count = Math.max( 0, j1 - j0 );
+            long[] out = new long[ count ];
+            System.arraycopy( array, j0, out, 0, count );
+            return out;
+        }
+        else {
+            return null;
+        }
+    }
+
+    @HideDoc
+    public static int[] slice( int[] array, int i0, int i1 ) {
+        if ( array != null ) {
+            int leng = array.length;
+            int j0 = effectiveIndex( i0, leng );
+            int j1 = effectiveIndex( i1, leng );
+            int count = Math.max( 0, j1 - j0 );
+            int[] out = new int[ count ];
+            System.arraycopy( array, j0, out, 0, count );
+            return out;
+        }
+        else {
+            return null;
+        }
+    }
+
+    @HideDoc
+    public static short[] slice( short[] array, int i0, int i1 ) {
+        if ( array != null ) {
+            int leng = array.length;
+            int j0 = effectiveIndex( i0, leng );
+            int j1 = effectiveIndex( i1, leng );
+            int count = Math.max( 0, j1 - j0 );
+            short[] out = new short[ count ];
+            System.arraycopy( array, j0, out, 0, count );
+            return out;
+        }
+        else {
+            return null;
+        }
+    }
+
+    @HideDoc
+    public static byte[] slice( byte[] array, int i0, int i1 ) {
+        if ( array != null ) {
+            int leng = array.length;
+            int j0 = effectiveIndex( i0, leng );
+            int j1 = effectiveIndex( i1, leng );
+            int count = Math.max( 0, j1 - j0 );
+            byte[] out = new byte[ count ];
+            System.arraycopy( array, j0, out, 0, count );
+            return out;
+        }
+        else {
+            return null;
+        }
+    }
+
+    @HideDoc
+    public static String[] slice( String[] array, int i0, int i1 ) {
+        if ( array != null ) {
+            int leng = array.length;
+            int j0 = effectiveIndex( i0, leng );
+            int j1 = effectiveIndex( i1, leng );
+            int count = Math.max( 0, j1 - j0 );
+            String[] out = new String[ count ];
+            System.arraycopy( array, j0, out, 0, count );
+            return out;
+        }
+        else {
+            return null;
+        }
+    }
+
+    @HideDoc
+    public static Object[] slice( Object[] array, int i0, int i1 ) {
+        if ( array != null ) {
+            int leng = array.length;
+            int j0 = effectiveIndex( i0, leng );
+            int j1 = effectiveIndex( i1, leng );
+            int count = Math.max( 0, j1 - j0 );
+            Object[] out = new Object[ count ];
+            System.arraycopy( array, j0, out, 0, count );
+            return out;
+        }
+        else {
+            return null;
+        }
+    }
+
+    /**
+     * Returns a selection of elements from a given array.
+     *
+     * <p>The output array consists of one element selected from the
+     * input array for each of the supplied index values.
+     * If a negative value is supplied for an index value,
+     * it is added to the input array length, so that -1 indicates the
+     * last element of the input array.
+     * If the input array is null, null is returned.
+     * If any of the index values is out of the range of the extent of
+     * the input array, an error results.
+     *
+     * <p><strong>Note:</strong>
+     * This documents the double-precision version of the routine.
+     * Corresponding routines exist for other data types
+     * (<code>float</code>, <code>long</code>, <code>int</code>,
+     * <code>short</code>, <code>byte</code>, <code>String</code>,
+     * <code>Object</code>).
+     *
+     * @example  <code>pick(array(10,11,12,13), 0, 3) = [10, 13]</code>
+     * @example  <code>pick(array(10,11,12,13), -1, -2, -3)
+     *                 = [13, 12, 11]</code>
+     *
+     * @param  array  input array
+     * @param  indices   one or more index into the input array
+     *                   (may be negative to count back from the end)
+     * @return   array giving the elements specified by <code>indices</code>
+     */
+    public static double[] pick( double[] array, int... indices ) {
+        if ( array != null ) {
+            int leng = array.length;
+            int n = indices.length;
+            double[] out = new double[ n ];
+            for ( int i = 0; i < n; i++ ) {
+                int ix = indices[ i ];
+                int jx = ix >= 0 ? ix : leng + ix;
+                out[ i ] = array[ jx ];
+            }
+            return out;
+        }
+        else {
+            return null;
+        }
+    }
+
+    @HideDoc
+    public static float[] pick( float[] array, int... indices ) {
+        if ( array != null ) {
+            int leng = array.length;
+            int n = indices.length;
+            float[] out = new float[ n ];
+            for ( int i = 0; i < n; i++ ) {
+                int ix = indices[ i ];
+                int jx = ix >= 0 ? ix : leng + ix;
+                out[ i ] = array[ jx ];
+            }
+            return out;
+        }
+        else {
+            return null;
+        }
+    }
+
+    @HideDoc
+    public static long[] pick( long[] array, int... indices ) {
+        if ( array != null ) {
+            int leng = array.length;
+            int n = indices.length;
+            long[] out = new long[ n ];
+            for ( int i = 0; i < n; i++ ) {
+                int ix = indices[ i ];
+                int jx = ix >= 0 ? ix : leng + ix;
+                out[ i ] = array[ jx ];
+            }
+            return out;
+        }
+        else {
+            return null;
+        }
+    }
+
+    @HideDoc
+    public static int[] pick( int[] array, int... indices ) {
+        if ( array != null ) {
+            int leng = array.length;
+            int n = indices.length;
+            int[] out = new int[ n ];
+            for ( int i = 0; i < n; i++ ) {
+                int ix = indices[ i ];
+                int jx = ix >= 0 ? ix : leng + ix;
+                out[ i ] = array[ jx ];
+            }
+            return out;
+        }
+        else {
+            return null;
+        }
+    }
+
+    @HideDoc
+    public static short[] pick( short[] array, int... indices ) {
+        if ( array != null ) {
+            int leng = array.length;
+            int n = indices.length;
+            short[] out = new short[ n ];
+            for ( int i = 0; i < n; i++ ) {
+                int ix = indices[ i ];
+                int jx = ix >= 0 ? ix : leng + ix;
+                out[ i ] = array[ jx ];
+            }
+            return out;
+        }
+        else {
+            return null;
+        }
+    }
+
+    @HideDoc
+    public static byte[] pick( byte[] array, int... indices ) {
+        if ( array != null ) {
+            int leng = array.length;
+            int n = indices.length;
+            byte[] out = new byte[ n ];
+            for ( int i = 0; i < n; i++ ) {
+                int ix = indices[ i ];
+                int jx = ix >= 0 ? ix : leng + ix;
+                out[ i ] = array[ jx ];
+            }
+            return out;
+        }
+        else {
+            return null;
+        }
+    }
+
+    @HideDoc
+    public static String[] pick( String[] array, int... indices ) {
+        if ( array != null ) {
+            int leng = array.length;
+            int n = indices.length;
+            String[] out = new String[ n ];
+            for ( int i = 0; i < n; i++ ) {
+                int ix = indices[ i ];
+                int jx = ix >= 0 ? ix : leng + ix;
+                out[ i ] = array[ jx ];
+            }
+            return out;
+        }
+        else {
+            return null;
+        }
+    }
+
+    @HideDoc
+    public static Object[] pick( Object[] array, int... indices ) {
+        if ( array != null ) {
+            int leng = array.length;
+            int n = indices.length;
+            Object[] out = new Object[ n ];
+            for ( int i = 0; i < n; i++ ) {
+                int ix = indices[ i ];
+                int jx = ix >= 0 ? ix : leng + ix;
+                out[ i ] = array[ jx ];
+            }
+            return out;
+        }
+        else {
+            return null;
+        }
+    }
+
+    /**
+     * Returns the position in a supplied array at which a given item appears.
+     * The result is zero-based, so if the supplied <code>item</code>
+     * is the first entry in the <code>array</code>, the return value
+     * will be zero. 
+     *
+     * <p>If the item does not appear in the array, -1 is returned. 
+     * If it appears multiple times, the index of its first appearance
+     * is returned.
+     *
+     * <p>If <code>indexOf(array, item)==n</code>, then
+     * <code>array[n]</code> is equal to <code>item</code>.
+     *
+     * <p><strong>Note:</strong>
+     * This documents the <code>Object</code> version of the routine.
+     * Corresponding routines exist for other data types
+     * (<code>double</code>, <code>float</code>, <code>long</code>,
+     * <code>int</code>, <code>short</code>).
+     *
+     * @example <code>indexOf(stringArray("QSO", "BCG", "SNR"), "BCG")
+     *                = 1</code>
+     * @example <code>indexOf(stringArray("QSO", "BCG", "SNR"), "TLA")
+     *                = -1</code>
+     *
+     * @param  array  array which may contain the supplied item
+     * @param  item   entry to look for in the array
+     * @return   the index of <code>item</code> in <code>array</code>,
+     *           or -1
+     */
+    public static int indexOf( Object[] array, Object item ) {
+        if ( array != null ) {
+            int n = array.length;
+            if ( item == null ) {
+                for ( int i = 0; i < n; i++ ) {
+                    if ( array[ i ] == null ) {
+                        return i;
+                    }
+                }
+            }
+            else {
+                for ( int i = 0; i < n; i++ ) {
+                    if ( item.equals( array[ i ] ) ) {
+                        return i;
+                    }
+                }
+            }
+        }
+        return -1;
+    }
+
+    @HideDoc
+    public static int indexOf( double[] array, double item ) {
+        if ( array != null ) {
+            int n = array.length;
+            if ( Double.isNaN( item ) ) {
+                for ( int i = 0; i < n; i++ ) {
+                    if ( Double.isNaN( array[ i ] ) ) {
+                        return i;
+                    }
+                }
+            }
+            else {
+                for ( int i = 0; i < n; i++ ) {
+                    if ( array[ i ] == item ) {
+                        return i;
+                    }
+                }
+            }
+        }
+        return -1;
+    }
+
+    @HideDoc
+    public static int indexOf( float[] array, double item ) {
+        if ( array != null ) {
+            int n = array.length;
+            if ( Double.isNaN( item ) ) {
+                for ( int i = 0; i < n; i++ ) {
+                    if ( Float.isNaN( array[ i ] ) ) {
+                        return i;
+                    }
+                }
+            }
+            else {
+                float fitem = (float) item;
+                for ( int i = 0; i < n; i++ ) {
+                    if ( array[ i ] == fitem ) {
+                        return i;
+                    }
+                }
+            }
+        }
+        return -1;
+    }
+
+    @HideDoc
+    public static int indexOf( long[] array, long item ) {
+        if ( array != null ) {
+            int n = array.length;
+            for ( int i = 0; i < n; i++ ) {
+                if ( array[ i ] == item ) {
+                    return i;
+                }
+            }
+        }
+        return -1;
+    }
+
+    @HideDoc
+    public static int indexOf( int[] array, int item ) {
+        if ( array != null ) {
+            int n = array.length;
+            for ( int i = 0; i < n; i++ ) {
+                if ( array[ i ] == item ) {
+                    return i;
+                }
+            }
+        }
+        return -1;
+    }
+
+    @HideDoc
+    public static int indexOf( short[] array, int item ) {
+        short sitem = (short) item;
+        if ( array != null && sitem == item ) {
+            int n = array.length;
+            for ( int i = 0; i < n; i++ ) {
+                if ( array[ i ] == item ) {
+                    return i;
+                }
+            }
+        }
+        return -1;
+    }
+
+    /**
      * Returns a floating point numeric array built from the given arguments.
      *
      * @param   values   one or more array elements
@@ -614,5 +1085,21 @@ public class Arrays {
               || array instanceof double[] )
             ? Array.getLength( array )
             : -1;
+    }
+
+    /**
+     * Returns the effective index indicated by a user array index
+     * specification.  This uses python-like semantics, where a negative
+     * value is added to the array length to count backwards from the end.
+     * The output is also capped so that it does not fall outside the range
+     * of legal array elements.
+     *
+     * @param  index  supplied index specification
+     * @param  leng   array length
+     * @return  effective index
+     */
+    private static int effectiveIndex( int index, int leng ) {
+        return index >= 0 ? Math.min( leng, index )
+                          : Math.max( 0, leng + index );
     }
 }

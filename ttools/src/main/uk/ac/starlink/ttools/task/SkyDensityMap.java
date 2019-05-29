@@ -10,6 +10,8 @@ import java.util.List;
 import uk.ac.starlink.table.ColumnData;
 import uk.ac.starlink.table.ColumnStarTable;
 import uk.ac.starlink.table.DefaultValueInfo;
+import uk.ac.starlink.table.DescribedValue;
+import uk.ac.starlink.table.HealpixTableInfo;
 import uk.ac.starlink.table.RowSequence;
 import uk.ac.starlink.table.StarTable;
 import uk.ac.starlink.table.Tables;
@@ -22,6 +24,7 @@ import uk.ac.starlink.task.Parameter;
 import uk.ac.starlink.task.ParameterValueException;
 import uk.ac.starlink.task.StringParameter;
 import uk.ac.starlink.task.TaskException;
+import uk.ac.starlink.ttools.cone.HealpixTiling;
 import uk.ac.starlink.ttools.cone.SkyTiling;
 import uk.ac.starlink.ttools.cone.TilingParameter;
 import uk.ac.starlink.ttools.jel.JELQuantity;
@@ -31,6 +34,7 @@ import uk.ac.starlink.ttools.jel.SequentialJELRowReader;
 import uk.ac.starlink.ttools.plot2.layer.BinList;
 import uk.ac.starlink.ttools.plot2.layer.BinResultColumnData;
 import uk.ac.starlink.ttools.plot2.layer.Combiner;
+import uk.ac.starlink.ttools.plot2.layer.SolidAngleUnit;
 
 /**
  * Calculates sky density maps and outputs them as tables.
@@ -52,8 +56,8 @@ public class SkyDensityMap extends SingleMapperTask {
     private final BooleanParameter countParam_;
     private final StringMultiParameter quantParam_;
     private final ChoiceParameter<Combiner> combinerParam_;
+    private final ChoiceParameter<SolidAngleUnit> unitParam_;
     private final BooleanParameter completeParam_;
-    private static final int MAX_ARRAY = 1000000;
 
     /**
      * Constructor.
@@ -103,6 +107,10 @@ public class SkyDensityMap extends SingleMapperTask {
 
         Combiner[] combiners = Combiner.getKnownCombiners();
         combinerParam_ = new ChoiceParameter<Combiner>( "combine", combiners );
+
+        SolidAngleUnit[] units = SolidAngleUnit.getKnownUnits();
+        unitParam_ = new ChoiceParameter<SolidAngleUnit>( "perunit", units );
+
         combinerParam_.setPrompt( "Combination method" );
         StringBuffer lbuf = new StringBuffer();
         for ( Combiner combiner : combiners ) {
@@ -115,14 +123,53 @@ public class SkyDensityMap extends SingleMapperTask {
         }
         String combinersDescrip = lbuf.toString();
         combinerParam_.setDescription( new String[] {
-            "<p>Combination mode for aggregating binned quantities.",
+            "<p>Defines how values contributing to the same density map bin",
+            "are combined together to produce the value assigned to that bin.",
             "Possible values are:",
             "<ul>",
             lbuf.toString(),
             "</ul>",
             "</p>",
+            "<p>For density-like values",
+            "(<code>" + Combiner.DENSITY + "</code>,",
+            "<code>" + Combiner.WEIGHTED_DENSITY + "</code>)",
+            "the scaling is additionally influenced by the",
+            "<code>" + unitParam_.getName() + "</code> parameter.",
+            "</p>",
         } );
         combinerParam_.setDefaultOption( Combiner.MEAN );
+
+        unitParam_.setPrompt( "Solid angle unit for densities" );
+        StringBuffer ubuf = new StringBuffer();
+        for ( SolidAngleUnit unit : units ) {
+            ubuf.append( "<li>" )
+                .append( "<code>" )
+                .append( unit.getLabel() )
+                .append( "</code>: " )
+                .append( unit.getTextName() )
+                .append( "</li>\n" );
+        }
+        unitParam_.setDescription( new String[] {
+            "<p>Defines the unit of sky area used for scaling density-like",
+            "combinations",
+            "(e.g. <code>" + combinerParam_.getName() + "</code>=" +
+            "<code>" + Combiner.DENSITY + "</code> or",
+            "<code>" + Combiner.WEIGHTED_DENSITY + "</code>).",
+            "If the combination mode is calculating values per unit area",
+            "this configures the area scale in question.",
+            "For non-density-like combination modes",
+            "(e.g. <code>" + combinerParam_.getName() + "</code>=" +
+            "<code>" + Combiner.SUM + "</code> or ",
+            "<code>" + Combiner.MEAN + "</code>)",
+            "it has no effect.",
+            "</p>",
+            "<p>Possible values are:",
+            "<ul>",
+            ubuf.toString(),
+            "</ul>",
+            "</p>",
+        } );
+        unitParam_.setDefaultOption( SolidAngleUnit.DEGREE2 );
 
         completeParam_ = new BooleanParameter( "complete" );
         completeParam_.setPrompt( "Write row for every pixel?" );
@@ -162,6 +209,7 @@ public class SkyDensityMap extends SingleMapperTask {
             countParam_,
             quantParam_,
             combinerParam_,
+            unitParam_,
             completeParam_,
         } ) );
     }
@@ -173,13 +221,14 @@ public class SkyDensityMap extends SingleMapperTask {
         SkyTiling tiling = tilingParam_.objectValue( env );
         String[] quants = quantParam_.stringsValue( env );
         Combiner combiner = combinerParam_.objectValue( env );
+        SolidAngleUnit unit = unitParam_.objectValue( env );
         boolean complete = completeParam_.booleanValue( env );
         List<AggregateQuantity> aqList = new ArrayList<AggregateQuantity>();
         boolean hasCount = countParam_.booleanValue( env );
         final int countIndex;
         if ( hasCount ) {
             countIndex = aqList.size();
-            aqList.add( new AggregateQuantity( Combiner.COUNT, "1" ) {
+            aqList.add( new AggregateQuantity( Combiner.COUNT, "1", unit ) {
                 public ValueInfo adjustInfo( ValueInfo combInfo ) {
                     DefaultValueInfo info = new DefaultValueInfo( combInfo );
                     info.setName( "count" );
@@ -196,7 +245,7 @@ public class SkyDensityMap extends SingleMapperTask {
             String expr = quantity;
             final String label = quantity.replaceAll( "\\s+", "" )
                                          .replaceAll( "[^0-9A-Za-z]+", "_" );
-            aqList.add( new AggregateQuantity( combiner, expr ) {
+            aqList.add( new AggregateQuantity( combiner, expr, unit ) {
                 public ValueInfo adjustInfo( ValueInfo combInfo ) {
                     DefaultValueInfo info = new DefaultValueInfo( combInfo );
                     info.setName( label );
@@ -214,6 +263,18 @@ public class SkyDensityMap extends SingleMapperTask {
         final SingleTableMapping mapping =
             new SkyMapMapping( lonString, latString, tiling, complete, aqs,
                                countIndex );
+        final DescribedValue[] params;
+        if ( tiling instanceof HealpixTiling ) {
+            HealpixTiling hpx = (HealpixTiling) tiling;
+            HealpixTableInfo.HpxCoordSys csys = null;
+            HealpixTableInfo hpxInfo =
+                new HealpixTableInfo( hpx.getHealpixK(), hpx.isNest(),
+                                      hpx.getIndexInfo().getName(), csys );
+            params = hpxInfo.toParams();
+        }
+        else {
+            params = new DescribedValue[ 0 ];
+        }
         final TableProducer inProd = createInputProducer( env );
         return new TableProducer() {
             public StarTable getTable() throws IOException, TaskException {
@@ -287,7 +348,9 @@ public class SkyDensityMap extends SingleMapperTask {
                 AggregateQuantity aq = aqs_[ iq ];
                 Combiner combiner = aq.combiner_;
                 String expr = aq.expr_;
-                BinList binList = createBinList( combiner, npix, complete_ );
+                SolidAngleUnit unit = aq.unit_;
+                BinList binList =
+                    Combiner.createDefaultBinList( combiner, npix );
                 JELQuantity jq;
                 try {
                     jq = JELUtils.compileQuantity( lib, jelReader, expr,
@@ -299,9 +362,11 @@ public class SkyDensityMap extends SingleMapperTask {
                 }
                 ValueInfo info =
                     aq.adjustInfo( combiner
-                                  .createCombinedInfo( jq.getValueInfo() ) );
+                                  .createCombinedInfo( jq.getValueInfo(),
+                                                       unit ) );
                 CompiledExpression compEx = jq.getCompiledExpression();
-                binners[ iq ] = new Binner( info, binList, compEx );
+                binners[ iq ] = new Binner( info, binList, compEx,
+                                            combiner.getType(), unit );
             }
 
             /* Iterate over input table rows, determining sky pixel index
@@ -333,18 +398,16 @@ public class SkyDensityMap extends SingleMapperTask {
                 ColumnStarTable.makeTableWithRows( npix );
             binsTable.addColumn( createIndexColumn( tiling_ ) );
             for ( Binner binner : binners ) {
-                binsTable.addColumn( BinResultColumnData
-                                    .createInstance( binner.info_,
-                                                     binner.binList_
-                                                           .getResult() ) );
+                binsTable.addColumn( binner.createColumnData( tiling_ ) );
             }
+            final StarTable outTable;
 
-            /* Either output the table as is, with one row for each pixel. */
+            /* Either use the table as is, with one row for each pixel. */
             if ( complete_ ) {
-                return binsTable;
+                outTable = binsTable;
             }
 
-            /* Or output a compressed version, where only those rows with
+            /* Or prepare a compressed version, where only those rows with
              * some data in the non-pixel-index columns are included. */
             else {
                 int icolOffset = 1; // pixel index column
@@ -359,9 +422,22 @@ public class SkyDensityMap extends SingleMapperTask {
                         testIcols[ i ] = icolOffset + i;
                     }
                 }
-                return new UnsparseTable( binsTable, minIndex, maxIndex,
-                                          testIcols );
+                outTable = new UnsparseTable( binsTable, minIndex, maxIndex,
+                                              testIcols );
             }
+
+            /* Add HEALPix-specific metadata if applicable. */
+            if ( tiling_ instanceof HealpixTiling ) {
+                HealpixTiling hpxTiling = (HealpixTiling) tiling_;
+                HealpixTableInfo hpxInfo =
+                    new HealpixTableInfo( hpxTiling.getHealpixK(),
+                                          hpxTiling.isNest(),
+                                          hpxTiling.getIndexInfo().getName(),
+                                          (HealpixTableInfo.HpxCoordSys) null );
+                outTable.getParameters()
+                        .addAll( Arrays.asList( hpxInfo.toParams() ) );
+            }
+            return outTable;
         }
     }
 
@@ -382,25 +458,6 @@ public class SkyDensityMap extends SingleMapperTask {
         catch ( Throwable e ) {
             throw new IOException( "Evaluation error", e );
         }
-    }
-
-    /**
-     * Creates an accumulator for a given combination mode.
-     *
-     * @param  combiner  combiner
-     * @param  npix    (maximum) number of bins required
-     * @param  isComplete  hint about whether values are likely to be
-     *                     caculated for all pixels
-     */
-    private static BinList createBinList( Combiner combiner, long npix,
-                                          boolean isComplete ) {
-        if ( isComplete && npix < MAX_ARRAY ) {
-            BinList binList = combiner.createArrayBinList( (int) npix );
-            if ( binList != null ) {
-                return binList;
-            }
-        }
-        return combiner.createHashBinList( npix );
     }
 
     /**
@@ -440,6 +497,8 @@ public class SkyDensityMap extends SingleMapperTask {
         final ValueInfo info_;
         final BinList binList_;
         final CompiledExpression compEx_;
+        final Combiner.Type ctype_;
+        final SolidAngleUnit unit_;
 
         /**
          * Constructor.
@@ -447,11 +506,31 @@ public class SkyDensityMap extends SingleMapperTask {
          * @param  info  metadata for the accumulated value
          * @param  binList   accumulator instance
          * @param  compEx   value accessor
+         * @param  ctype   combiner type
+         * @param  unit    unit of solid angle for density-like combiners
          */
-        Binner( ValueInfo info, BinList binList, CompiledExpression compEx ) {
+        Binner( ValueInfo info, BinList binList, CompiledExpression compEx,
+                Combiner.Type ctype, SolidAngleUnit unit ) {
             info_ = info;
             binList_ = binList;
             compEx_ = compEx;
+            ctype_ = ctype;
+            unit_ = unit;
+        }
+
+        /**
+         * Returns a column data based on this binner, once the bin list
+         * has been populated.
+         *
+         * @param  tiling  tiling
+         */
+        ColumnData createColumnData( SkyTiling tiling ) {
+            double binExtent = 4.0 * Math.PI / tiling.getPixelCount()
+                             * ( 180 * 180 ) / ( Math.PI * Math.PI )
+                             / unit_.getExtentInSquareDegrees();
+            double binFactor = ctype_.getBinFactor( binExtent );
+            return BinResultColumnData
+                  .createInstance( info_, binList_.getResult(), binFactor );
         }
     }
 
@@ -462,16 +541,20 @@ public class SkyDensityMap extends SingleMapperTask {
     private static abstract class AggregateQuantity {
         final Combiner combiner_;
         final String expr_;
+        final SolidAngleUnit unit_;
 
         /**
          * Constructor.
          *
          * @param  combiner  combination mode
          * @param  expr     expression to evaluate giving aggregated quantity
+         * @param  unit    unit affecting density-like combiners
          */
-        AggregateQuantity( Combiner combiner, String expr ) {
+        AggregateQuantity( Combiner combiner, String expr,
+                           SolidAngleUnit unit ) {
             combiner_ = combiner;
             expr_ = expr;
+            unit_ = unit;
         }
 
         /**
@@ -531,12 +614,19 @@ public class SkyDensityMap extends SingleMapperTask {
                     return true;
                 }
                 public Object getCell( int icol ) throws IOException {
+                    checkStarted();
                     return base_.getCell( irow, icol );
                 }
                 public Object[] getRow() throws IOException {
+                    checkStarted();
                     return base_.getRow( irow );
                 }
                 public void close() {
+                }
+                private void checkStarted() {
+                    if ( irow < minIrow_ ) {
+                        throw new IllegalStateException( "next not called" );
+                    }
                 }
             };
         }

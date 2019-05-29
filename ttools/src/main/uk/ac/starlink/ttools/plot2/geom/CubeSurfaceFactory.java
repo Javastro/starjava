@@ -4,12 +4,11 @@ import java.awt.Rectangle;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
-import uk.ac.starlink.pal.Pal;
-import uk.ac.starlink.ttools.plot.Matrices;
 import uk.ac.starlink.ttools.plot.Range;
 import uk.ac.starlink.ttools.plot2.Captioner;
 import uk.ac.starlink.ttools.plot2.Navigator;
 import uk.ac.starlink.ttools.plot2.PlotLayer;
+import uk.ac.starlink.ttools.plot2.PlotMetric;
 import uk.ac.starlink.ttools.plot2.PlotUtil;
 import uk.ac.starlink.ttools.plot2.Subrange;
 import uk.ac.starlink.ttools.plot2.Surface;
@@ -20,7 +19,6 @@ import uk.ac.starlink.ttools.plot2.config.ConfigKey;
 import uk.ac.starlink.ttools.plot2.config.ConfigMap;
 import uk.ac.starlink.ttools.plot2.config.ConfigMeta;
 import uk.ac.starlink.ttools.plot2.config.DoubleConfigKey;
-import uk.ac.starlink.ttools.plot2.config.HiddenConfigKey;
 import uk.ac.starlink.ttools.plot2.config.StyleKeys;
 import uk.ac.starlink.ttools.plot2.data.DataStore;
 
@@ -180,31 +178,50 @@ public class CubeSurfaceFactory
             } )
         );
 
-    /** Config key for rotation from vertical, units of degrees. */
-    public static final ConfigKey<Double> THETA_KEY =
-        DoubleConfigKey.createSliderKey(
-            new ConfigMeta( "theta", "Rotation from vertical" )
-           .setShortDescription( "View rotation from vertical" )
-           .setXmlDescription( new String[] {
-                "<p>Rotation towards the viewer in degrees of the",
-                "plotted 3d space.",
-                "</p>",
-            } )
-           .setStringUsage( "<degrees>" )
-        , 15, -180, 180, false );
-
-    /** Config key for rotation about vertical, units of degrees. */
+    /** Config key for first Euler angle of rotation, units of degrees. */
     public static final ConfigKey<Double> PHI_KEY =
         DoubleConfigKey.createSliderKey(
-            new ConfigMeta( "phi", "Rotation about Z axis" )
-           .setShortDescription( "View rotation around Z axis" )
+            new ConfigMeta( "phi", "Rotation \u03c6" )
+           .setShortDescription( "First ZXZ Euler angle of view" )
            .setXmlDescription( new String[] {
-                "<p>Rotation around the Z axis of the plotted 3d space",
-                "applied before the plot is viewed.",
+                "<p>First of the Euler angles, in the ZXZ sequence,",
+                "defining the rotation of the plotted 3d space.",
+                "Units are degrees.",
+                "This is the rotation around the initial Z axis applied before",
+                "the plot is viewed.",
                 "</p>",
             } )
            .setStringUsage( "<degrees>" )
-        , -30, -180, 180, false );
+        , 30, -180, 180, false );
+
+    /** Config key for second Euler angle of rotation, units of degrees. */
+    public static final ConfigKey<Double> THETA_KEY =
+        DoubleConfigKey.createSliderKey(
+            new ConfigMeta( "theta", "Rotation \u03b8" )
+           .setShortDescription( "Second ZXZ Euler angle of view" )
+           .setXmlDescription( new String[] {
+                "<p>Second of the Euler angles, in the ZXZ sequence,",
+                "defining the rotation of the plotted 3d space.",
+                "Units are degrees.",
+                "This is the rotation towards the viewer.",
+                "</p>",
+            } )
+           .setStringUsage( "<degrees>" )
+        , -15, -180, 180, false );
+
+    /** Config key for third Euler angle of rotation, units of degrees. */
+    public static final ConfigKey<Double> PSI_KEY =
+         DoubleConfigKey.createSliderKey(
+             new ConfigMeta( "psi", "Rotation \u03c8" )
+            .setShortDescription( "Third ZXZ Euler angle of view" )
+            .setXmlDescription( new String[] {
+                "<p>Second of the Euler angles, in the ZXZ sequence,",
+                "defining the rotation of the plotted 3d space.",
+                "Units are degrees.",
+                "</p>",
+             } )
+            .setStringUsage( "<degrees>" )
+         , 0, -180, 180, false );
  
     /** Config key for zoom factor. */
     public static final ConfigKey<Double> ZOOM_KEY =
@@ -251,13 +268,8 @@ public class CubeSurfaceFactory
            .setStringUsage( "<pixels>" )
         , 0, -2, +2, false );
 
-    /** Config key for rotation matrix.
-     *  This key is hidden, but if present it overrides
-     *  {@link #THETA_KEY} and {@link #PHI_KEY}. */
-    public static final ConfigKey<double[]> ROTMAT_KEY =
-        new HiddenConfigKey<double[]>( new ConfigMeta( "rotmat",
-                                                       "Rotation Matrix" ),
-                                       double[].class, null );
+    /** Proportional auto-ranging isotropic snap-to-origin threshold. */
+    public static final double ISO_CENTER_TOLERANCE = 0.1;
 
     /**
      * Constructs an isotropic or non-isotropic cube surface factory.
@@ -352,8 +364,9 @@ public class CubeSurfaceFactory
             } ) );
         }
         list.addAll( Arrays.asList( new ConfigKey[] {
-            THETA_KEY,
             PHI_KEY,
+            THETA_KEY,
+            PSI_KEY,
             ZOOM_KEY,
             XOFF_KEY, YOFF_KEY,
         } ) );
@@ -381,11 +394,20 @@ public class CubeSurfaceFactory
                                rotmat, zoom, xoff, yoff );
     }
 
+    public ConfigMap getAspectConfig( Surface surface ) {
+        return surface instanceof CubeSurface
+             ? ((CubeSurface) surface).getAspectConfig( isIso_ )
+             : new ConfigMap();
+    }
+
     public Range[] readRanges( Profile profile, PlotLayer[] layers,
                                DataStore dataStore ) {
         boolean[] logFlags = profile.getLogFlags();
         assert logFlags.length == 3;
-        return PlotUtil.readCoordinateRanges( layers, 3, logFlags, dataStore );
+        Range[] ranges = new Range[] { new Range(), new Range(), new Range() };
+        PlotUtil.extendCoordinateRanges( layers, ranges, logFlags, true,
+                                         dataStore );
+        return ranges;
     }
 
     public ConfigKey[] getNavigatorKeys() {
@@ -394,6 +416,13 @@ public class CubeSurfaceFactory
 
     public Navigator<CubeAspect> createNavigator( ConfigMap navConfig ) {
         return CubeNavigator.createNavigator( isIso_, navConfig );
+    }
+
+    /**
+     * Returns null.
+     */
+    public PlotMetric getPlotMetric() {
+        return null;
     }
 
     /**
@@ -458,33 +487,33 @@ public class CubeSurfaceFactory
                                            Range[] ranges ) {
         if ( isIso_ ) {
             double scale = config.get( SCALE_KEY );
-            double xc = config.get( XC_KEY );
-            double yc = config.get( YC_KEY );
-            double zc = config.get( ZC_KEY );
+            double xc0 = config.get( XC_KEY );
+            double yc0 = config.get( YC_KEY );
+            double zc0 = config.get( ZC_KEY );
             double[] xlimits = ranges[ 0 ].getFiniteBounds( false );
             double[] ylimits = ranges[ 1 ].getFiniteBounds( false );
             double[] zlimits = ranges[ 2 ].getFiniteBounds( false );
-            if ( Double.isNaN( xc ) ) {
-                xc = 0.5 * ( xlimits[ 0 ] + xlimits[ 1 ] );
-            }
-            if ( Double.isNaN( yc ) ) {
-                yc = 0.5 * ( ylimits[ 0 ] + ylimits[ 1 ] );
-            }
-            if ( Double.isNaN( zc ) ) {
-                zc = 0.5 * ( zlimits[ 0 ] + zlimits[ 1 ] );
-            }
+            double xlo = xlimits[ 0 ];
+            double xhi = xlimits[ 1 ];
+            double ylo = ylimits[ 0 ];
+            double yhi = ylimits[ 1 ];
+            double zlo = zlimits[ 0 ];
+            double zhi = zlimits[ 1 ];
+            double ctol = ISO_CENTER_TOLERANCE;
+            double xc = Double.isNaN( xc0 ) ? getCenter( xlo, xhi, ctol ) : xc0;
+            double yc = Double.isNaN( yc0 ) ? getCenter( ylo, yhi, ctol ) : yc0;
+            double zc = Double.isNaN( zc0 ) ? getCenter( zlo, zhi, ctol ) : zc0;
             assert ! Double.isNaN( xc + yc + zc );
             if ( Double.isNaN( scale ) ) {
-                scale = max3( Math.max( xlimits[ 1 ] - xc, xc - xlimits[ 0 ] ),
-                              Math.max( ylimits[ 1 ] - yc, yc - ylimits[ 0 ] ),
-                              Math.max( zlimits[ 1 ] - zc, zc - zlimits[ 0 ] ) )
-                      * 2;
+                scale = 2 * max3( Math.max( xhi - xc, xc - xlo ),
+                                  Math.max( yhi - yc, yc - ylo ),
+                                  Math.max( zhi - zc, zc - zlo ) );
             }
             assert ! Double.isNaN( scale );
             return new double[][] {
-                centerLimits( xlimits, xc, scale ),
-                centerLimits( ylimits, yc, scale ),
-                centerLimits( zlimits, zc, scale ),
+                centerLimits( xlo, xhi, xc, scale ),
+                centerLimits( ylo, yhi, yc, scale ),
+                centerLimits( zlo, zhi, zc, scale ),
             };
         }
         else {
@@ -503,19 +532,36 @@ public class CubeSurfaceFactory
     }
 
     /**
+     * Determines the axis center from an upper and lower limit.
+     * This is generally just the mean of the two supplied values,
+     * but if the answer comes out near to zero, zero is returned instead.
+     *
+     * @param   lo   lower limit
+     * @param   hi   upper limit
+     * @param   tolerance   proportional proximity to zero of basic center
+     *                      which will trigger a zero result
+     * @return   central value
+     */
+    private static double getCenter( double lo, double hi, double tolerance ) {
+        double c0 = 0.5 * ( lo + hi );
+        return Math.abs( c0 ) / ( hi - lo ) <= tolerance ? 0 : c0;
+    }
+
+    /**
      * Returns actual upper and lower data bounds for an axis given
      * suggested range and constraints on size and central position.
      *
-     * @param   limits  suggested limits
+     * @param   lo      suggested lower limit
+     * @param   hi      suggested upper limit
      * @param   center  suggested central position, or NaN
      * @param   scale   fixed size of output range
      * @return  2-element array giving lower,upper limits;
      *          <code>upper=lower+scale</code>
      */
-    private static double[] centerLimits( double[] limits, double center,
+    private static double[] centerLimits( double lo, double hi, double center,
                                           double scale ) {
         if ( Double.isNaN( center ) ) {
-            center = ( limits[ 0 ] + limits[ 1 ] ) * 0.5;
+            center = ( lo + hi ) * 0.5;
         }
         double s2 = scale * 0.5;
         return new double[] { center - s2, center + s2 };
@@ -534,24 +580,72 @@ public class CubeSurfaceFactory
     }
 
     /**
-     * Reads the intended rotation matrix from a range configuration map.
-     * If the hidden key ROTMAT_KEY is present that is used, otherwise
-     * use the public keys THETA and PHI.
+     * Reads the intended rotation matrix from a configuration map.
      *
-     * @param  rangeConfig  config map from which range values may be read
+     * @param  config  config map
      * @return  9-element rotation matrix
      */
-    public static double[] getRotation( ConfigMap rangeConfig ) {
-        double[] rot = rangeConfig.get( ROTMAT_KEY );
-        if ( rot != null ) {
-            return rot;
+    public static double[] getRotation( ConfigMap config ) {
+        return eulerToRotationDegrees( new double[] {
+            config.get( PHI_KEY ),
+            config.get( THETA_KEY ),
+            config.get( PSI_KEY ),
+        } );
+    }
+
+    /**
+     * Converts three ZXZ Euler angles to a rotation matrix.
+     *
+     * @param  eulers  1, 2 or 3-element array giving Euler angles
+     *                 phi, theta, psi in degrees; if fewer elements than 3,
+     *                 later angles are assumed zero
+     * @return  9-element rotation matrix
+     */
+    public static double[] eulerToRotationDegrees( double[] eulers ) {
+        int ne = eulers.length;
+        double radFact = Math.PI / 180.;
+        double phiRad = radFact * ( ne > 0 ? eulers[ 0 ] : 0 );
+        double thetaRad = radFact * ( ne > 1 ? eulers[ 1 ] : 0 );
+        double psiRad = radFact * ( ne > 2 ? eulers[ 2 ] : 0 );
+        double s1 = Math.sin( phiRad );
+        double c1 = Math.cos( phiRad );
+        double s2 = Math.sin( thetaRad );
+        double c2 = Math.cos( thetaRad );
+        double s3 = Math.sin( psiRad );
+        double c3 = Math.cos( psiRad );
+        return new double[] {
+            c1*c3-c2*s1*s3,  c3*s1+c1*c2*s3,    s2*s3,
+           -c1*s3-c2*c3*s1,  c1*c2*c3-s1*s3,    c3*s2,
+            s1*s2,          -c1*s2,                c2,
+        };
+    }
+
+    /**
+     * Converts rotation matrix to three ZXZ Euler angles in degrees.
+     * May lose some accuracy near theta=0.
+     * Note the result is not unique.
+     *
+     * @param  rotmat  9-element rotation matrix
+     * @return   3-element array giving phi, theta, psi in degrees
+     */
+    public static double[] rotationToEulerDegrees( double[] rotmat ) {
+        double thetaRad = Math.acos( rotmat[ 8 ] );
+        final double phiRad;
+        final double psiRad;
+        if ( Math.abs( thetaRad ) < 0.1 * Math.PI / 180. ) {
+            phiRad = Math.acos( rotmat[ 0 ] );
+            psiRad = 0;
         }
         else {
-            double thetaRad = Math.toRadians( rangeConfig.get( THETA_KEY ) );
-            double phiRad = Math.toRadians( rangeConfig.get( PHI_KEY ) );
-            return Matrices
-                  .fromPal( new Pal().Deuler( "zx", -phiRad, -thetaRad, 0 ) );
+            phiRad = Math.atan2( rotmat[ 6 ], - rotmat[ 7 ] );
+            psiRad = Math.atan2( rotmat[ 2 ], rotmat[ 5 ] );
         }
+        double degFact = 180. / Math.PI;
+        return new double[] {
+            degFact * phiRad,
+            degFact * thetaRad,
+            degFact * psiRad,
+        };
     }
 
     /**

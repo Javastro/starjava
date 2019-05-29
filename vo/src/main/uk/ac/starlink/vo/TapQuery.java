@@ -5,13 +5,10 @@ import java.io.IOException;
 import java.io.InputStream;
 import java.io.OutputStream;
 import java.net.HttpURLConnection;
-import java.net.MalformedURLException;
 import java.net.URL;
 import java.net.URLConnection;
-import java.util.HashSet;
 import java.util.LinkedHashMap;
 import java.util.Map;
-import java.util.Set;
 import java.util.logging.Logger;
 import javax.xml.parsers.DocumentBuilderFactory;
 import javax.xml.parsers.ParserConfigurationException;
@@ -32,6 +29,7 @@ import uk.ac.starlink.table.storage.LimitByteStore;
 import uk.ac.starlink.util.ContentCoding;
 import uk.ac.starlink.util.DOMUtils;
 import uk.ac.starlink.util.HeadBufferInputStream;
+import uk.ac.starlink.util.URLUtils;
 import uk.ac.starlink.votable.DataFormat;
 import uk.ac.starlink.votable.TableElement;
 import uk.ac.starlink.votable.VOElement;
@@ -628,7 +626,7 @@ public class TapQuery {
             StringBuffer sbuf = new StringBuffer()
                 .append( "TAP response is not a VOTable" );
             byte[] buf = in.getHeadBuffer();
-            int nb = Math.min( in.getReadCount(), buf.length );
+            int nb = Math.min( (int) in.getReadCount(), buf.length );
             if ( nb > 0 ) {
                 sbuf.append( " - " )
                     .append( new String( buf, 0, nb, "UTF-8" ) );
@@ -695,6 +693,15 @@ public class TapQuery {
      * If it represents an error (in accordance with the TAP rules for
      * expressing this), an exception will be thrown.
      * Overflow status of a successful result is provided by the return value.
+     *
+     * <p><strong>Note:</strong> any XML that comes after the TABLE
+     * element of the result table is ignored for the purposes of
+     * reporting the table metadata.  The only thing after the end
+     * of the TABLE that affects the result of this method is the
+     * overflow flag, which affects the return value.
+     * So if you need to pick up items which might be in trailing elements,
+     * for instance Service Descriptors in later RESOURCE elements,
+     * you will have to use a different method.
      *
      * @param   conn  connection to table resource
      * @param  coding  HTTP content coding policy used to prepare connection
@@ -767,12 +774,12 @@ public class TapQuery {
                             sbuf.append( " ..." );
                         }
                     }
-                }
-                try {
-                    errStrm.close();
-                }
-                catch ( IOException e2 ) {
-                    // never mind
+                    try {
+                        errStrm.close();
+                    }
+                    catch ( IOException e2 ) {
+                        // never mind
+                    }
                 }
                 throw (IOException) new IOException( sbuf.toString() )
                                    .initCause( e );
@@ -808,49 +815,6 @@ public class TapQuery {
      */
     public static URLConnection followRedirects( URLConnection conn )
             throws IOException {
-        if ( ! ( conn instanceof HttpURLConnection ) ) {
-            return conn;
-        }
-        HttpURLConnection hconn = (HttpURLConnection) conn;
-        Set urlSet = new HashSet<String>();
-        urlSet.add( hconn.getURL() );
-        while ( hconn.getResponseCode() ==
-                HttpURLConnection.HTTP_SEE_OTHER ) {   // 303
-            URL url0 = hconn.getURL();
-            String loc = hconn.getHeaderField( "Location" );
-            if ( loc == null || loc.trim().length() == 0 ) {
-                throw new IOException( "No Location field for 303 response"
-                                     + " from " + url0 );
-            }
-            URL url1;
-            try {
-                url1 = new URL( loc );
-            }
-            catch ( MalformedURLException e ) {
-                throw (IOException)
-                      new IOException( "Bad Location field for 303 response"
-                                     + " from " + url0 )
-                     .initCause( e );
-            }
-            if ( ! urlSet.add( url1 ) ) {
-                throw new IOException( "Recursive 303 redirect at " + url1 );
-            }
-            logger_.info( "HTTP 303 redirect to " + url1 );
-            URLConnection conn1 = url1.openConnection();
-            if ( ! ( conn1 instanceof HttpURLConnection ) ) {
-                return conn1;
-            }
-
-            /* Propagate the Accept-Encoding header to the redirect target,
-             * otherwise it will get lost. */
-            String acceptEncoding =
-                hconn.getRequestProperty( ContentCoding.ACCEPT_ENCODING );
-            hconn = (HttpURLConnection) conn1; 
-            if ( acceptEncoding != null ) {
-                hconn.setRequestProperty( ContentCoding.ACCEPT_ENCODING,
-                                          acceptEncoding );
-            }
-        }
-        return hconn;
+        return URLUtils.followRedirects( conn, new int[] { 303 } );
     }
 }

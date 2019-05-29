@@ -84,7 +84,7 @@ public abstract class XmlDoclet extends MemberDoclet {
     protected void outReturn( Type rtype, String rdesc ) throws IOException {
     }
 
-    protected void outExamples( String[] examples ) {
+    protected void outExamples( String[] examples ) throws IOException {
     }
 
     /**
@@ -123,7 +123,9 @@ public abstract class XmlDoclet extends MemberDoclet {
      */
     public static String doctorText( String text ) {
         text = text.replaceAll( "<a href=", "<webref plaintextref='yes' url=" )
-                   .replaceAll( "</a>", "</webref>" );
+                   .replaceAll( "</a>", "</webref>" )
+                   .replaceAll( "<pre>", "<verbatim>" )
+                   .replaceAll( "</pre>", "</verbatim>" );
         return pWrap( text );
     }
 

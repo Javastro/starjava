@@ -24,14 +24,14 @@ import uk.ac.starlink.table.DescribedValue;
 import uk.ac.starlink.table.StarTable;
 import uk.ac.starlink.table.StoragePolicy;
 import uk.ac.starlink.table.ValueInfo;
+import uk.ac.starlink.ttools.votlint.SaxMessager;
 import uk.ac.starlink.ttools.votlint.VersionDetector;
 import uk.ac.starlink.ttools.votlint.VotLintContentHandler;
 import uk.ac.starlink.ttools.votlint.VotLintContext;
-import uk.ac.starlink.ttools.votlint.VotLintEntityResolver;
+import uk.ac.starlink.ttools.votlint.VotLinter;
 import uk.ac.starlink.util.Compression;
 import uk.ac.starlink.util.ContentCoding;
 import uk.ac.starlink.util.DOMUtils;
-import uk.ac.starlink.util.MultiplexInvocationHandler;
 import uk.ac.starlink.util.StarEntityResolver;
 import uk.ac.starlink.vo.TapQuery;
 import uk.ac.starlink.vo.UwsJob;
@@ -192,8 +192,8 @@ public abstract class VotLintTapRunner extends TapRunner {
     }
 
     /**
-     * Reads a TAP result VODocument from an input stream, checking it and
-     * reporting messages as appropriate.
+     * Reads a TAP result VODocument from an input stream,
+     * checking it and reporting messages as required.
      *
      * @param  reporter  validation message destination
      * @param  baseIn  VOTable input stream
@@ -201,6 +201,28 @@ public abstract class VotLintTapRunner extends TapRunner {
      */
     public VODocument readResultDocument( Reporter reporter,
                                           InputStream baseIn )
+            throws IOException, SAXException {
+        return readResultDocument( reporter, baseIn, doChecks_,
+                                   TAP_VOT_VERSION );
+    }
+
+    /**
+     * Utility method to read a VODocument from an input stream,
+     * checking it and reporting messages as required.
+     *
+     * @param  reporter  validation message destination
+     * @param  baseIn  VOTable input stream
+     * @param   doChecks  true to perform various checks on the result VOTable
+     *                    (including linting) and report them, false to be
+     *                    mostly silent and only report serious errors
+     * @param  minVotVersion  minimum required VOTable version;
+     *                        may be null if any will do
+     * @return VOTable-aware DOM
+     */
+    public static VODocument readResultDocument( Reporter reporter,
+                                                 InputStream baseIn,
+                                                 boolean doChecks,
+                                                 VOTableVersion minVotVersion )
             throws IOException, SAXException {
         final VOTableVersion version;
         BufferedInputStream in = new BufferedInputStream( baseIn );
@@ -217,11 +239,12 @@ public abstract class VotLintTapRunner extends TapRunner {
                 List<VOTableVersion> vlist =
                     new ArrayList<VOTableVersion>( vmap.values() );
                 version = vmap.get( versionString );
-                if ( vlist.indexOf( version )
-                     < vlist.indexOf( TAP_VOT_VERSION ) ) {
+                if ( minVotVersion != null &&
+                     vlist.indexOf( version )
+                     < vlist.indexOf( minVotVersion ) ) {
                     reporter.report( FixedCode.E_VVLO,
                                      "Declared VOTable version " + versionString
-                                   + "<" + TAP_VOT_VERSION );
+                                   + "<" + minVotVersion );
                 }
             }
             else {
@@ -240,28 +263,14 @@ public abstract class VotLintTapRunner extends TapRunner {
          * and may or may not generate logging messages through the
          * reporter as it progresses. */
         final XMLReader parser;
-        if ( doChecks_ ) {
-            ReporterVotLintContext vlContext =
-                new ReporterVotLintContext( version, reporter );
-            parser = createParser( reporter, vlContext );
-            ContentHandler vcHandler =
-                    new MultiplexInvocationHandler<ContentHandler>(
-                            new ContentHandler[] {
-                            new VotLintContentHandler( vlContext ),
-                            domHandler } )
-                   .createMultiplexer( ContentHandler.class );
-            parser.setErrorHandler( new ReporterErrorHandler( reporter ) );
-            parser.setContentHandler( vcHandler );
+        if ( doChecks ) {
+            SaxMessager messager = new ReporterSaxMessager( reporter );
+            VotLintContext vlContext =
+                new VotLintContext( version, true, messager );
+            parser = new VotLinter( vlContext ).createParser( domHandler );
         }
         else {
-            parser = createParser( reporter );
-            parser.setEntityResolver( StarEntityResolver.getInstance() );
-            parser.setErrorHandler( new ErrorHandler() {
-                public void warning( SAXParseException err ) {}
-                public void error( SAXParseException err ) {}
-                public void fatalError( SAXParseException err ) {}
-            } );
-            parser.setContentHandler( domHandler );
+            parser = createBasicParser( reporter, domHandler );
         }
 
         /* Perform the parse and retrieve the resulting DOM. */
@@ -459,18 +468,26 @@ public abstract class VotLintTapRunner extends TapRunner {
     }
 
     /**
-     * Returns a basic SAX parser.  If it fails, the error will be reported
+     * Returns a basic SAX parser that uses a supplied content handler.
+     * Any SAX messages are ignored, not reported.
+     *
+     * <p>If the SAX parser can't be created, an error will be reported
      * and an exception will be thrown.
      *
      * @param  reporter  validation message destination
      * @return  basically configured SAX parser
      */
-    private XMLReader createParser( Reporter reporter ) throws SAXException {
+    private static XMLReader createBasicParser( Reporter reporter,
+                                                ContentHandler contentHandler )
+            throws SAXException {
+
+        /* Create an XMLReader. */
+        final XMLReader parser;
         try {
             SAXParserFactory spfact = SAXParserFactory.newInstance();
             spfact.setValidating( false );
             spfact.setNamespaceAware( true );
-            return spfact.newSAXParser().getXMLReader();
+            parser = spfact.newSAXParser().getXMLReader();
         }
         catch ( ParserConfigurationException e ) {
             reporter.report( FixedCode.F_CAPC,
@@ -478,38 +495,15 @@ public abstract class VotLintTapRunner extends TapRunner {
             throw (SAXException) new SAXException( e.getMessage() )
                                 .initCause( e );
         }
-    }
 
-    /**
-     * Returns a SAX parser suitable for VOTable checking.
-     * Its handlers are not set.
-     *
-     * @param  reporter   validation message destination
-     * @param  vlContext  information about votlint config
-     */
-    private XMLReader createParser( Reporter reporter,
-                                    VotLintContext vlContext )
-            throws SAXException {
-        XMLReader parser = createParser( reporter );
-
-        /* Install a custom entity resolver.  This is also installed as
-         * a lexical handler, to guarantee that whatever is named in the
-         * DOCTYPE declaration is actually interpreted as the VOTable DTD. */
-        VotLintEntityResolver entityResolver =
-            new VotLintEntityResolver( vlContext );
-        try {
-            parser.setProperty( "http://xml.org/sax/properties/lexical-handler",
-                                entityResolver );
-            parser.setEntityResolver( entityResolver );
-        }
-        catch ( SAXException e ) {
-            parser.setEntityResolver( StarEntityResolver.getInstance() );
-            reporter.report( FixedCode.F_XENT,
-                             "Entity trouble - DTD validation may not be " +
-                             "done properly", e );
-        }
-
-        /* Return. */
+        /* Configure it as required. */
+        parser.setContentHandler( contentHandler );
+        parser.setEntityResolver( StarEntityResolver.getInstance() );
+        parser.setErrorHandler( new ErrorHandler() {
+            public void warning( SAXParseException err ) {}
+            public void error( SAXParseException err ) {}
+            public void fatalError( SAXParseException err ) {}
+        } );
         return parser;
     }
 

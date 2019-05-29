@@ -23,6 +23,7 @@ import uk.ac.starlink.ttools.plot2.Orientation;
 import uk.ac.starlink.ttools.plot2.PlotUtil;
 import uk.ac.starlink.ttools.plot2.Surface;
 import uk.ac.starlink.ttools.plot2.Tick;
+import uk.ac.starlink.ttools.plot2.config.ConfigMap;
 
 /**
  * Surface implementation for 3-d plotting.
@@ -57,7 +58,6 @@ public class CubeSurface implements Surface {
     private final boolean frame_;
     private final boolean antialias_;
 
-    private final double[] dummyZ_;
     private final double gScale_;
     private final double gZoom_;
     private final int gXoff_;
@@ -130,7 +130,6 @@ public class CubeSurface implements Surface {
             assert PlotUtil.approxEquals( -flipMult, normalise( dlos_, id ) );
             assert PlotUtil.approxEquals( +flipMult, normalise( dhis_, id ) );
         }
-        dummyZ_ = new double[ 1 ];
     }
 
     /**
@@ -154,7 +153,7 @@ public class CubeSurface implements Surface {
 
     public boolean dataToGraphics( double[] dataPos, boolean visibleOnly,
                                    Point2D.Double gPos ) {
-        return dataToGraphicZ( dataPos, visibleOnly, gPos, dummyZ_ );
+        return dataToGraphics3D( dataPos, visibleOnly, gPos, false );
     }
 
     public boolean dataToGraphicsOffset( double[] dataPos0,
@@ -170,15 +169,31 @@ public class CubeSurface implements Surface {
      * @param  dataPos  3-element X,Y,Z position in data coordinates
      * @param  visibleOnly  true if only data points that will be visible
      *                      on this surface are of interest
-     * @param  gPos  the graphics position will be written into this point
+     * @param  gPos  the 3-d graphics position will be written into this point
      *               on success
-     * @param  zloc  the Z coordinate of the result will be written into the
-     *               first element of this array on success
      * @return  true  iff the conversion was successful
      * @see   #dataToGraphics
      */
     public boolean dataToGraphicZ( double[] dataPos, boolean visibleOnly,
-                                   Point2D.Double gPos, double[] zloc ) {
+                                   GPoint3D gPos ) {
+        return dataToGraphics3D( dataPos, visibleOnly, gPos, true );
+    }
+
+    /**
+     * Do the work for converting data to 3d graphics coordinates.
+     *
+     * @param  dataPos  3-element X,Y,Z position in data coordinates
+     * @param  visibleOnly  true if only data points that will be visible
+     *                      on this surface are of interest
+     * @param  gPos   the graphics position will be written into this point
+     *                on success
+     * @param  is3d   if true, then gPos must be a GPoint3D instance,
+     *                and the z coordinate will be written into it;
+     *                if false the z coordinate will be discarded
+     * @return  true  iff the conversion was successful
+     */
+    private boolean dataToGraphics3D( double[] dataPos, boolean visibleOnly,
+                                      Point2D.Double gPos, boolean is3d ) {
 
         /* Determine whether the given data position is in the data range. */
         final boolean knownInCube;
@@ -216,12 +231,45 @@ public class CubeSurface implements Surface {
              ( gx >= gxlo_ && gx < gxhi_ && gy >= gylo_ && gy < gyhi_ ) ) {
             gPos.x = gx;
             gPos.y = gy;
-            zloc[ 0 ] = ry;
+            if ( is3d ) {
+                ((GPoint3D) gPos).z = ry;
+            }
             return true;
         }
         else {
             return false;
         }
+    }
+
+    /**
+     * Converts normalised 3d coordinates to a graphics position plus Z
+     * coordinate.  The normalised positions are as returned by
+     * {@link #normalise normalise}.  If coordinates
+     * outside of the normalised range (-1,1) are submitted, the output
+     * position will be outside the visible cube.
+     *
+     * @param   sx   normalised X coordinate
+     * @param   sy   normalised Y coordinate
+     * @param   sz   normalised Z coordinate
+     * @param  gPos  the graphics position will be written into this point
+     */
+    public void normalisedToGraphicZ( double sx, double sy, double sz,
+                                      GPoint3D gPos ) {
+
+        /* Apply current aspect rotation matrix. */
+        double[] rot = rotmat_;
+        double rx = rot[ 0 ] * sx + rot[ 1 ] * sy + rot[ 2 ] * sz;
+        double ry = rot[ 3 ] * sx + rot[ 4 ] * sy + rot[ 5 ] * sz;
+        double rz = rot[ 6 ] * sx + rot[ 7 ] * sy + rot[ 8 ] * sz;
+
+        /* Apply graphics coordinates zoom and X/Y offsets,
+         * determine success, and return. */
+        double gx = gXoff_ + rx * gZoom_;
+        double gy = gYoff_ - rz * gZoom_;
+        double dz = ry;
+        gPos.x = gx;
+        gPos.y = gy;
+        gPos.z = dz;
     }
 
     /** 
@@ -242,6 +290,37 @@ public class CubeSurface implements Surface {
     }
 
     /**
+     * Returns the data range boundaries in a specified dimension.
+     *
+     * @param  idim  dimension index (0..2)
+     * @return   2-element array giving (lower,upper) limits in data coords
+     *           in the specified dimension
+     */
+    public double[] getDataLimits( int idim ) {
+        return new double[] { dlos_[ idim ], dhis_[ idim ] };
+    }
+
+    /**
+     * Indicates the scaling along the three axes.
+     *
+     * @return  3-element array giving X, Y, Z scaling flags:
+     *          false for linear, true for logarithmic
+     */
+    public boolean[] getLogFlags() {
+        return logFlags_;
+    }
+
+    /**
+     * Indicates which axes are reversed.
+     *
+     * @return  3-element array giving X, Y, Z flip flags;
+     *          true to invert normal plot direction
+     */
+    public boolean[] getFlipFlags() {
+        return flipFlags_;
+    }
+
+    /**
      * Maps a data space coordinate to a normalised space coordinate.
      * Normalised coordinates are in the range -1..+1.
      *
@@ -249,7 +328,7 @@ public class CubeSurface implements Surface {
      * @param   idim   index of dimension to convert (0, 1 or 2)
      * @return  normalised coordinate
      */
-    private double normalise( double[] dataPos, int idim ) {
+    public double normalise( double[] dataPos, int idim ) {
         return dScales_[ idim ]
              * ( dOffs_[ idim ]
                    + ( logFlags_[ idim ] ? Math.log( dataPos[ idim ] )
@@ -387,6 +466,10 @@ public class CubeSurface implements Surface {
         return null;
     }
 
+    public boolean isContinuousLine( double[] dpos0, double[] dpos1 ) {
+        return true;
+    }
+
     public void paintBackground( Graphics g ) {
         Graphics2D g2 = (Graphics2D) g;
         Color color0 = g2.getColor();
@@ -427,6 +510,61 @@ public class CubeSurface implements Surface {
             g2.setRenderingHint( RenderingHints.KEY_ANTIALIASING, aa0 );
             g2.setClip( clip0 );
         }
+    }
+
+    /**
+     * Returns approximate config to recreate this surface's aspect.
+     *
+     * @param  isIso  true for isotropic mode, false for anisotropic
+     * @return  approximate aspect config
+     */
+    ConfigMap getAspectConfig( boolean isIso ) {
+        int npix = Math.max( gxhi_ - gxlo_, gyhi_ - gylo_ );
+        ConfigMap config = new ConfigMap();
+        double xlo = dlos_[ 0 ];
+        double ylo = dlos_[ 1 ];
+        double zlo = dlos_[ 2 ];
+        double xhi = dhis_[ 0 ];
+        double yhi = dhis_[ 1 ];
+        double zhi = dhis_[ 2 ];
+        if ( isIso ) {
+            double xr = xhi - xlo;
+            double yr = yhi - ylo;
+            double zr = zhi - zlo;
+            config.put( CubeSurfaceFactory.XC_KEY,
+                        PlotUtil.roundNumber( .5 * ( xlo + xhi ), xr / npix ) );
+            config.put( CubeSurfaceFactory.YC_KEY,
+                        PlotUtil.roundNumber( .5 * ( ylo + yhi ), yr / npix ) );
+            config.put( CubeSurfaceFactory.ZC_KEY,
+                        PlotUtil.roundNumber( .5 * ( zlo + zhi ), zr / npix ) );
+            config.put( CubeSurfaceFactory.SCALE_KEY, ( xr + yr + zr ) / 3.0 );
+        }
+        else {
+            config.putAll( PlotUtil
+                          .configLimits( CubeSurfaceFactory.XMIN_KEY,
+                                         CubeSurfaceFactory.XMAX_KEY,
+                                         xlo, xhi, npix ) );
+            config.putAll( PlotUtil
+                          .configLimits( CubeSurfaceFactory.YMIN_KEY,
+                                         CubeSurfaceFactory.YMAX_KEY,
+                                         ylo, yhi, npix ) );
+            config.putAll( PlotUtil
+                          .configLimits( CubeSurfaceFactory.ZMIN_KEY,
+                                         CubeSurfaceFactory.ZMAX_KEY,
+                                         zlo, zhi, npix ) );
+        }
+        config.put( CubeSurfaceFactory.ZOOM_KEY, new Double( zoom_ ) );
+        config.put( CubeSurfaceFactory.XOFF_KEY, new Double( xoff_ ) );
+        config.put( CubeSurfaceFactory.YOFF_KEY, new Double( yoff_ ) );
+        double[] eulers = CubeSurfaceFactory.rotationToEulerDegrees( rotmat_ );
+        double degEpsilon = 0.01;
+        config.put( CubeSurfaceFactory.PHI_KEY,
+                    PlotUtil.roundNumber( eulers[ 0 ], degEpsilon ) );
+        config.put( CubeSurfaceFactory.THETA_KEY,
+                    PlotUtil.roundNumber( eulers[ 1 ], degEpsilon ) );
+        config.put( CubeSurfaceFactory.PSI_KEY,
+                    PlotUtil.roundNumber( eulers[ 2 ], degEpsilon ) );
+        return config;
     }
 
     /**
@@ -773,10 +911,8 @@ public class CubeSurface implements Surface {
     private void plotFrame( Graphics g, boolean front ) {
 
         /* Prepare workspace. */
-        Point2D.Double gp0 = new Point2D.Double();
-        Point2D.Double gp1 = new Point2D.Double();
-        double[] gz0 = new double[ 1 ];
-        double[] gz1 = new double[ 1 ];
+        GPoint3D gp0 = new GPoint3D();
+        GPoint3D gp1 = new GPoint3D();
 
         /* Identify the corner furthest away from the front.
          * The three edges that hit this corner will be the ones
@@ -786,9 +922,9 @@ public class CubeSurface implements Surface {
         for ( int ic = 0; ic < 8; ic++ ) {
             Corner corner = Corner.getCorner( ic );
             double[] dpos0 = getCornerDataPos( corner );
-            dataToGraphicZ( dpos0, false, gp0, gz0 );
-            if ( gz0[ 0 ] > zmax ) {
-                zmax = gz0[ 0 ];
+            dataToGraphicZ( dpos0, false, gp0 );
+            if ( gp0.z > zmax ) {
+                zmax = gp0.z;
                 backCorner = corner;
             }
         }
@@ -809,7 +945,6 @@ public class CubeSurface implements Surface {
         for ( int i0 = 0; i0 < 8; i0++ ) {
             Corner c0 = Corner.getCorner( i0 );
             double[] dpos0 = getCornerDataPos( c0 );
-            dataToGraphicZ( dpos0, false, gp0, gz0 );
             Corner[] friends = c0.getAdjacent();
             for ( int i1 = 0; i1 < friends.length; i1++ ) {
                 Corner c1 = friends[ i1 ];
@@ -1013,12 +1148,10 @@ public class CubeSurface implements Surface {
      * @param  dpos1   data space coordinates of line end
      */
     private void drawFrameLine( Graphics g, double[] dpos0, double[] dpos1 ) {
-        Point2D.Double gp0 = new Point2D.Double();
-        Point2D.Double gp1 = new Point2D.Double();
-        double[] dz0 = new double[ 1 ];
-        double[] dz1 = new double[ 1 ];
-        dataToGraphicZ( dpos0, false, gp0, dz0 );
-        dataToGraphicZ( dpos1, false, gp1, dz1 );
+        GPoint3D gp0 = new GPoint3D();
+        GPoint3D gp1 = new GPoint3D();
+        dataToGraphicZ( dpos0, false, gp0 );
+        dataToGraphicZ( dpos1, false, gp1 );
         g.drawLine( PlotUtil.ifloor( gp0.x ), PlotUtil.ifloor( gp0.y ),
                     PlotUtil.ifloor( gp1.x ), PlotUtil.ifloor( gp1.y ) );
     }

@@ -115,6 +115,7 @@ public class ResourceIcon implements Icon {
         CLEAR = makeIcon( "newdoc1.png" ),
         HIDE_WINDOWS = makeIcon( "hide1.png" ),
         SCROLLER = makeIcon( "scroll2.png" ),
+        STILTS = makeIcon( "stilts.png" ),
 
         /* Windows. */
         CONTROL = makeIcon( "controlw.png" ),
@@ -131,7 +132,7 @@ public class ResourceIcon implements Icon {
         PARAMS = makeIcon( "tablemeta0.png" ),
         VIEWER = makeIcon( "browser1.png" ),
         SUBSETS = makeIcon( "venn2.png" ),
-        FUNCTION = makeIcon( "fx2.png" ),
+        FUNCTION = makeIcon( "fx4.png" ),
         MATCH1 = makeIcon( "matchOne2.png" ),
         MATCH2 = makeIcon( "matchTwo2.png" ),
         MATCHN = makeIcon( "matchN.png" ),
@@ -139,21 +140,32 @@ public class ResourceIcon implements Icon {
         MULTICONE = makeIcon( "cones.png" ),
         MULTISIA = makeIcon( "sias.png" ),
         MULTISSA = makeIcon( "ssas.png" ),
+        DATALINK = makeIcon( "datalink2.png" ),
         SAMP = makeIcon( "comms2.png" ),
         GAVO = makeIcon( "virgo3.png" ),
         VIZIER = makeIcon( "vizmini.png" ),
         BASTI = makeIcon( "BaSTI_icon_B.png" ),
         TREE_DIALOG = makeIcon( "browse.png" ),
         CLASSIFY = makeIcon( "classify3.png" ),
+        ACTIVATE = makeIcon( "activate3.png" ),
+        REACTIVATE = makeIcon( "flash-1.png" ),
+        REACTIVATE_ALL = makeIcon( "flash-2d.png" ),
+        ACTIVATE_SEQ = makeIcon( "flash1seq.png" ),
+        ACTIVATE_SEQ_ALL = makeIcon( "flash2seq.png" ),
+        CANCEL_SEQ = makeIcon( "noseq.png" ),
+        DELETE_INACTIVE = makeIcon( "trash2-box.png" ),
 
         /* Specific actions. */
         UNSORT = makeIcon( "arrow_level.png" ),
         DELETE_COLUMN = makeIcon( "ColumnDelete24.png" ),
         VISIBLE_SUBSET = makeIcon( "spoints5.png" ),
+        JEL_VISIBLE_SUBSET = makeIcon( "jelvis.png" ),
         RANGE_SUBSET = makeIcon( "sbars0.png" ),
         XRANGE_SUBSET = makeIcon( "xrange1.png" ),
         BLOB_SUBSET = makeIcon( "blob2.png" ),
         BLOB_SUBSET_END = makeIcon( "ublob3b.png" ),
+        POLY_SUBSET = makeIcon( "poly2.png" ),
+        POLY_SUBSET_END = makeIcon( "unpoly2.png" ),
         RESIZE = makeIcon( "4way3.png" ),
         RESIZE_X = makeIcon( "ew_arrow.png" ),
         RESIZE_Y = makeIcon( "ns_arrow.png" ),
@@ -235,12 +247,16 @@ public class ResourceIcon implements Icon {
         CDSXMATCH = makeIcon( "xm3.png" ),
         HISTO_SAVE = makeIcon( "histo-save.png" ),
         HISTO_IMPORT = makeIcon( "histo-import.png" ),
+        WARNING = makeIcon( "warning_triangle.png" ),
+        APPROVE_ALL = makeIcon( "approve_all.png" ),
+        MEASURE = makeIcon( "measure.png" ),
 
         /* Plot2 icons. */
         UP_DOWN = makeIcon( "updown8.png" ),
         FLOAT = makeIcon( "float1.png" ),
         PLOT_DATA = makeIcon( "dataplot.png" ),
         PLOT_PAIR = makeIcon( "pairplot.png" ),
+        PLOT_QUAD = makeIcon( "quadplot.png" ),
         PLOT_HISTO = makeIcon( "histoplot.png" ),
         PLOT2_PLANE = makeIcon( "plot2plane.png" ),
         PLOT2_SKY = makeIcon( "plot2sky.png" ),
@@ -700,23 +716,37 @@ public class ResourceIcon implements Icon {
             uk.ac.starlink.ttools.gui.ResourceIcon.REF;
         putMap( nameMap, "ADD_PLOT_DATA", toAddIcon( PLOT_DATA ) );
         putMap( nameMap, "ADD_PLOT_PAIR", toAddIcon( PLOT_PAIR ) );
+        putMap( nameMap, "ADD_PLOT_QUAD", toAddIcon( PLOT_QUAD ) );
         putMap( nameMap, "ADD_PLOT_HISTO", toAddIcon( PLOT_HISTO ) );
         putMap( nameMap, "ADD_FORM_MARK", toAddIcon( TTRI.FORM_MARK ) );
         putMap( nameMap, "ADD_FORM_SIZE", toAddIcon( TTRI.FORM_SIZE ) );
+        putMap( nameMap, "ADD_FORM_SIZEXY", toAddIcon( TTRI.FORM_SIZEXY ) );
         putMap( nameMap, "ADD_FORM_VECTOR", toAddIcon( TTRI.FORM_VECTOR ) );
         putMap( nameMap, "ADD_FORM_ERROR", toAddIcon( TTRI.FORM_ERROR ) );
-        putMap( nameMap, "ADD_FORM_ELLIPSE", toAddIcon( TTRI.FORM_ELLIPSE ) );
+        putMap( nameMap, "ADD_FORM_XYELLIPSE",
+                         toAddIcon( TTRI.FORM_XYELLIPSE ) );
+        putMap( nameMap, "ADD_FORM_SKYELLIPSE",
+                         toAddIcon( TTRI.FORM_SKYELLIPSE ) );
+        putMap( nameMap, "ADD_FORM_ELLIPSE_CORR",
+                         toAddIcon( TTRI.FORM_ELLIPSE_CORR ) );
         putMap( nameMap, "ADD_PLOT_LINE", toAddIcon( TTRI.PLOT_LINE ) );
         putMap( nameMap, "ADD_FORM_LINEARFIT",
                          toAddIcon( TTRI.FORM_LINEARFIT ) );
+        putMap( nameMap, "ADD_FORM_QUANTILE", toAddIcon( TTRI.FORM_QUANTILE ) );
         putMap( nameMap, "ADD_PLOT_LABEL", toAddIcon( TTRI.PLOT_LABEL ) );
         putMap( nameMap, "ADD_PLOT_CONTOUR", toAddIcon( TTRI.PLOT_CONTOUR ) );
+        putMap( nameMap, "ADD_FORM_GRID", toAddIcon( TTRI.FORM_GRID ) );
+        putMap( nameMap, "ADD_FORM_SKYDENSITY",
+                         toAddIcon( TTRI.FORM_SKYDENSITY ) );
+        putMap( nameMap, "ADD_FORM_FILL", toAddIcon( TTRI.FORM_FILL ) );
         putMap( nameMap, "ADD_FORM_HISTOGRAM",
                          toAddIcon( TTRI.FORM_HISTOGRAM ) );
         putMap( nameMap, "ADD_FORM_KDE", toAddIcon( TTRI.FORM_KDE ) );
         putMap( nameMap, "ADD_FORM_KNN", toAddIcon( TTRI.FORM_KNN ) );
         putMap( nameMap, "ADD_FORM_DENSOGRAM",
                          toAddIcon( TTRI.FORM_DENSOGRAM ) );
+        putMap( nameMap, "ADD_FORM_GAUSSIAN",
+                         toAddIcon( TTRI.FORM_GAUSSIAN ) );
         putMap( nameMap, "ADD_FORM_MARKS2", toAddIcon( TTRI.FORM_MARKS2 ) );
         putMap( nameMap, "ADD_FORM_LINK2", toAddIcon( TTRI.FORM_LINK2 ) );
 
@@ -726,6 +756,10 @@ public class ResourceIcon implements Icon {
                          toSaveIcon( TTRI.FORM_SKYDENSITY ) );
         putMap( nameMap, "IMPORT_FORM_SKYDENSITY",
                          toImportIcon( TTRI.FORM_SKYDENSITY ) );
+        putMap( nameMap, "SAVE_FORM_HISTOGRAM",
+                         toSaveIcon( TTRI.FORM_HISTOGRAM ) );
+        putMap( nameMap, "IMPORT_FORM_HISTOGRAM",
+                         toImportIcon( TTRI.FORM_HISTOGRAM ) );
 
         return nameMap;
     }

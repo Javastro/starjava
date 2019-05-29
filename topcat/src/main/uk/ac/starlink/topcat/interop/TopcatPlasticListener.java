@@ -39,6 +39,7 @@ import uk.ac.starlink.topcat.LoadingToken;
 import uk.ac.starlink.topcat.RowSubset;
 import uk.ac.starlink.topcat.SubsetWindow;
 import uk.ac.starlink.topcat.TopcatModel;
+import uk.ac.starlink.topcat.TopcatUtils;
 import uk.ac.starlink.util.DataSource;
 import uk.ac.starlink.util.URLUtils;
 import uk.ac.starlink.util.gui.ErrorDialog;
@@ -209,7 +210,7 @@ public class TopcatPlasticListener extends HubManager {
             new BufferedOutputStream( new FileOutputStream( tmpfile ) );
         try {
             new VOTableWriter( DataFormat.TABLEDATA, true )
-               .writeStarTable( tcModel.getApparentStarTable(), ostrm );
+               .writeStarTable( TopcatUtils.getSaveTable( tcModel ), ostrm );
         }
         catch ( IOException e ) {
             tmpfile.delete();
@@ -696,9 +697,9 @@ public class TopcatPlasticListener extends HubManager {
          * subsets it's probably best to do it like this to cut down on
          * subset proliferation. */
         RowSubset matching = null;
-        for ( Iterator it = tcModel.getSubsets().iterator();
+        for ( Iterator<RowSubset> it = tcModel.getSubsets().iterator();
               matching == null && it.hasNext(); ) {
-            RowSubset rset = (RowSubset) it.next();
+            RowSubset rset = it.next();
             int nrow = Tables.checkedLongToInt( tcModel.getDataModel()
                                                        .getRowCount() );
             if ( matches( mask, rset, nrow ) ) {
@@ -720,9 +721,8 @@ public class TopcatPlasticListener extends HubManager {
         /* Otherwise make sure we have a unique name for the new subset. */
         else {
             int ipset = 0;
-            for ( Iterator it = tcModel.getSubsets().iterator();
-                  it.hasNext(); ) {
-                String setName = ((RowSubset) it.next()).getName();
+            for ( RowSubset rset : tcModel.getSubsets() ) {
+                String setName = rset.getName();
                 if ( setName.matches( appName + "-[0-9]+" ) ) {
                     String digits =
                         setName.substring( appName.length() + 1 );

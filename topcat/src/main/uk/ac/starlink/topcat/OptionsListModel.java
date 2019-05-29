@@ -28,22 +28,22 @@ import uk.ac.starlink.util.gui.CustomComboBoxRenderer;
  *
  * @author   Mark Taylor (Starlink)
  */
-public class OptionsListModel extends AbstractList implements ListModel {
+public class OptionsListModel<T> extends AbstractList<T> implements ListModel {
 
-    private final List entryList_;
+    private final List<Entry<T>> entryList_;
     private final BasicListModel bmodel_;
     private int nextId_;
     
     public OptionsListModel() {
-        entryList_ = new ArrayList();
+        entryList_ = new ArrayList<Entry<T>>();
         bmodel_ = new BasicListModel();
     }
 
-    public Object get( int index ) {
-        return ((Entry) entryList_.get( index )).obj_;
+    public T get( int index ) {
+        return entryList_.get( index ).obj_;
     }
 
-    public Object getElementAt( int index ) {
+    public T getElementAt( int index ) {
         return get( index );
     }
 
@@ -55,23 +55,23 @@ public class OptionsListModel extends AbstractList implements ListModel {
         return size();
     }
 
-    public boolean add( Object obj ) {
+    public boolean add( T obj ) {
         int index = entryList_.size();
-        boolean ret = entryList_.add( new Entry( nextId_++, obj ) );
+        boolean ret = entryList_.add( new Entry<T>( nextId_++, obj ) );
         fireIntervalAdded( index, index );
         return ret;
     }
 
-    public Object set( int irow, Object obj ) {
-        Entry entry = (Entry) entryList_.get( irow );
-        Object oldval = entry.obj_;
+    public T set( int irow, T obj ) {
+        Entry<T> entry = entryList_.get( irow );
+        T oldval = entry.obj_;
         entry.obj_ = obj;
         bmodel_.fireContentsChanged( bmodel_, irow, irow );
         return oldval;
     }
 
-    public Object remove( int irow ) {
-        Entry entry = (Entry) entryList_.remove( irow );
+    public T remove( int irow ) {
+        Entry<T> entry = entryList_.remove( irow );
         bmodel_.fireIntervalRemoved( bmodel_, irow, irow );
         return entry.obj_;
     }
@@ -86,7 +86,7 @@ public class OptionsListModel extends AbstractList implements ListModel {
      * @return  identifier for option
      */
     public int indexToId( int index ) {
-        return ((Entry) entryList_.get( index )).id_;
+        return entryList_.get( index ).id_;
     }
 
     /**
@@ -99,8 +99,9 @@ public class OptionsListModel extends AbstractList implements ListModel {
      */
     public int idToIndex( int id ) {
         int index = 0;
-        for ( Iterator it = entryList_.iterator(); it.hasNext(); index++ ) {
-            if ( ((Entry) it.next()).id_ == id ) {
+        for ( Iterator<Entry<T>> it = entryList_.iterator(); it.hasNext();
+              index++ ) {
+            if ( it.next().id_ == id ) {
                 return index;
             }
         }
@@ -160,14 +161,11 @@ public class OptionsListModel extends AbstractList implements ListModel {
             public void intervalRemoved( ListDataEvent evt ) {}
             public void contentsChanged( ListDataEvent evt ) {}
         } );
-        box.setRenderer( new CustomComboBoxRenderer() {
-            public Object mapValue( Object value ) {
-                if ( value instanceof RowSubset ) {
-                    return ((RowSubset) value).getName();
-                }
-                else {
-                    return value;
-                }
+        box.setRenderer(
+                new CustomComboBoxRenderer<RowSubset>( RowSubset.class ) {
+            @Override
+            protected String mapValue( RowSubset rset ) {
+                return rset.getName();
             }
         } );
         return box;
@@ -222,7 +220,7 @@ public class OptionsListModel extends AbstractList implements ListModel {
 
     private JMenuItem makeJMenuItem( final Action menuAction, 
                                      final int index ) {
-        final String text = ((Entry) entryList_.get( index )).obj_.toString();
+        final String text = entryList_.get( index ).obj_.toString();
         Action act = new AbstractAction( text ) {
             public void actionPerformed( ActionEvent evt ) {
                 ActionEvent evt1 = new ActionEvent( this, index, text );
@@ -239,8 +237,7 @@ public class OptionsListModel extends AbstractList implements ListModel {
                 int nel = evt.getIndex1() - start + 1;
                 if ( start == getItemCount() ) {
                     for ( int i = start; i < start + nel; i++ ) {
-                        addMenuItem( ((Entry) entryList_.get( i ))
-                                    .obj_.toString() );
+                        addMenuItem( entryList_.get( i ).obj_.toString() );
                     }
                 }
                 else {
@@ -253,9 +250,8 @@ public class OptionsListModel extends AbstractList implements ListModel {
             }
             public void contentsChanged( ListDataEvent evt ) {
                 removeAll();
-                int nel = entryList_.size();
-                for ( int i = 0; i < nel; i++ ) {
-                    addMenuItem( ((Entry) entryList_.get( i )).toString() );
+                for ( Entry entry : entryList_ ) {
+                    addMenuItem( entry.toString() );
                 }
             }
         }
@@ -311,9 +307,9 @@ public class OptionsListModel extends AbstractList implements ListModel {
     /**
      * Struct type class which associates an object and a unique identifier.
      */
-    private static class Entry {
+    private static class Entry<T> {
         final int id_;
-        Object obj_;
+        T obj_;
 
         /**
          * Constructor.
@@ -321,7 +317,7 @@ public class OptionsListModel extends AbstractList implements ListModel {
          * @param  unique identifier
          * @param  option object
          */
-        Entry( int id, Object obj ) {
+        Entry( int id, T obj ) {
             id_ = id;
             obj_ = obj;
         }

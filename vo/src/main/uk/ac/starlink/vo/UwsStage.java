@@ -21,7 +21,7 @@ public enum UwsStage {
     RUNNING( new String[] { "QUEUED", "EXECUTING", "SUSPENDED", } ),
 
     /** Job has finished successfully or otherwise; will not progress further.*/
-    FINISHED( new String[] { "COMPLETED", "ERROR", "ABORTED", } ),
+    FINISHED( new String[] { "COMPLETED", "ERROR", "ABORTED", "ARCHIVED", } ),
 
     /** UNKNOWN phase; may change in future. */
     UNKNOWN( new String[] { "UNKNOWN", } ),
@@ -37,9 +37,8 @@ public enum UwsStage {
      * @param   phases  UWS phases corresponding to this stage
      */
     private UwsStage( String[] phases ) {
-        phaseList_ = Collections
-                    .unmodifiableSet( new LinkedHashSet( Arrays
-                                                        .asList( phases ) ) );
+        phaseList_ = Collections.unmodifiableSet(
+                         new LinkedHashSet<String>( Arrays.asList( phases ) ) );
     }
 
     /**

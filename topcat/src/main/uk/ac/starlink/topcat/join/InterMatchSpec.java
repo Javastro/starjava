@@ -1,5 +1,6 @@
 package uk.ac.starlink.topcat.join;
 
+import java.awt.BorderLayout;
 import java.awt.Component;
 import java.io.IOException;
 import java.net.URL;
@@ -61,7 +62,8 @@ public class InterMatchSpec extends MatchSpec {
         this.engine = engine;
 
         Box main = Box.createVerticalBox();
-        add( main );
+        setLayout( new BorderLayout() );
+        add( main, BorderLayout.NORTH );
 
         /* Set up table/column selector panels. */
         tupleSelectors = new TupleSelector[ nTable ];
@@ -159,7 +161,7 @@ public class InterMatchSpec extends MatchSpec {
             irow++;
         }
         assert irow == nrow;
-        List subsetList = new ArrayList();
+        List<RowSubset> subsetList = new ArrayList<RowSubset>();
         for ( int i = 0; i < nTable; i++ ) {
             BitSet bset = bitsets[ i ];
             int ntrue = bset.cardinality();
@@ -170,7 +172,7 @@ public class InterMatchSpec extends MatchSpec {
                 subsetList.add( rset );
             }
         }
-        matchSubsets = (RowSubset[]) subsetList.toArray( new RowSubset[ 0 ] );
+        matchSubsets = subsetList.toArray( new RowSubset[ 0 ] );
     }
 
     public void matchSuccess( Component parent ) {

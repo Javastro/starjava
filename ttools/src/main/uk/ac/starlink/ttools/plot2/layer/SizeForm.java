@@ -8,12 +8,13 @@ import java.util.Map;
 import javax.swing.Icon;
 import uk.ac.starlink.ttools.gui.ResourceIcon;
 import uk.ac.starlink.ttools.plot.MarkShape;
-import uk.ac.starlink.ttools.plot.Range;
 import uk.ac.starlink.ttools.plot2.AuxReader;
 import uk.ac.starlink.ttools.plot2.AuxScale;
 import uk.ac.starlink.ttools.plot2.DataGeom;
 import uk.ac.starlink.ttools.plot2.Glyph;
 import uk.ac.starlink.ttools.plot2.PlotUtil;
+import uk.ac.starlink.ttools.plot2.Scaling;
+import uk.ac.starlink.ttools.plot2.Span;
 import uk.ac.starlink.ttools.plot2.Surface;
 import uk.ac.starlink.ttools.plot2.config.ConfigKey;
 import uk.ac.starlink.ttools.plot2.config.ConfigMap;
@@ -23,8 +24,9 @@ import uk.ac.starlink.ttools.plot2.config.StyleKeys;
 import uk.ac.starlink.ttools.plot2.data.Coord;
 import uk.ac.starlink.ttools.plot2.data.FloatingCoord;
 import uk.ac.starlink.ttools.plot2.data.InputMeta;
-import uk.ac.starlink.ttools.plot2.data.TupleSequence;
+import uk.ac.starlink.ttools.plot2.data.Tuple;
 import uk.ac.starlink.ttools.plot2.geom.CubeSurface;
+import uk.ac.starlink.ttools.plot2.geom.GPoint3D;
 import uk.ac.starlink.ttools.plot2.paper.Paper;
 import uk.ac.starlink.ttools.plot2.paper.PaperType2D;
 import uk.ac.starlink.ttools.plot2.paper.PaperType3D;
@@ -205,7 +207,7 @@ public class SizeForm implements ShapeForm {
                 AuxReader sizeReader =
                     new FloatingCoordAuxReader( SIZE_COORD,
                                                 getSizeCoordIndex( geom ),
-                                                geom, true );
+                                                geom, true, (Scaling) null );
                 map.put( autoscale_, sizeReader );
             }
             return map;
@@ -213,19 +215,19 @@ public class SizeForm implements ShapeForm {
 
         public ShapePainter create2DPainter( final Surface surface,
                                              final DataGeom geom,
-                                             Map<AuxScale,Range> auxRanges,
+                                             Map<AuxScale,Span> auxSpans,
                                              final PaperType2D paperType ) {
             final double[] dpos = new double[ surface.getDataDimCount() ];
             final Point2D.Double gpos = new Point2D.Double();
             final int icSize = getSizeCoordIndex( geom );
-            final double scale = scale_ * getBaseScale( surface, auxRanges );
+            final double scale = scale_ * getBaseScale( surface, auxSpans );
             return new ShapePainter() {
-                public void paintPoint( TupleSequence tseq, Color color,
+                public void paintPoint( Tuple tuple, Color color,
                                         Paper paper ) {
-                    if ( geom.readDataPos( tseq, 0, dpos ) &&
+                    if ( geom.readDataPos( tuple, 0, dpos ) &&
                          surface.dataToGraphics( dpos, true, gpos ) ) {
                         double size =
-                            SIZE_COORD.readDoubleCoord( tseq, icSize );
+                            SIZE_COORD.readDoubleCoord( tuple, icSize );
                         if ( PlotUtil.isFinite( size ) ) {
                             int isize = (int) Math.round( size * scale );
                             Glyph glyph = getGlyph( isize );
@@ -239,25 +241,23 @@ public class SizeForm implements ShapeForm {
 
         public ShapePainter create3DPainter( final CubeSurface surface,
                                              final DataGeom geom,
-                                             Map<AuxScale,Range> auxRanges,
+                                             Map<AuxScale,Span> auxSpans,
                                              final PaperType3D paperType ) {
             final double[] dpos = new double[ surface.getDataDimCount() ];
-            final Point2D.Double gpos = new Point2D.Double();
-            final double[] zloc = new double[ 1 ];
+            final GPoint3D gpos = new GPoint3D();
             final int icSize = getSizeCoordIndex( geom );
-            final double scale = scale_ * getBaseScale( surface, auxRanges );
+            final double scale = scale_ * getBaseScale( surface, auxSpans );
             return new ShapePainter() {
-                public void paintPoint( TupleSequence tseq, Color color,
+                public void paintPoint( Tuple tuple, Color color,
                                         Paper paper ) {
-                    if ( geom.readDataPos( tseq, 0, dpos ) &&
-                         surface.dataToGraphicZ( dpos, true, gpos, zloc ) ) {
+                    if ( geom.readDataPos( tuple, 0, dpos ) &&
+                         surface.dataToGraphicZ( dpos, true, gpos ) ) {
                         double size =
-                            SIZE_COORD.readDoubleCoord( tseq, icSize );
+                            SIZE_COORD.readDoubleCoord( tuple, icSize );
                         if ( PlotUtil.isFinite( size ) ) {
                             int isize = (int) Math.round( size * scale );
-                            double dz = zloc[ 0 ];
                             Glyph glyph = getGlyph( isize );
-                            paperType.placeGlyph( paper, gpos.x, gpos.y, dz,
+                            paperType.placeGlyph( paper, gpos.x, gpos.y, gpos.z,
                                                   glyph, color );
                         }
                     }
@@ -317,15 +317,15 @@ public class SizeForm implements ShapeForm {
          * It may be adjusted by the user-supplied scale adjustment.
          *
          * @param  surface  plot surface
-         * @param  rangeMap  map of ranges calculated as part of
-         *                   plot preparation by request
+         * @param  spanMap  map of ranges calculated as part of
+         *                  plot preparation by request
          * @return  basic size scale
          */
         private double getBaseScale( Surface surface,
-                                     Map<AuxScale,Range> rangeMap ) {
+                                     Map<AuxScale,Span> spanMap ) {
             if ( autoscale_ != null) {
-                Range range = rangeMap.get( autoscale_ );
-                double[] bounds = range.getFiniteBounds( true );
+                Span span = spanMap.get( autoscale_ );
+                double[] bounds = span.getFiniteBounds( true );
                 return 1. / bounds[ 1 ];
             }
             else {

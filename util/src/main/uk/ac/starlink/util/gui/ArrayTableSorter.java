@@ -1,16 +1,11 @@
 package uk.ac.starlink.util.gui;
 
-import java.awt.Component;
-import java.awt.Graphics;
 import java.awt.event.MouseAdapter;
 import java.awt.event.MouseEvent;
 import java.awt.event.MouseListener;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
-import javax.swing.Icon;
-import javax.swing.JLabel;
-import javax.swing.JTable;
 import javax.swing.SwingUtilities;
 import javax.swing.event.TableModelEvent;
 import javax.swing.event.TableModelListener;
@@ -27,20 +22,20 @@ import javax.swing.table.TableColumnModel;
  * @author   Mark Taylor
  * @since    14 Oct 2009
  */
-public class ArrayTableSorter {
+public class ArrayTableSorter<R> {
 
-    private final ArrayTableModel model_;
+    private final ArrayTableModel<R> model_;
     private final MouseListener mouseListener_;
     private int iSortcol_;
     private boolean descending_;
-    private Object[] unsortedItems_;
+    private R[] unsortedItems_;
 
     /**
      * Constructor.
      *
      * @param  model  table model
      */
-    public ArrayTableSorter( ArrayTableModel model ) {
+    public ArrayTableSorter( ArrayTableModel<R> model ) {
         model_ = model;
         unsortedItems_ = model.getItems().clone();
         mouseListener_ = new SortMouseListener();
@@ -71,7 +66,14 @@ public class ArrayTableSorter {
      */
     public void install( JTableHeader header ) {
         TableCellRenderer rend0 = header.getDefaultRenderer();
-        header.setDefaultRenderer( new SortingHeaderRenderer( rend0 ) );
+        header.setDefaultRenderer( new SortingHeaderRenderer( rend0 ) {
+            public int getSortColumnIndex() {
+                return iSortcol_;
+            }
+            public boolean isSortDescending() {
+                return descending_;
+            }
+        } );
         header.addMouseListener( mouseListener_ );
     }
 
@@ -84,7 +86,7 @@ public class ArrayTableSorter {
         TableCellRenderer rend1 = header.getDefaultRenderer();
         if ( rend1 instanceof SortingHeaderRenderer ) {
             TableCellRenderer rend0 =
-                ((SortingHeaderRenderer) rend1).baseRenderer_;
+                ((SortingHeaderRenderer) rend1).getBaseRenderer();
             header.setDefaultRenderer( rend0 );
         }
         header.removeMouseListener( mouseListener_ );
@@ -116,9 +118,9 @@ public class ArrayTableSorter {
      * @param  items2  second array
      * @return  true iff both arrays contain the same elements
      */
-    private static boolean equalElements( Object[] items1, Object[] items2 ) {
-        List list1 = new ArrayList( Arrays.asList( items1 ) );
-        for ( Object item2 : items2 ) {
+    private boolean equalElements( R[] items1, R[] items2 ) {
+        List<R> list1 = new ArrayList<R>( Arrays.asList( items1 ) );
+        for ( R item2 : items2 ) {
             if ( ! list1.remove( item2 ) ) {
                 return false;
             }
@@ -150,88 +152,6 @@ public class ArrayTableSorter {
                 }
                 header.repaint();
             }
-        }
-    }
-
-    /**
-     * Renderer for table header which paints an indication of which
-     * column is controlling the table data sort.
-     */
-    private class SortingHeaderRenderer implements TableCellRenderer {
-
-        private final TableCellRenderer baseRenderer_;
-
-        /**
-         * Constructor.
-         *
-         * @param  baseRenderer   renderer doing basic header display
-         */
-        public SortingHeaderRenderer( TableCellRenderer baseRenderer ) {
-            baseRenderer_ = baseRenderer;
-        }
-
-        public Component getTableCellRendererComponent( JTable table,
-                                                        Object value,
-                                                        boolean isSelected,
-                                                        boolean hasFocus,
-                                                        int irow, int icol ) {
-            Component comp = baseRenderer_
-                .getTableCellRendererComponent( table, value, isSelected,
-                                                hasFocus, irow, icol );
-            if ( comp instanceof JLabel ) {
-                JLabel label = (JLabel) comp;
-                label. setHorizontalTextPosition( JLabel.RIGHT );
-                int iModelcol = table.convertColumnIndexToModel( icol );
-                Icon icon = iModelcol == iSortcol_
-                          ? new ArrowIcon( descending_,
-                                           label.getFont().getSize() )
-                          : null;
-                label.setIcon( icon );
-            }
-            return comp;
-        }
-    }
-
-    /**
-     * Paints a little up or down arrow.
-     * Code largely pinched from
-     * http://java.sun.com/docs/books/tutorial/uiswing/examples/components/TableSorterDemoProject/src/components/TableSorter.java.
-     */
-    private static class ArrowIcon implements Icon {
-        private final boolean descending_;
-        private final int size_;
-
-        /**
-         * Constructor.
-         *
-         * @param   descending  false for up, true for down
-         * @param   size  font size in pixels
-         */
-        ArrowIcon( boolean descending, int size ) {
-            descending_ = descending;
-            size_ = size;
-        }
-
-        public void paintIcon( Component c, Graphics g, int x, int y ) {
-            int dx = ( size_ + 1 ) / 2;
-            int dy = descending_ ? dx : -dx;
-            y += 5 * size_ / 6 + ( descending_ ? -dy : 0 );
-            int shift = descending_ ? 1 : -1;
-            g.translate( x, y );
-            g.drawLine( dx / 2, dy, 0, 0 );
-            g.drawLine( dx / 2, dy + shift, 0, shift );
-            g.drawLine( dx / 2, dy, dx, 0 );
-            g.drawLine( dx / 2, dy + shift, dx, shift );
-            g.drawLine( dx, 0, 0, 0 );
-            g.translate( -x, -y );
-        }
-
-        public int getIconWidth() {
-            return size_;
-        }
-
-        public int getIconHeight() {
-            return size_;
         }
     }
 }

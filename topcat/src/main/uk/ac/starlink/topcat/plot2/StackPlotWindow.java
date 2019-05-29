@@ -8,12 +8,17 @@ import java.awt.Insets;
 import java.awt.Point;
 import java.awt.Rectangle;
 import java.awt.Shape;
+import java.awt.Window;
 import java.awt.event.ActionEvent;
 import java.awt.event.ActionListener;
 import java.awt.event.KeyEvent;
 import java.awt.event.MouseAdapter;
 import java.awt.event.MouseEvent;
 import java.awt.event.MouseMotionAdapter;
+import java.awt.event.WindowAdapter;
+import java.awt.event.WindowEvent;
+import java.beans.PropertyChangeEvent;
+import java.beans.PropertyChangeListener;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.BitSet;
@@ -49,17 +54,20 @@ import uk.ac.starlink.table.TableSource;
 import uk.ac.starlink.table.Tables;
 import uk.ac.starlink.topcat.AuxWindow;
 import uk.ac.starlink.topcat.BasicAction;
-import uk.ac.starlink.topcat.ControlWindow;
 import uk.ac.starlink.topcat.HelpAction;
 import uk.ac.starlink.topcat.LineBox;
+import uk.ac.starlink.topcat.MultiSubsetQueryWindow;
 import uk.ac.starlink.topcat.ResourceIcon;
+import uk.ac.starlink.topcat.RowSubset;
 import uk.ac.starlink.topcat.SubsetConsumer;
 import uk.ac.starlink.topcat.ToggleButtonModel;
 import uk.ac.starlink.topcat.TopcatEvent;
+import uk.ac.starlink.topcat.TopcatJELUtils;
 import uk.ac.starlink.topcat.TopcatListener;
 import uk.ac.starlink.topcat.TopcatModel;
 import uk.ac.starlink.topcat.TopcatUtils;
-import uk.ac.starlink.ttools.plot.Range;
+import uk.ac.starlink.topcat.TypedListModel;
+import uk.ac.starlink.topcat.WindowToggle;
 import uk.ac.starlink.ttools.plot2.AuxScale;
 import uk.ac.starlink.ttools.plot2.DataGeom;
 import uk.ac.starlink.ttools.plot2.Decoration;
@@ -68,9 +76,11 @@ import uk.ac.starlink.ttools.plot2.Ganger;
 import uk.ac.starlink.ttools.plot2.Gesture;
 import uk.ac.starlink.ttools.plot2.IndicatedRow;
 import uk.ac.starlink.ttools.plot2.LegendEntry;
+import uk.ac.starlink.ttools.plot2.LegendIcon;
 import uk.ac.starlink.ttools.plot2.Navigator;
 import uk.ac.starlink.ttools.plot2.Padding;
 import uk.ac.starlink.ttools.plot2.PlotLayer;
+import uk.ac.starlink.ttools.plot2.PlotMetric;
 import uk.ac.starlink.ttools.plot2.PlotType;
 import uk.ac.starlink.ttools.plot2.PlotUtil;
 import uk.ac.starlink.ttools.plot2.Plotter;
@@ -79,6 +89,7 @@ import uk.ac.starlink.ttools.plot2.ReportMap;
 import uk.ac.starlink.ttools.plot2.ReportMeta;
 import uk.ac.starlink.ttools.plot2.ShadeAxisFactory;
 import uk.ac.starlink.ttools.plot2.Slow;
+import uk.ac.starlink.ttools.plot2.Span;
 import uk.ac.starlink.ttools.plot2.SubCloud;
 import uk.ac.starlink.ttools.plot2.Subrange;
 import uk.ac.starlink.ttools.plot2.Surface;
@@ -121,6 +132,7 @@ public class StackPlotWindow<P,A> extends AuxWindow {
     private final ControlManager controlManager_;
     private final MultiAxisController<P,A> multiAxisController_;
     private final MultiController<ShaderControl> multiShaderControl_;
+    private final MultiConfigger[] zoneConfiggers_;
     private final ToggleButtonModel showProgressModel_;
     private final LegendControl legendControl_;
     private final FrameControl frameControl_;
@@ -128,8 +140,11 @@ public class StackPlotWindow<P,A> extends AuxWindow {
     private final JLabel countLabel_;
     private final NavigationHelpPanel navPanel_;
     private final BlobPanel2 blobPanel_;
+    private final FigurePanel figurePanel_;
     private final Action blobAction_;
+    private final Action figureAction_;
     private final Action fromVisibleAction_;
+    private final Action fromVisibleJelAction_;
     private final Action resizeAction_;
     private final boolean canSelectPoints_;
     private final JMenu exportMenu_;
@@ -140,6 +155,7 @@ public class StackPlotWindow<P,A> extends AuxWindow {
     private final ToggleButtonModel auxLockModel_;
     private final ZoneId dfltZone_;
     private boolean hasShader_;
+    private static final String[] XYZ = new String[] { "x", "y", "z" };
     private static final Level REPORT_LEVEL = Level.INFO;
     private static final Logger logger_ =
         Logger.getLogger( "uk.ac.starlink.ttools.plot2" );
@@ -152,14 +168,17 @@ public class StackPlotWindow<P,A> extends AuxWindow {
      * @param  plotType   defines basic plot type characteristics
      * @param  plotTypeGui  defines graphical user interface specifics
      *                      for plot type
+     * @param  tablesModel  list of available tables
      */
     public StackPlotWindow( String name, Component parent, PlotType plotType,
-                            PlotTypeGui<P,A> plotTypeGui ) {
+                            PlotTypeGui<P,A> plotTypeGui,
+                            TypedListModel<TopcatModel> tablesModel ) {
         super( name, parent );
         plotType_ = plotType;
         plotTypeGui_ = plotTypeGui;
         zoneFact_ = plotTypeGui_.createZoneFactory();
         canSelectPoints_ = plotTypeGui.hasPositions();
+        final CartesianRanger cartRanger = plotTypeGui.getCartesianRanger();
         dfltZone_ = zoneFact_.getDefaultZone();
 
         /* Use a compositor with a fixed boost.  Maybe make the compositor
@@ -240,12 +259,36 @@ public class StackPlotWindow<P,A> extends AuxWindow {
         /* Set up a plot panel with the objects it needs to gather plot
          * requirements from the GUI.  This does the actual plotting. */
         plotPanel_ =
-            new PlotPanel<P,A>( storeFact, surfFact_, gangerFact, zonesFact,
-                                posFact, plotType.getPaperTypeSelector(),
+            new PlotPanel<P,A>( plotType_, storeFact, surfFact_,
+                                gangerFact, zonesFact, posFact,
+                                plotType.getPaperTypeSelector(),
                                 compositor, sketchModel_,
                                 placeProgressBar().getModel(),
                                 showProgressModel_, axisLockModel_,
                                 auxLockModel_ );
+
+        zoneConfiggers_ = new MultiConfigger[] {
+            configger, 
+            multiAxisController_.getConfigger(),
+            multiShaderControl_.getConfigger(),
+        };
+
+        /* Prepare options to display the text of a STILTS command
+         * corresponding to the current plot. */
+        final boolean isMultiZone =
+            plotTypeGui_.getGangerFactory().isMultiZone();
+        ToggleButtonModel stiltsWindowToggle =
+                 new WindowToggle( "STILTS Command Window", ResourceIcon.STILTS,
+                                   "Display this information "
+                                 + "in a separate window" ) {
+            protected Window createWindow() {
+                return new StiltsDialog( StackPlotWindow.this, plotPanel_,
+                                         isMultiZone );
+            }
+        };
+        Control stiltsControl =
+            new StiltsControl( plotPanel_, isMultiZone, stiltsWindowToggle );
+        stackPanel_.addFixedControl( stiltsControl );
 
         /* Ensure that the plot panel is messaged when a GUI action occurs
          * that might change the plot appearance.  Each of these controls
@@ -316,12 +359,12 @@ public class StackPlotWindow<P,A> extends AuxWindow {
             public void stateChanged( ChangeEvent evt ) {
                 plotChanged();
             }
-        } );
+        }, false );
 
-        /* Prepare the action that allows the user to select the currently
+        /* Prepare the actions that allow the user to select the currently
          * visible points. */
         fromVisibleAction_ =
-                new BasicAction( "New subset from visible",
+                new BasicAction( "Subset from visible",
                                  ResourceIcon.VISIBLE_SUBSET,
                                  "Define a new row subset containing only "
                                + "currently visible points" ) {
@@ -329,6 +372,21 @@ public class StackPlotWindow<P,A> extends AuxWindow {
                 addMaskSubsets( getBoundsInclusions( true ), null );
             }
         };
+        if ( cartRanger != null ) {
+            fromVisibleJelAction_ =
+                    new BasicAction( "Algebraic subset from visible",
+                                     ResourceIcon.JEL_VISIBLE_SUBSET,
+                                     "Define a new row subset "
+                                   + "by algebraic expression containing only "
+                                   + "currently visible points" ) {
+                public void actionPerformed( ActionEvent evt ) {
+                    addVisibleJelSubsets( cartRanger );
+                }
+            };
+        }
+        else {
+            fromVisibleJelAction_ = null;
+        }
 
         /* Prepare the action that allows the user to select points by
          * hand-drawn region. */
@@ -344,6 +402,64 @@ public class StackPlotWindow<P,A> extends AuxWindow {
             }
         };
         blobAction_ = blobPanel_.getBlobAction();
+        blobAction_.addPropertyChangeListener( new PropertyChangeListener() {
+            public void propertyChange( PropertyChangeEvent evt ) {
+                String pname = evt.getPropertyName();
+                if ( "enabled".equals( pname ) ||
+                     BlobPanel2.PROP_ACTIVE.equals( pname ) ) {
+                    updateSubsetActions();
+                }
+            }
+        } );
+
+        /* Prepare the action that allows the user to select points by
+         * hand-placed vertices. */
+        FigureMode[] figureModes = plotTypeGui_.getFigureModes();
+        if ( figureModes != null && figureModes.length > 0 ) {
+            figurePanel_ = new FigurePanel( plotPanel_, figureModes, true ) {
+                protected void figureCompleted( Figure fig, int iz ) {
+                    setListening( false );
+                    final FigurePanel panel = this;
+                    Runnable tidier = new Runnable() {
+                        public void run() {
+                            panel.setActive( false );
+                        }
+                    };
+                    Surface surf = plotPanel_.getLatestSurface( iz );
+                    PlotLayer[] layers = plotPanel_.getPlotLayers( iz );
+                    if ( layers.length > 0 ) {
+                        addFigureSubsets( fig, surf, layers, tidier );
+                    }
+                    else {
+                        tidier.run();
+                    }
+                }
+            };
+            figureAction_ = figurePanel_.getBasicFigureAction();
+            figureAction_.addPropertyChangeListener(
+                    new PropertyChangeListener() {
+                public void propertyChange( PropertyChangeEvent evt ) {
+                    String pname = evt.getPropertyName();
+                    if ( "enabled".equals( pname ) ||
+                         FigurePanel.PROP_ACTIVE.equals( pname ) ) {
+                        updateSubsetActions();
+                    }
+                }
+            } );
+        }
+        else {
+            figurePanel_ = null;
+            figureAction_ = null;
+        }
+
+        /* Prepare the distance measurement action. */
+        PlotMetric metric = surfFact_.getPlotMetric();
+        MeasurePanel measurePanel = metric == null
+                                  ? null
+                                  : new MeasurePanel( metric, plotPanel_ );
+        ToggleButtonModel measureModel = measurePanel == null
+                                       ? null
+                                       : measurePanel.getModel();
 
         /* Prepare the plot export action. */
         final PlotExporter plotExporter = PlotExporter.getInstance();
@@ -392,8 +508,8 @@ public class StackPlotWindow<P,A> extends AuxWindow {
             }
         };
         controlManager_ =
-            new GroupControlManager( stack_, plotType, plotTypeGui, zoneFact_,
-                                     configger, tcListener );
+            new GroupControlManager( stack_, plotType, plotTypeGui, tablesModel,
+                                     zoneFact_, configger, tcListener );
 
         /* Prepare actions for adding and removing stack controls. */
         Action[] stackActions = controlManager_.getStackActions();
@@ -407,6 +523,12 @@ public class StackPlotWindow<P,A> extends AuxWindow {
         JPanel displayPanel = new JPanel();
         displayPanel.setLayout( new OverlayLayout( displayPanel ) );
         displayPanel.add( blobPanel_ );
+        if ( figurePanel_ != null ) {
+            displayPanel.add( figurePanel_ );
+        }
+        if ( measurePanel != null ) {
+            displayPanel.add( measurePanel );
+        }
         displayPanel.add( plotPanel_ );
 
         /* Place position and count status panels at the bottom of the
@@ -483,12 +605,18 @@ public class StackPlotWindow<P,A> extends AuxWindow {
             stackToolbar.add( floatModel.createToolbarButton() );
             stackToolbar.addSeparator();
         }
+        if ( figureAction_ != null ) {
+            getToolBar().add( figureAction_ );
+        }
         if ( canSelectPoints_ ) {
             getToolBar().add( blobAction_ );
         }
         getToolBar().add( fromVisibleAction_ );
         getToolBar().add( replotAction );
         getToolBar().add( resizeAction_ );
+        if ( measureModel != null ) {
+            getToolBar().add( measureModel.createToolbarButton() );
+        }
         if ( axisLockModel_ != null ) {
             getToolBar().add( axisLockModel_.createToolbarButton() );
         }
@@ -519,12 +647,22 @@ public class StackPlotWindow<P,A> extends AuxWindow {
         if ( canSelectPoints_ ) {
             subsetMenu.add( blobAction_ );
         }
+        if ( figurePanel_ != null ) {
+            subsetMenu.add( figureAction_ );
+            subsetMenu.add( figurePanel_.getModeFigureMenu() );
+        }
         subsetMenu.add( fromVisibleAction_ );
+        if ( fromVisibleJelAction_ != null ) {
+            subsetMenu.add( fromVisibleJelAction_ );
+        }
         getJMenuBar().add( subsetMenu );
         JMenu plotMenu = new JMenu( "Plot" );
         plotMenu.setMnemonic( KeyEvent.VK_P );
         plotMenu.add( replotAction );
         plotMenu.add( resizeAction_ );
+        if ( measureModel != null ) {
+            plotMenu.add( measureModel.createMenuItem() );
+        }
         if ( axisLockModel_ != null ) {
             plotMenu.add( axisLockModel_.createMenuItem() );
         }
@@ -536,6 +674,7 @@ public class StackPlotWindow<P,A> extends AuxWindow {
         exportMenu_ = new JMenu( "Export" );
         exportMenu_.setMnemonic( KeyEvent.VK_E );
         exportMenu_.add( exportAction );
+        exportMenu_.add( stiltsWindowToggle.createMenuItem() );
         layerDataImportMenu_ = new JMenu( "Layer Data Import" );
         layerDataImportMenu_.setIcon( ResourceIcon.IMPORT );
         layerDataImportMenu_.setToolTipText( "Options to import table into "
@@ -728,8 +867,9 @@ public class StackPlotWindow<P,A> extends AuxWindow {
         List<PlotLayer> layerList = new ArrayList<PlotLayer>();
         LayerControl[] controls = stackModel_.getLayerControls( activeOnly );
         for ( int ic = 0; ic < controls.length; ic++ ) {
-            PlotLayer[] layers = controls[ ic ].getPlotLayers();
-            layerList.addAll( Arrays.asList( layers ) );
+            for ( TopcatLayer tcLayer : controls[ ic ].getLayers() ) {
+                layerList.add( tcLayer.getPlotLayer() );
+            }
         }
         return layerList.toArray( new PlotLayer[ 0 ] );
     }
@@ -786,14 +926,15 @@ public class StackPlotWindow<P,A> extends AuxWindow {
               getLayerControlsByZone().entrySet() ) {
             final ZoneId zid = entry.getKey();
             LayerControl[] controls = entry.getValue();
-            List<PlotLayer> layerList = new ArrayList<PlotLayer>();
+            List<TopcatLayer> layerList = new ArrayList<TopcatLayer>();
             List<LegendEntry> legList = new ArrayList<LegendEntry>();
             for ( LayerControl control : controls ) {
-                layerList.addAll( Arrays.asList( control.getPlotLayers() ) );
+                layerList.addAll( Arrays.asList( control.getLayers() ) );
                 legList.addAll( Arrays.asList( control.getLegendEntries() ) );
             }
-            final PlotLayer[] layers = layerList.toArray( new PlotLayer[ 0 ] );
-            final Icon legend =
+            final TopcatLayer[] layers =
+                layerList.toArray( new TopcatLayer[ 0 ] );
+            final LegendIcon legend =
                 legendControl_
                .createLegendIcon( legList.toArray( new LegendEntry[ 0 ] ),
                                   zid );
@@ -805,9 +946,13 @@ public class StackPlotWindow<P,A> extends AuxWindow {
                 multiShaderControl_.getController( zid );
             final ShadeAxisFactory shadeFact =
                 shaderControl.createShadeAxisFactory( controls, zid );
-            final Range shadeFixRange = shaderControl.getFixRange();
+            final Span shadeFixSpan = shaderControl.getFixSpan();
             final Subrange shadeSubrange = shaderControl.getSubrange();
             final boolean isShadeLog = shaderControl.isLog();
+            final ConfigMap config = new ConfigMap();
+            for ( MultiConfigger zc : zoneConfiggers_ ) {
+                config.putAll( zc.getZoneConfig( zid ) );
+            }
             zdefs.add( new ZoneDef<P,A>() {
                 public ZoneId getZoneId() {
                     return zid;
@@ -815,10 +960,10 @@ public class StackPlotWindow<P,A> extends AuxWindow {
                 public AxisController<P,A> getAxisController() {
                     return axisController;
                 }
-                public PlotLayer[] getLayers() {
+                public TopcatLayer[] getLayers() {
                     return layers;
                 }
-                public Icon getLegend() {
+                public LegendIcon getLegend() {
                     return legend;
                 }
                 public float[] getLegendPosition() {
@@ -830,14 +975,17 @@ public class StackPlotWindow<P,A> extends AuxWindow {
                 public ShadeAxisFactory getShadeAxisFactory() {
                     return shadeFact;
                 }
-                public Range getShadeFixRange() {
-                    return shadeFixRange;
+                public Span getShadeFixSpan() {
+                    return shadeFixSpan;
                 }
                 public Subrange getShadeSubrange() {
                     return shadeSubrange;
                 }
                 public boolean isShadeLog() {
                     return isShadeLog;
+                }
+                public ConfigMap getConfig() {
+                    return config;
                 }
             } );
         }
@@ -851,6 +999,9 @@ public class StackPlotWindow<P,A> extends AuxWindow {
 
         /* If the blob drawing is active, kill it. */
         blobPanel_.setActive( false );
+        if ( figurePanel_ != null ) {
+            figurePanel_.setActive( false );
+        }
 
         /* The shader control is only visible in the stack when one of the
          * layers is making use of it. */
@@ -1322,7 +1473,7 @@ public class StackPlotWindow<P,A> extends AuxWindow {
                         return null;
                     }
                 }
-                PlotUtil.logTime( logger_, "Count", start );
+                PlotUtil.logTimeFromStart( logger_, "Count", start );
                 return TopcatUtils.formatLong( count ) + " / "
                      + TopcatUtils.formatLong( total );
             }
@@ -1407,7 +1558,7 @@ public class StackPlotWindow<P,A> extends AuxWindow {
                         return null;
                     }
                 }
-                PlotUtil.logTime( logger_, "Subset", start );
+                PlotUtil.logTimeFromStart( logger_, "Subset", start );
                 return maskMap;
             }
         } );
@@ -1451,6 +1602,124 @@ public class StackPlotWindow<P,A> extends AuxWindow {
     }
 
     /**
+     * Takes a set of points and a figure inclusion mode and does
+     * what's required to create and install corresponding RowSubsets
+     * for the TopcatModels in the currently visible plot layers.
+     *
+     * @param  points  figure vertices
+     * @param  figmode   figure shape mode
+     * @param  surf    plot surface
+     * @param  layer   layers for which to create subsets
+     * @param  completionCallback  runnable which will be executed
+     *                             unconditionally on the
+     *                             Event Dispatch Thread after the
+     *                             asynchronous operation has completed
+     */
+    private void addFigureSubsets( Figure fig, Surface surf, PlotLayer[] layers,
+                                   final Runnable completionCallback ) {
+        TableCloud[] clouds =
+            TableCloud.createTableClouds( SubCloud
+                                         .createSubClouds( layers, true ) );
+        List<MultiSubsetQueryWindow.Entry> entlist =
+            new ArrayList<MultiSubsetQueryWindow.Entry>();
+        for ( TableCloud cloud : clouds ) {
+            TopcatModel tcModel = cloud.getTopcatModel();
+            RowSubset[] rsets = cloud.getRowSubsets();
+            String expr = fig.createExpression( cloud );
+            if ( expr != null ) {
+                expr = TopcatJELUtils
+                      .combineSubsetsExpression( tcModel, expr, rsets );
+                entlist.add( new MultiSubsetQueryWindow.Entry( tcModel,
+                                                               expr ) );
+            }
+        }
+        if ( entlist.size() > 0 ) {
+            MultiSubsetQueryWindow.Entry[] entries =
+                entlist.toArray( new MultiSubsetQueryWindow.Entry[ 0 ] );
+            MultiSubsetQueryWindow qw =
+                new MultiSubsetQueryWindow( "Add Figure Subset(s)",
+                                            this, entries, fig.getExpression(),
+                                            fig.getAdql() );
+            qw.setVisible( true );
+            if ( completionCallback != null ) {
+                qw.addWindowListener( new WindowAdapter() {
+                    @Override
+                    public void windowClosed( WindowEvent evt ) {
+                        completionCallback.run();
+                    }
+                } );
+            }
+        }
+        else {
+            if ( completionCallback != null ) {
+                completionCallback.run();
+            }
+        }
+    }
+
+    /**
+     * Creates and installs synthetic RowSubsets corresponding to all the
+     * points currently visible in the currently plotted layers,
+     * by constructing JEL expressions based on the coordinate limits
+     * for the N-dimensional hypercube corresponding to the current plot view.
+     *
+     * @param  ranger   object that can characterise this window's
+     *                  plot surfaces as hypercubes in data coordinates
+     */
+    private void addVisibleJelSubsets( CartesianRanger ranger ) {
+        List<MultiSubsetQueryWindow.Entry> entList =
+            new ArrayList<MultiSubsetQueryWindow.Entry>();
+        int nz = plotPanel_.getZoneCount();
+        String jelExpr = null;
+        String adqlExpr = null;
+        for ( int iz = 0; iz < nz; iz++ ) {
+            Surface surf = plotPanel_.getLatestSurface( iz );
+            RangeDescriber describer = new RangeDescriber( ranger, surf );
+            PlotLayer[] layers = plotPanel_.getPlotLayers( iz );
+            if ( layers.length > 0 ) {
+                int ndim = ranger.getDimCount();
+                TableCloud[] clouds =
+                    TableCloud
+                   .createTableClouds( SubCloud
+                                      .createSubClouds( layers, true ) );
+                for ( TableCloud cloud : clouds ) {
+                    TopcatModel tcModel = cloud.getTopcatModel();
+                    RowSubset[] rsets = cloud.getRowSubsets();
+                    String[] jelVars = new String[ ndim ];
+                    boolean isBlank = false;
+                    for ( int idim = 0; idim < ndim; idim++ ) {
+                        GuiCoordContent content =
+                            cloud.getGuiCoordContent( idim );
+                        jelVars[ idim ] =
+                            TopcatJELUtils
+                           .getDataExpression( tcModel, content );
+                        isBlank = isBlank || jelVars[ idim ] == null;
+                    }
+                    if ( ! isBlank ) {
+                        jelExpr = describer.createJelExpression( XYZ );
+                        adqlExpr = describer.createAdqlExpression( XYZ );
+                        String rangeExpr =
+                            describer.createJelExpression( jelVars );
+                        String expr =
+                            TopcatJELUtils
+                           .combineSubsetsExpression( tcModel, rangeExpr,
+                                                      rsets );
+                        entList.add( new MultiSubsetQueryWindow
+                                        .Entry( tcModel, expr ) );
+                    }
+                }
+            }
+        }
+        if ( entList.size() > 0 ) {
+            MultiSubsetQueryWindow.Entry[] entries =
+                entList.toArray( new MultiSubsetQueryWindow.Entry[ 0 ] );
+            new MultiSubsetQueryWindow( "Add Visible Subset(s)",
+                                        this, entries, jelExpr, adqlExpr )
+               .setVisible( true );
+        }
+    }
+
+    /**
      * Invoked when the plot changes.  Status panels are updated.
      */
     private void plotChanged() {
@@ -1458,13 +1727,8 @@ public class StackPlotWindow<P,A> extends AuxWindow {
         /* Update position immediately. */
         updatePositionDisplay( plotPanel_.getMousePosition() );
 
-        /* Work out if it makes any sense to do a blob or visibility
-         * selection. */
-        boolean hasAnyPoints = getBoundsInclusions( true ).length > 0;
-        boolean hasFullPoints = hasAnyPoints &&
-                                getBoundsInclusions( false ).length > 0;
-        blobAction_.setEnabled( hasFullPoints );
-        fromVisibleAction_.setEnabled( hasAnyPoints );
+        /* Update status of actions associated with subset definition. */
+        updateSubsetActions();
 
         /* Update plot reports. */
         Map<LayerId,ReportMap> reportsMap = new HashMap<LayerId,ReportMap>();
@@ -1528,6 +1792,28 @@ public class StackPlotWindow<P,A> extends AuxWindow {
                 }
             }
         } );
+    }
+
+    /**
+     * Makes sure that the enabledness of the subset definition actions
+     * is correct.  Should be invoked whenever anything that could affect the
+     * enablednesses might have changed.
+     */
+    private void updateSubsetActions() {
+        boolean hasAnyPoints = getBoundsInclusions( true ).length > 0;
+        fromVisibleAction_.setEnabled( hasAnyPoints );
+        if ( fromVisibleJelAction_ != null ) {
+            fromVisibleJelAction_.setEnabled( hasAnyPoints );
+        }
+
+        boolean hasFullPoints = hasAnyPoints &&
+                                getBoundsInclusions( false ).length > 0;
+        boolean useFigure = figurePanel_ != null;
+        blobAction_.setEnabled( hasFullPoints &&
+                                ! ( useFigure && figurePanel_.isActive() ) );
+        if ( useFigure ) {
+            figureAction_.setEnabled( ! blobPanel_.isActive() );
+        }
     }
 
     /**
@@ -1628,7 +1914,7 @@ public class StackPlotWindow<P,A> extends AuxWindow {
      * @param  layers  plot layers
      * @return   true iff any uses an aux colour shader
      */
-    private static boolean hasShadedLayers( PlotLayer[] layers ) {
+    public static boolean hasShadedLayers( PlotLayer[] layers ) {
         for ( int il = 0; il < layers.length; il++ ) {
             if ( layers[ il ].getAuxRangers().keySet()
                                              .contains( AuxScale.COLOR ) ) {
@@ -1636,6 +1922,80 @@ public class StackPlotWindow<P,A> extends AuxWindow {
             }
         }
         return false;
+    }
+
+    /**
+     * Utility class to produce textual descriptions based on CartesianRanger
+     * objects.
+     */
+    private static class RangeDescriber {
+        final int ndim_;
+        final double[][] dlims_;
+        final boolean[] logFlags_;
+        final int[] npixs_;
+
+        /**
+         * Constructor.
+         *
+         * @param  ranger  ranger
+         * @param  surf    plot surface
+         */
+        RangeDescriber( CartesianRanger ranger, Surface surf ) {
+            ndim_ = ranger.getDimCount();
+            dlims_ = ranger.getDataLimits( surf );
+            logFlags_ = ranger.getLogFlags( surf );
+            npixs_ = ranger.getPixelDims( surf );
+        }
+
+        /**
+         * Returns a JEL expression describing this range.
+         *
+         * @param  varNames   ndim-element arrray giving JEL-friendly names
+         *                    for the Cartesian variables
+         * @return  JEL expression
+         */
+        String createJelExpression( String[] varNames ) {
+            StringBuffer sbuf = new StringBuffer();
+            for ( int idim = 0; idim < ndim_; idim++ ) {
+                if ( idim > 0 ) {
+                    sbuf.append( " && " );
+                }
+                sbuf.append( TopcatJELUtils
+                            .betweenExpression( varNames[ idim ],
+                                                dlims_[ idim ][ 0 ],
+                                                dlims_[ idim ][ 1 ],
+                                                logFlags_[ idim ],
+                                                npixs_[ idim ] ) );
+            }
+            return sbuf.toString();
+        }
+
+        /**
+         * Returns an ADQL expression describing this range.
+         *
+         * @param  varNames   ndim-element arrray giving ADQL-friendly names
+         *                    for the Cartesian variables
+         * @return  ADQL expression
+         */
+        String createAdqlExpression( String[] varNames ) {
+            StringBuffer sbuf = new StringBuffer();
+            for ( int idim = 0; idim < ndim_; idim++ ) {
+                if ( idim > 0 ) {
+                    sbuf.append( " AND " );
+                }
+                String[] limits =
+                    TopcatJELUtils.formatAxisRangeLimits( dlims_[ idim ][ 0 ],
+                                                          dlims_[ idim ][ 1 ],
+                                                          logFlags_[ idim ],
+                                                          npixs_[ idim ] );
+                sbuf.append( varNames[ idim ] )
+                    .append( " BETWEEN " )
+                    .append( limits[ 0 ] )
+                    .append( " AND " )
+                    .append( limits[ 1 ] );
+            }
+            return sbuf.toString();
+        }
     }
 
     /**

@@ -10,6 +10,8 @@ import java.io.IOException;
 import java.io.OutputStream;
 import java.io.OutputStreamWriter;
 import java.io.UnsupportedEncodingException;
+import java.util.ArrayList;
+import java.util.List;
 import java.util.logging.Level;
 import java.util.logging.Logger;
 import uk.ac.starlink.fits.AbstractFitsTableWriter;
@@ -32,7 +34,7 @@ import uk.ac.starlink.util.IOUtils;
  * latter three cases may be either inline as base64 encoded CDATA or
  * to a separate stream.
  *
- * <p>A couple of Auxiliary metadata items of the ColumnInfo metadata
+ * <p>Some of the Auxiliary metadata items of the ColumnInfo metadata
  * from written tables are respected:
  * <ul>
  * <li>{@link uk.ac.starlink.table.Tables#NULL_VALUE_INFO}:
@@ -43,6 +45,15 @@ import uk.ac.starlink.util.IOUtils;
  *     <code>Short</code> or <code>short[]</code>, the data will be written 
  *     with <code>datatype="unsignedByte"</code> instead of
  *     (signed 16-bit) <code>"short"</code>.</li>
+ * <li>The <code>COOSYS_*_INFO</code> and <code>TIMESYS_*_INFO</code>
+ *     items defined in the {@link uk.ac.starlink.votable.VOStarTable} class;
+ *     suitable COOSYS/TIMESYS elements will be written and referenced
+ *     as required to honour these items.</li>
+ * <li>Various other of the <code>*_INFO</code> items defined in the
+ *     {@link uk.ac.starlink.votable.VOStarTable} class;
+ *     this has the effect that VOTable column attributes read in from
+ *     a VOTable will be passed through if the same table is written
+ *     out to a VOTable (or VOTable-based format like FITS-plus).</li>
  * </ul>
  *
  * @author   Mark Taylor (Starlink)
@@ -227,6 +238,9 @@ public class VOTableWriter implements StarTableWriter, MultiStarTableWriter {
         int itable = 0;
         for ( StarTable startab; ( startab = tableSeq.nextTable() ) != null;
               itable++ ) {
+            if ( itable > 0 ) {
+                writeBetweenTableXML( writer );
+            }
 
             /* Get the format to provide a configuration object which describes
              * exactly how the data from each cell is going to get written. */
@@ -357,6 +371,9 @@ public class VOTableWriter implements StarTableWriter, MultiStarTableWriter {
             throws IOException {
         writePreTableXML( writer );
         for ( int i = 0; i < startabs.length; i++ ) {
+            if ( i > 0 ) {
+                writeBetweenTableXML( writer );
+            }
             VOSerializer.makeSerializer( dataFormat, version, startabs[ i ] )
                         .writeInlineTableElement( writer );
         }
@@ -365,7 +382,7 @@ public class VOTableWriter implements StarTableWriter, MultiStarTableWriter {
     }
 
     /**
-     * Outputs all the text required before the TABLE element.
+     * Outputs all the text required before any tables are written.
      * This method can be overridden to alter the behaviour of the
      * writer if required.
      *
@@ -436,7 +453,27 @@ public class VOTableWriter implements StarTableWriter, MultiStarTableWriter {
     }
 
     /**
-     * Outputs all the text required after the TABLE element in the
+     * Outputs text between one table (TABLE and possibly other associated
+     * elements) and the next.  It's only called as a separator between
+     * adjacent tables, not at the start or end of a sequence of them;
+     * hence it's not called if only a single table is being output.
+     * This method can be overridden to alter the behaviour of the
+     * writer if required.
+     *
+     * <p>This method closes one RESOURCE element and opens another one.
+     *
+     * @param  writer       destination stream
+     */
+    protected void writeBetweenTableXML( BufferedWriter writer )
+            throws IOException {
+        writer.write( "</RESOURCE>" );
+        writer.newLine();
+        writer.write( "<RESOURCE>" );
+        writer.newLine();
+    }
+
+    /**
+     * Outputs all the text required after any tables in the
      * output table document.  This method can be overridden to alter
      * the behaviour of this writer if required.
      *
@@ -636,14 +673,19 @@ public class VOTableWriter implements StarTableWriter, MultiStarTableWriter {
      */
     public static StarTableWriter[] getStarTableWriters() {
         VOTableVersion version = VOTableVersion.getDefaultVersion();
-        DataFormat binFormat = version.allowBinary2() ? DataFormat.BINARY2
-                                                      : DataFormat.BINARY;
-        return new StarTableWriter[] {
-            new VOTableWriter( DataFormat.TABLEDATA, true ),
-            new VOTableWriter( binFormat, true ),
-            new VOTableWriter( DataFormat.FITS, false ),
-            new VOTableWriter( binFormat, false ),
-            new VOTableWriter( DataFormat.FITS, true ),
-        };
+        List<StarTableWriter> wlist = new ArrayList<StarTableWriter>();
+        wlist.add( new VOTableWriter( DataFormat.TABLEDATA, true, version ) );
+        wlist.add( new VOTableWriter( DataFormat.BINARY, true, version ) );
+        if ( version.allowBinary2() ) {
+           wlist.add( new VOTableWriter( DataFormat.BINARY2, true, version ) );
+        }
+        wlist.add( new VOTableWriter( DataFormat.FITS, false, version ) );
+        wlist.add( new VOTableWriter( DataFormat.BINARY, false, version ) );
+        if ( version.allowBinary2() ) {
+            wlist.add( new VOTableWriter( DataFormat.BINARY2, false,
+                                          version ) );
+        }
+        wlist.add( new VOTableWriter( DataFormat.FITS, true ) );
+        return wlist.toArray( new StarTableWriter[ 0 ] );
     }
 }

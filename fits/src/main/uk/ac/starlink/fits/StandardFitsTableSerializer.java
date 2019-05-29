@@ -3,15 +3,21 @@ package uk.ac.starlink.fits;
 import java.io.DataOutput;
 import java.io.IOException;
 import java.lang.reflect.Array;
+import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.List;
+import java.util.logging.Level;
 import java.util.logging.Logger;
 import nom.tam.fits.FitsException;
 import nom.tam.fits.Header;
+import nom.tam.fits.HeaderCard;
 import nom.tam.fits.HeaderCardException;
 import uk.ac.starlink.table.ColumnInfo;
 import uk.ac.starlink.table.DescribedValue;
+import uk.ac.starlink.table.HealpixTableInfo;
 import uk.ac.starlink.table.RowSequence;
 import uk.ac.starlink.table.StarTable;
+import uk.ac.starlink.table.TableFormatException;
 import uk.ac.starlink.table.Tables;
 
 /**
@@ -21,13 +27,22 @@ import uk.ac.starlink.table.Tables;
  * Array-valued columns are all written as fixed size arrays.
  * This class does the hard work for FitsTableWriter.
  *
+ * <p>When writing tables that are marked up using the headers defined in
+ * {@link uk.ac.starlink.table.HealpixTableInfo},
+ * this serializer will attempt to insert FITS headers corresponding
+ * to the HEALPix-FITS convention.
+ *
  * @author   Mark Taylor (Starlink)
+ * @see
+ * <a href="https://healpix.sourceforge.io/data/examples/healpix_fits_specs.pdf"
+ *    >HEALPix-FITS convention</a>
  */
 public class StandardFitsTableSerializer implements FitsTableSerializer {
 
     private static Logger logger = Logger.getLogger( "uk.ac.starlink.fits" );
 
     private final boolean allowSignedByte;
+    private final WideFits wide;
     private StarTable table;
     private ColumnWriter[] colWriters;
     private ColumnInfo[] colInfos;
@@ -38,9 +53,12 @@ public class StandardFitsTableSerializer implements FitsTableSerializer {
      *
      * @param   allowSignedByte  if true, bytes written as FITS signed bytes
      *          (TZERO=-128), if false bytes written as signed shorts
+     * @param   wide   convention for representing over-wide tables;
+     *                 null to avoid this convention
      */
-    StandardFitsTableSerializer( boolean allowSignedByte ) {
+    StandardFitsTableSerializer( boolean allowSignedByte, WideFits wide ) {
         this.allowSignedByte = allowSignedByte;
+        this.wide = wide;
     }
 
     /**
@@ -53,22 +71,15 @@ public class StandardFitsTableSerializer implements FitsTableSerializer {
      * @param  table  the table to be written
      * @param  allowSignedByte  if true, bytes written as FITS signed bytes
      *         (TZERO=-128), if false bytes written as signed shorts
+     * @param   wide   convention for representing over-wide tables;
+     *                 null to avoid this convention
+     * @throws IOException if it won't be possible to write the given table
      */
     public StandardFitsTableSerializer( StarTable table,
-                                        boolean allowSignedByte )
+                                        boolean allowSignedByte, WideFits wide )
             throws IOException {
-        this( allowSignedByte );
+        this( allowSignedByte, wide );
         init( table );
-    }
-
-    /**
-     * Constructs a serializer which will be able to write a given StarTable.
-     * Byte-type columns are written using some default policy.
-     *
-     * @param  table  the table to be written
-     */
-    public StandardFitsTableSerializer( StarTable table ) throws IOException {
-        this( table, true );
     }
 
     /**
@@ -78,6 +89,8 @@ public class StandardFitsTableSerializer implements FitsTableSerializer {
      * Calls {@link #createColumnWriter}.
      *
      * @param  table  table to be written
+     * @throws IOException if it won't be possible to write the given table,
+     *                       for instance if it has too many columns
      */
     final void init( StarTable table ) throws IOException {
         if ( this.table != null ) {
@@ -277,6 +290,7 @@ public class StandardFitsTableSerializer implements FitsTableSerializer {
          * and log a message. */
         colWriters = new ColumnWriter[ ncol ];
         int rbytes = 0;
+        int nUseCol = 0;
         for ( int icol = 0; icol < ncol; icol++ ) {
             if ( useCols[ icol ] ) {
                 ColumnInfo cinfo = colInfos[ icol ];
@@ -291,9 +305,15 @@ public class StandardFitsTableSerializer implements FitsTableSerializer {
                     logger.warning( "Ignoring column " + cinfo.getName() +
                                     " - don't know how to write to FITS" );
                 }
+                else {
+                    nUseCol++;
+                }
                 colWriters[ icol ] = writer;
             }
         }
+
+        /* Check column count is permissible. */
+        FitsConstants.checkColumnCount( wide, nUseCol );
     }
 
     /**
@@ -311,15 +331,30 @@ public class StandardFitsTableSerializer implements FitsTableSerializer {
 
         /* Work out the dimensions in columns and bytes of the table. */
         int rowLength = 0;
+        int extLength = 0;
         int nUseCol = 0;
         int ncol = table.getColumnCount();
         for ( int icol = 0; icol < ncol; icol++ ) {
             ColumnWriter writer = colWriters[ icol ];
             if ( writer != null ) {
                 nUseCol++;
-                rowLength += writer.getLength();
+                int leng = writer.getLength();
+                rowLength += leng;
+                if ( wide != null &&
+                     nUseCol >= wide.getContainerColumnIndex() ) {
+                    extLength += leng;
+                }
             }
         }
+
+        /* Work out the number of standard and extended columns.
+         * We know it is actually possible to write the given number of
+         * columns using the current wide value, because of a check carried
+         * out during initialisation. */
+        int nStdCol = wide != null && nUseCol > wide.getContainerColumnIndex()
+                    ? wide.getContainerColumnIndex()
+                    : nUseCol;
+        boolean hasExtCol = nUseCol > nStdCol;
 
         /* Prepare a FITS header block. */
         Header hdr = new Header();
@@ -332,7 +367,7 @@ public class StandardFitsTableSerializer implements FitsTableSerializer {
         hdr.addValue( "NAXIS2", rowCount, "number of rows in table" );
         hdr.addValue( "PCOUNT", 0, "size of special data area" );
         hdr.addValue( "GCOUNT", 1, "one data group" );
-        hdr.addValue( "TFIELDS", nUseCol, "number of columns" );
+        hdr.addValue( "TFIELDS", nStdCol, "number of columns" );
 
         /* Add EXTNAME record containing table name. */
         String tname = table.getName();
@@ -341,103 +376,139 @@ public class StandardFitsTableSerializer implements FitsTableSerializer {
            .addTrimmedValue( hdr, "EXTNAME", tname, "table name" );
         }
 
+        /* Add extended column header information if applicable. */
+        if ( hasExtCol ) {
+            wide.addExtensionHeader( hdr, nUseCol );
+            AbstractWideFits.logWideWrite( logger, nStdCol, nUseCol );
+        }
+
+        /* If the table is explicitly annotated as a HEALPix map,
+         * add HEALPix-specific headers according to the HEALPix-FITS
+         * convention. */
+        List<DescribedValue> tparams = table.getParameters();
+        if ( HealpixTableInfo.isHealpix( tparams ) ) {
+            HealpixTableInfo hpxInfo = HealpixTableInfo.fromParams( tparams );
+            HeaderCard[] hpxCards = null;
+            try {
+                hpxCards = getHealpixHeaders( hpxInfo );
+            }
+            catch ( TableFormatException e ) {
+                logger.log( Level.WARNING,
+                            "Failed to write HEALPix-specific FITS headers: "
+                            + e.getMessage(), e );
+            }
+            if ( hpxCards != null && hpxCards.length > 0 ) {
+                logger.info( "Adding HEALPix-specific FITS headers" );
+                for ( HeaderCard c : hpxCards ) {
+                    hdr.addValue( c.getKey(), c.getValue(), c.getComment() );
+                }
+            }
+        }
+
         /* Add HDU metadata describing columns. */
         int jcol = 0;
         for ( int icol = 0; icol < ncol; icol++ ) {
             ColumnWriter colwriter = colWriters[ icol ];
             if ( colwriter != null ) {
                 jcol++;
-                String forcol = " for column " + jcol;
-                ColumnInfo colinfo = colInfos[ icol ];
-
-                /* Name. */
-                String name = colinfo.getName();
-                if ( name != null && name.trim().length() > 0 ) {
-                    FitsConstants
-                   .addTrimmedValue( hdr, "TTYPE" + jcol, name,
-                                     "label" + forcol );
+                if ( hasExtCol && jcol == nStdCol ) {
+                    wide.addContainerColumnHeader( hdr, extLength, 0 );
                 }
-
-                /* Format. */
-                String form = colwriter.getFormat();
-                hdr.addValue( "TFORM" + jcol, form, "format" + forcol );
-
-                /* Units. */
-                String unit = colinfo.getUnitString();
-                if ( unit != null && unit.trim().length() > 0 ) {
-                    FitsConstants
-                   .addTrimmedValue( hdr, "TUNIT" + jcol, unit,
-                                     "units" + forcol );
-                }
-
-                /* Blank. */
-                Number bad = colwriter.getBadNumber();
-                if ( bad != null ) {
-                    hdr.addValue( "TNULL" + jcol, bad.longValue(),
-                                  "blank value" + forcol );
-                }
-
-                /* Shape. */
-                int[] dims = colwriter.getDims();
-                if ( dims != null && dims.length > 1 ) {
-                    StringBuffer sbuf = new StringBuffer();
-                    for ( int i = 0; i < dims.length; i++ ) {
-                        sbuf.append( i == 0 ? '(' : ',' );
-                        sbuf.append( dims[ i ] );
-                    }
-                    sbuf.append( ')' );
-                    hdr.addValue( "TDIM" + jcol, sbuf.toString(),
-                                  "dimensions" + forcol );
-                }
-
-                /* Scaling. */
-                double zero = colwriter.getZero();
-                double scale = colwriter.getScale();
-                if ( zero != 0.0 ) {
-                    hdr.addValue( "TZERO" + jcol, zero, "base" + forcol );
-                }
-                if ( scale != 1.0 ) {
-                    hdr.addValue( "TSCALE" + jcol, scale,
-                                  "factor" + forcol );
-                }
-
-                /* Comment (non-standard). */
-                String comm = colinfo.getDescription();
-                if ( comm != null && comm.trim().length() > 0 ) {
-                    try {
-                        hdr.addValue( "TCOMM" + jcol, comm, null );
-                    }
-                    catch ( HeaderCardException e ) {
-                        // never mind.
-                    }
-                }
-
-                /* UCD (non-standard). */
-                String ucd = colinfo.getUCD();
-                if ( ucd != null && ucd.trim().length() > 0 &&
-                     ucd.length() < 68 ) {
-                    try {
-                        hdr.addValue( "TUCD" + jcol, ucd, null );
-                    }
-                    catch ( HeaderCardException e ) {
-                        // never mind.
-                    }
-                }
-
-                /* Utype (non-standard). */
-                String utype = colinfo.getUtype();
-                if ( utype != null && utype.trim().length() > 0
-                                   && utype.trim().length() < 68 ) {
-                    try {
-                        hdr.addValue( "TUTYP" + jcol, utype, null );
-                    }
-                    catch ( HeaderCardException e ) {
-                        // never mind.
-                    }
-                }
+                BintableColumnHeader colhead =
+                      hasExtCol && jcol >= nStdCol
+                    ? wide.createExtendedHeader( nStdCol, jcol )
+                    : BintableColumnHeader.createStandardHeader( jcol );
+                addHeader( hdr, colhead, colInfos[ icol ], colwriter, jcol );
             }
         }
         return hdr;
+    }
+
+    /**
+     * Writes header information for a given column into a header object.
+     *
+     * @param  hdr  destination header
+     * @param  colhead   header key handler for column to write
+     * @param  colinfo   column metadata
+     * @param  colwriter   column writer
+     * @param  column index; first column is 1
+     */
+    private void addHeader( Header hdr, BintableColumnHeader colhead,
+                            ColumnInfo colinfo, ColumnWriter colwriter,
+                            int jcol )
+            throws HeaderCardException {
+        String forcol = " for column " + jcol;
+
+        /* Name. */
+        String name = colinfo.getName();
+        if ( name != null && name.trim().length() > 0 ) {
+            FitsConstants.addTrimmedValue( hdr, colhead.getKeyName( "TTYPE" ),
+                                           name, "label" + forcol );
+        }
+
+        /* Format. */
+        String form = colwriter.getFormat();
+        hdr.addValue( colhead.getKeyName( "TFORM" ), form, "format" + forcol );
+
+        /* Units. */
+        String unit = colinfo.getUnitString();
+        if ( unit != null && unit.trim().length() > 0 ) {
+            FitsConstants.addTrimmedValue( hdr, colhead.getKeyName( "TUNIT" ),
+                                           unit, "units" + forcol );
+        }
+
+        /* Blank. */
+        Number bad = colwriter.getBadNumber();
+        if ( bad != null ) {
+            hdr.addValue( colhead.getKeyName( "TNULL" ), bad.longValue(),
+                          "blank value" + forcol );
+        }
+
+        /* Shape. */
+        int[] dims = colwriter.getDims();
+        if ( dims != null && dims.length > 1 ) {
+            StringBuffer sbuf = new StringBuffer();
+            for ( int i = 0; i < dims.length; i++ ) {
+                sbuf.append( i == 0 ? '(' : ',' );
+                sbuf.append( dims[ i ] );
+            }
+            sbuf.append( ')' );
+            hdr.addValue( colhead.getKeyName( "TDIM" ), sbuf.toString(),
+                          "dimensions" + forcol );
+        }
+
+        /* Scaling. */
+        double zero = colwriter.getZero();
+        double scale = colwriter.getScale();
+        if ( zero != 0.0 ) {
+            hdr.addValue( colhead.getKeyName( "TZERO" ), zero,
+                          "base" + forcol );
+        }
+        if ( scale != 1.0 ) {
+            hdr.addValue( colhead.getKeyName( "TSCALE" ), scale,
+                          "factor" + forcol );
+        }
+
+        /* Comment (non-standard). */
+        String comm = colinfo.getDescription();
+        if ( comm != null && comm.trim().length() > 0 ) {
+            FitsConstants
+           .addStringValue( hdr, colhead.getKeyName( "TCOMM" ), comm, null );
+        }
+
+        /* UCD (non-standard). */
+        String ucd = colinfo.getUCD();
+        if ( ucd != null && ucd.trim().length() > 0 ) {
+            FitsConstants
+           .addStringValue( hdr, colhead.getKeyName( "TUCD" ), ucd, null );
+        }
+
+        /* Utype (non-standard). */
+        String utype = colinfo.getUtype();
+        if ( utype != null && utype.trim().length() > 0 ) {
+            FitsConstants
+           .addStringValue( hdr, colhead.getKeyName( "TUTYP" ), utype, null );
+        }
     }
 
     public void writeData( DataOutput strm ) throws IOException {
@@ -659,6 +730,101 @@ public class StandardFitsTableSerializer implements FitsTableSerializer {
                 }
             }
         }
+    }
+
+    /**
+     * Returns FITS headers specific for a table containing a HEALPix map.
+     * If this method is called the assumption is that the table looks like
+     * it should be a HEALPix map of some sort.  If there are problems
+     * with the metadata that prevent a consistent set of headers from
+     * being generated, a TableFormatException with an informative
+     * message should be thrown.
+     *
+     * @param  hpxInfo  non-null healpix description
+     * @return   array of FITS headers describing healpix information
+     * @throws  TableFormatException  if HEALPix headers could not be generated
+     */
+    protected HeaderCard[] getHealpixHeaders( HealpixTableInfo hpxInfo )
+            throws TableFormatException, HeaderCardException {
+        String ipixColName = hpxInfo.getPixelColumnName();
+        int level = hpxInfo.getLevel();
+        String ordering = hpxInfo.isNest() ? "NESTED" : "RING";
+        HealpixTableInfo.HpxCoordSys csys = hpxInfo.getCoordSys();
+
+        /* Work out if we have explicit or implicit HEALPix pixel indices. */
+        final boolean isExplicit;
+        if ( ipixColName == null ) {
+            isExplicit = false;
+        }
+        else if ( ipixColName.equals( table.getColumnInfo( 0 ).getName() ) ) {
+            isExplicit = true;
+        }
+        else {
+             throw new TableFormatException( "HEALPix pixel index column \""
+                                           + ipixColName + "\""
+                                           + " is not first column" );
+        }
+
+        /* Check we have or can guess the HEALPix level (hence NSIDE),
+         * and that the table row count is not inconsistent with it. */
+        long nrow = rowCount;
+        assert nrow >= 0;
+        if ( level < 0 && ! isExplicit ) {
+            int clevel = Long.numberOfTrailingZeros( nrow / 12 ) / 2;
+            if ( 12 * ( 1L << ( 2 * clevel ) ) == nrow ) {
+                level = clevel;
+                logger.warning( "Inferred HEALPix level " + clevel );
+            }
+        }
+        if ( level < 0 ) {
+            throw new TableFormatException( "No HEALPix level specified" );
+        }
+        if ( ! isExplicit ) {
+            long npix = 12 * ( 1L << ( 2 * level ) );
+            if ( npix != nrow ) {
+                throw new TableFormatException( "Row count does not match level"
+                                              + " for implicitly indexed"
+                                              + " HEALPix table ("
+                                              + nrow + " != " + npix + ")" );
+            }
+        }
+        final long npix = 12 * ( 1L << ( 2 * level ) );
+        final long nside = 1L << level;
+
+        /* Prepare HEALPix format FITS headers. */
+        List<HeaderCard> cards = new ArrayList<HeaderCard>();
+        cards.add( new HeaderCard( "PIXTYPE", "HEALPIX", "HEALPix map" ) );
+        cards.add( new HeaderCard( "NSIDE", nside,
+                                   "HEALPix level parameter" ) );
+        cards.add( new HeaderCard( "ORDERING", ordering,
+                                   "HEALPix index ordering scheme" ) );
+        if ( csys != null ) {
+            cards.add( new HeaderCard( "COORDSYS", csys.getCharString(),
+                                       "HEALPix coordinate system "
+                                     + csys.getWord() ) );
+        }
+        if ( isExplicit ) {
+            cards.add( new HeaderCard( "INDXSCHM", "EXPLICIT",
+                                       "HEALPix indices given explicitly" ) );
+            cards.add( new HeaderCard( "OBS_NPIX", nrow,
+                                       "HEALPix pixel count" ) );
+            if ( nrow < npix ) {
+                cards.add( new HeaderCard( "OBJECT", "PARTIAL",
+                                           "HEALPix sky coverage "
+                                         + "is partial" ) );
+            }
+        }
+        else {
+            cards.add( new HeaderCard( "INDXSCHM", "IMPLICIT",
+                                       "HEALPix indices given implicitly" ) );
+            cards.add( new HeaderCard( "FIRSTPIX", 0,
+                                       "First HEALPix index" ) );
+            cards.add( new HeaderCard( "LASTPIX", npix - 1,
+                                       "Last HEALPix index" ) );
+            cards.add( new HeaderCard( "OBJECT", "FULLSKY",
+                                       "HEALPix sky coverage is full" ) );
+        }
+        return cards.toArray( new HeaderCard[ 0 ] );
     }
 
     /**

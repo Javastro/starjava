@@ -11,6 +11,7 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import javax.swing.Icon;
+import uk.ac.starlink.table.ValueInfo;
 import uk.ac.starlink.ttools.gui.ResourceIcon;
 import uk.ac.starlink.ttools.plot.Range;
 import uk.ac.starlink.ttools.plot.Shader;
@@ -25,8 +26,11 @@ import uk.ac.starlink.ttools.plot2.LayerOpt;
 import uk.ac.starlink.ttools.plot2.PlotLayer;
 import uk.ac.starlink.ttools.plot2.PlotUtil;
 import uk.ac.starlink.ttools.plot2.Plotter;
+import uk.ac.starlink.ttools.plot2.Ranger;
 import uk.ac.starlink.ttools.plot2.Scaler;
 import uk.ac.starlink.ttools.plot2.Scaling;
+import uk.ac.starlink.ttools.plot2.Span;
+import uk.ac.starlink.ttools.plot2.Subrange;
 import uk.ac.starlink.ttools.plot2.Surface;
 import uk.ac.starlink.ttools.plot2.config.ConfigKey;
 import uk.ac.starlink.ttools.plot2.config.ConfigMap;
@@ -206,9 +210,10 @@ public class SpectrogramPlotter
         RampKeySet.Ramp ramp = RAMP_KEYS.createValue( config );
         Shader shader = ramp.getShader();
         Scaling scaling = ramp.getScaling();
+        Subrange dataclip = ramp.getDataClip();
         Color nullColor = config.get( NULLCOLOR_KEY );
         ChannelGrid grid = DEFAULT_CHANGRID;
-        return new SpectroStyle( shader, scaling, nullColor, grid );
+        return new SpectroStyle( shader, scaling, dataclip, nullColor, grid );
     }
 
     public boolean hasReports() {
@@ -228,9 +233,9 @@ public class SpectrogramPlotter
             return new AbstractPlotLayer( this, spectroDataGeom_, dataSpec,
                                           style, layerOpt ) {
                 public Drawing createDrawing( final Surface surface,
-                                              Map<AuxScale,Range> auxRanges,
+                                              Map<AuxScale,Span> auxSpans,
                                               final PaperType paperType ) {
-                    final Range spectroRange = auxRanges.get( SPECTRO_SCALE );
+                    final Span spectroSpan = auxSpans.get( SPECTRO_SCALE );
                     return new UnplannedDrawing() {
                         protected void paintData( Paper paper,
                                                   final DataStore dataStore ) {
@@ -238,7 +243,7 @@ public class SpectrogramPlotter
                                 public void paintDecal( Graphics g ) {
                                     paintSpectrogram( surface, dataStore,
                                                       dataSpec, style,
-                                                      spectroRange, g );
+                                                      spectroSpan, g );
                                 }
                                 public boolean isOpaque() {
                                     return true;
@@ -255,11 +260,21 @@ public class SpectrogramPlotter
                         public int getCoordIndex() {
                             return icSpectrum_;
                         }
+                        public Scaling getScaling() {
+                            return style.scaling_;
+                        }
+                        public ValueInfo getAxisInfo( DataSpec dataSpec ) {
+                            ValueInfo[] infos =
+                                dataSpec.getUserCoordInfos( icSpectrum_ );
+                            return infos != null && infos.length == 1
+                                 ? infos[ 0 ]
+                                 : null;
+                        }
                         public void adjustAuxRange( Surface surface,
                                                     DataSpec dataSpec,
                                                     DataStore dataStore,
                                                     Object[] plans,
-                                                    Range range ) {
+                                                    Ranger ranger ) {
                             TupleSequence tseq =
                                 dataStore.getTupleSequence( dataSpec );
                             while ( tseq.next() ) {
@@ -268,7 +283,7 @@ public class SpectrogramPlotter
                                    .readArrayCoord( tseq, icSpectrum_ );
                                 int nchan = spectrum.length;
                                 for ( int ic = 0; ic < nchan; ic++ ) {
-                                    range.submit( spectrum[ ic ] );
+                                    ranger.submitDatum( spectrum[ ic ] );
                                 }
                             }
                         }
@@ -309,16 +324,16 @@ public class SpectrogramPlotter
      * @param   dataStore  data repository
      * @param   dataSpec  data specifier
      * @param   style   spectrogram style
-     * @param   spectroRange   the range of spectral values
+     * @param   spectroSpan   the range of spectral values
      * @param   g   output graphics context
      */
     private void paintSpectrogram( Surface surface, DataStore dataStore,
                                    DataSpec dataSpec, SpectroStyle style,
-                                   Range spectroRange, Graphics g ) {
+                                   Span spectroSpan, Graphics g ) {
         ChannelGrid grid = style.grid_;
         Shader shader = style.shader_;
         Scaler specScaler =
-            Scaling.createRangeScaler( style.scaling_, spectroRange );
+            spectroSpan.createScaler( style.scaling_, style.dataclip_ );
 
         /* Work out the data bounds of the plotting surface. */
         Rectangle plotBounds = surface.getPlotBounds();
@@ -575,6 +590,7 @@ public class SpectrogramPlotter
     public static class SpectroStyle implements Style {
         private final Shader shader_;
         private final Scaling scaling_;
+        private final Subrange dataclip_;
         private final Color nullColor_;
         private final ChannelGrid grid_;
 
@@ -583,13 +599,15 @@ public class SpectrogramPlotter
          *
          * @param   shader  shader
          * @param   scaling   maps data values to shader ramp
+         * @param   dataclip  scaling range adjustment
          * @param   nullColor  colour to use for blank spectral values
          * @param   grid    channel bounds grid
          */
-        public SpectroStyle( Shader shader, Scaling scaling,
+        public SpectroStyle( Shader shader, Scaling scaling, Subrange dataclip,
                              Color nullColor, ChannelGrid grid ) {
             shader_ = shader;
             scaling_ = scaling;
+            dataclip_ = dataclip;
             nullColor_ = nullColor;
             grid_ = grid;
         }
@@ -603,6 +621,7 @@ public class SpectrogramPlotter
             int code = 9703;
             code = 23 * code + shader_.hashCode();
             code = 23 * code + scaling_.hashCode();
+            code = 23 * code + dataclip_.hashCode();
             code = 23 * code + PlotUtil.hashCode( nullColor_ );
             code = 23 * code + PlotUtil.hashCode( grid_ );
             return code;
@@ -614,6 +633,7 @@ public class SpectrogramPlotter
                 SpectroStyle other = (SpectroStyle) o;
                 return this.shader_.equals( other.shader_ )
                     && this.scaling_ == other.scaling_
+                    && this.dataclip_ == other.dataclip_
                     && PlotUtil.equals( this.nullColor_, other.nullColor_ )
                     && PlotUtil.equals( this.grid_, other.grid_ );
             }

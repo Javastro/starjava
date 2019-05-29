@@ -1,7 +1,6 @@
 package uk.ac.starlink.ttools.jel;
 
 import java.io.IOException;
-import java.util.Iterator;
 import java.util.List;
 import java.util.Random;
 import java.util.logging.Logger;
@@ -18,7 +17,7 @@ import uk.ac.starlink.table.Tables;
  * symbols are understood:
  * <dl>
  * 
- * <dt>"$0" or "$Index" or (deprecated) "index" (case insensitive):
+ * <dt>"$0" or "$index" or (deprecated) "index" (case insensitive):
  * <dd>the 1-based index of the current row.
  *
  * <dt>"$ncol"</dt>
@@ -51,8 +50,8 @@ import uk.ac.starlink.table.Tables;
  *     The first matching column, or if there is none the first matching
  *     parameter value is returned.  UType matching is case-insensitive.
  *
- * <dt>"RANDOM":
- * <dd>The special token "RANDOM" evaluates to a double-precision random
+ * <dt>"$random" (case insensitive) or (deprecated) "RANDOM":
+ * <dd>The special token "$random" evaluates to a double-precision random
  *     number <code>0&lt;=x&lt;1</code> which is constant for a given row
  *     within this reader.  The quality of the random numbers may not
  *     be particularly good.
@@ -140,7 +139,9 @@ public abstract class StarTableJELRowReader extends JELRowReader {
     }
 
     protected Class getColumnClass( int icol ) {
-        return table_.getColumnInfo( icol ).getContentClass();
+        return icol < table_.getColumnCount()
+             ? table_.getColumnInfo( icol ).getContentClass()
+             : null;
     }
 
     protected int getColumnIndexByName( String name ) {
@@ -195,14 +196,13 @@ public abstract class StarTableJELRowReader extends JELRowReader {
      * by Utype (using the {@link #UTYPE_PREFIX} prefix).
      */
     protected Constant getConstantByName( String name ) {
-        List paramList = table_.getParameters();
+        List<DescribedValue> paramList = table_.getParameters();
 
         /* Try it as a UCD specification. */
         String ucdSpec = stripPrefix( name, UCD_PREFIX );
         if ( ucdSpec != null ) {
             Pattern ucdRegex = getUcdRegex( ucdSpec );
-            for ( Iterator it = paramList.iterator(); it.hasNext(); ) {
-                DescribedValue dval = (DescribedValue) it.next();
+            for ( DescribedValue dval : paramList ) {
                 String ucd = dval.getInfo().getUCD();
                 if ( ucd != null && ucdRegex.matcher( ucd ).matches() ) {
                     return createDescribedValueConstant( dval );
@@ -215,8 +215,7 @@ public abstract class StarTableJELRowReader extends JELRowReader {
         String utypeSpec = stripPrefix( name, UTYPE_PREFIX );
         if ( utypeSpec != null ) {
             Pattern utypeRegex = getUtypeRegex( utypeSpec );
-            for ( Iterator it = paramList.iterator(); it.hasNext(); ) {
-                DescribedValue dval = (DescribedValue) it.next();
+            for ( DescribedValue dval : paramList ) {
                 String utype = dval.getInfo().getUtype();
                 if ( utype != null && utypeRegex.matcher( utype ).matches() ) {
                     return createDescribedValueConstant( dval );
@@ -229,14 +228,12 @@ public abstract class StarTableJELRowReader extends JELRowReader {
          * case-insensitive. */
         String pname = stripPrefix( name, PARAM_PREFIX );
         if ( pname != null ) {
-            for ( Iterator it = paramList.iterator(); it.hasNext(); ) {
-                DescribedValue dval = (DescribedValue) it.next();
+            for ( DescribedValue dval : paramList ) {
                 if ( pname.equals( dval.getInfo().getName() ) ) {
                     return createDescribedValueConstant( dval );
                 }
             }
-            for ( Iterator it = paramList.iterator(); it.hasNext(); ) {
-                DescribedValue dval = (DescribedValue) it.next();
+            for ( DescribedValue dval : paramList ) {
                 if ( pname.equalsIgnoreCase( dval.getInfo().getName() ) ) {
                     return createDescribedValueConstant( dval );
                 }
@@ -277,8 +274,8 @@ public abstract class StarTableJELRowReader extends JELRowReader {
      * <li>"$0", "index" or "$index" gives the (1-based) row number
      * <li>"$ncol" gives the number of columns in the table
      * <li>"$nrow" gives the number of rows in the table (null if unknown)
-     * <li>"RANDOM" returns a double random number, always the same for a
-     *     given row
+     * <li>"$random" or "RANDOM" returns a double random number,
+     *      always the same for a given row
      * </ul>
      */
     protected Constant getSpecialByName( String name ) {
@@ -294,7 +291,8 @@ public abstract class StarTableJELRowReader extends JELRowReader {
                 }
             };
         }
-        else if ( name.equals( "RANDOM" ) ) {
+        else if ( name.equalsIgnoreCase( "$random" ) ||
+                  name.equals( "RANDOM" ) ) {
             return new Constant() {
                 public Class getContentClass() {
                     return Double.class;

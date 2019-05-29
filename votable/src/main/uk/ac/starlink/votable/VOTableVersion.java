@@ -18,7 +18,7 @@ import javax.xml.validation.SchemaFactory;
  * @author   Mark Taylor
  * @since    15 Nov 2012
  */
-public abstract class VOTableVersion {
+public abstract class VOTableVersion implements Comparable<VOTableVersion> {
 
     /** VOTable 1.0. */
     public static final VOTableVersion V10;
@@ -32,19 +32,23 @@ public abstract class VOTableVersion {
     /** VOTable 1.3. */
     public static final VOTableVersion V13;
 
+    /** VOTable 1.4. */
+    public static final VOTableVersion V14;
+
     private static final Map<String,VOTableVersion> VERSION_MAP =
         Collections.unmodifiableMap( createMap( new VOTableVersion[] {
             V10 = new VersionLike10( "1.0" ),
             V11 = new VersionLike11( "1.1" ),
             V12 = new VersionLike12( "1.2" ),
             V13 = new VersionLike13( "1.3" ),
+            V14 = new VersionLike14( "1.4" ),
         } ) );
 
     /** 
      * Default VOTable version number which output will conform to
      * if not otherwise specified ({@value}).
      */
-    public static final String DEFAULT_VERSION_STRING = "1.2";
+    public static final String DEFAULT_VERSION_STRING = "1.3";
 
     /**
      * System property name whose value gives the default VOTable version
@@ -116,6 +120,10 @@ public abstract class VOTableVersion {
      * @return  local URL from which the DTD can be retrieved, or null
      */
     public abstract URL getDtdUrl();
+
+    public int compareTo( VOTableVersion other ) {
+        return this.versionNumber_.compareTo( other.versionNumber_ );
+    }
    
     /**
      * Returns version number.
@@ -148,6 +156,13 @@ public abstract class VOTableVersion {
      * @return  true iff xtype attribute is allowed
      */
     public abstract boolean allowXtype();
+
+    /**
+     * Indicates whether the TIMESYS element is supported in this version.
+     *
+     * @return  true iff TIMESYS is allowed
+     */
+    public abstract boolean allowTimesys();
 
     /**
      * Returns a number-&gt;version map for all known versions.
@@ -239,6 +254,9 @@ public abstract class VOTableVersion {
             return false;
         }
         public boolean allowBinary2() {
+            return false;
+        }
+        public boolean allowTimesys() {
             return false;
         }
         public Schema getSchema() {
@@ -339,12 +357,48 @@ public abstract class VOTableVersion {
             super( version );
         }
 
+        /* Note the namespace is fixed for all VOTable 1.* versions
+         * subsequent to v1.3, though the schema location is not;
+         * See the IVOA Endorsed Note "XML Schema Versioning Policies"
+         * (http://www.ivoa.net/documents/Notes/XMLVers/) and the commentary
+         * in VOTable 1.4 section 3 to explain why the "v1.3" URI is used. */
+
+        @Override
+        public final String getXmlNamespace() {
+            return "http://www.ivoa.net/xml/VOTable/v1.3";
+        }
+        @Override
+        public final String getSchemaLocation() {
+            return "http://www.ivoa.net/xml/VOTable/votable-"
+                 + getVersionNumber() + ".xsd";
+        }
+
         @Override
         public boolean allowEmptyTd() {
             return true;
         }
         @Override
         public boolean allowBinary2() {
+            return true;
+        }
+    }
+
+    /**
+     * VOTable 1.4-like version instance.
+     */
+    private static class VersionLike14 extends VersionLike13 {
+
+        /**
+         * Constructor.
+         *
+         * @param  version   version number
+         */
+        VersionLike14( String version ) {
+            super( version );
+        }
+
+        @Override
+        public boolean allowTimesys() {
             return true;
         }
     }

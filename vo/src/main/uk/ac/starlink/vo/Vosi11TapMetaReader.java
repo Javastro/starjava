@@ -10,8 +10,7 @@ import org.xml.sax.SAXException;
 import uk.ac.starlink.util.ContentCoding;
 
 /**
- * TapMetaReader that works with the proposed VOSI-1.1 scalable /tables
- * endpoint.  This is currently as defined in updates to VOSI-1.1-PR20160413.
+ * TapMetaReader that works with the VOSI-1.1 scalable /tables endpoint.
  * It should work correctly with VOSI 1.1 services and also with VOSI 1.0
  * services and services (like, at time of writing, TAPVizieR)
  * that declare themselves as VOSI 1.0 but refuse to emit table details
@@ -59,7 +58,7 @@ public class Vosi11TapMetaReader implements TapMetaReader {
 
     public String getMeans() {
         String note = detailMode_.note_;
-        return "VOSI-1.1-PR" + ( note == null ? "" : ( ", " + note ) );
+        return "VOSI-1.1" + ( note == null ? "" : ( ", " + note ) );
     }
 
     public String getSource() {
@@ -180,7 +179,8 @@ public class Vosi11TapMetaReader implements TapMetaReader {
      * Reads a tableset document from the base URL of this reader,
      * as modified by a given subpath and detail mode.
      *
-     * @param  subPath  url subpath
+     * @param  subPath  url subpath, normally including a leading '/',
+     *                  or null for the base URL
      * @param  detailMode  detail mode, or null if not applicable
      * @return   handler that has performed a parse on the URL corresponding
      *           to the given arguments
@@ -190,7 +190,7 @@ public class Vosi11TapMetaReader implements TapMetaReader {
             throws IOException {
         String surl = url_.toString();
         if ( subPath != null && subPath.length() > 0 ) {
-            surl += "/" + subPath;
+            surl += subPath;
         }
         String query = detailMode == null ? null : detailMode.query_;
         if ( query != null ) {
@@ -218,15 +218,15 @@ public class Vosi11TapMetaReader implements TapMetaReader {
          * only tables no columns or fkeys.
          */
         MIN( "detail=min", "minimal detail requested",
-             "if supported, all metadata is read at once" ),
+             "if supported, " +
+             "column and foreign-key metadata is only read as required" ),
 
         /**
          * Detail=max.  Hints that a full tableset query should return
          * columns and fkeys along with tables.
          */
         MAX( "detail=max", "full detail requested",
-             "if supported, " +
-             "column and foreign-key metadata is only read as required" ),
+             "if supported, all metadata is read at once" ),
 
         /**
          * No detail preference.  No hint to service whether column and fkey

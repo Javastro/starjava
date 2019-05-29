@@ -6,6 +6,8 @@ import javax.swing.Icon;
 import uk.ac.starlink.topcat.BasicAction;
 import uk.ac.starlink.topcat.ResourceIcon;
 import uk.ac.starlink.topcat.TopcatListener;
+import uk.ac.starlink.topcat.TopcatModel;
+import uk.ac.starlink.topcat.TypedListModel;
 import uk.ac.starlink.ttools.plot2.Plotter;
 import uk.ac.starlink.ttools.plot2.config.Specifier;
 import uk.ac.starlink.ttools.plot2.data.CoordGroup;
@@ -14,7 +16,7 @@ import uk.ac.starlink.ttools.plot2.layer.HealpixPlotter;
 import uk.ac.starlink.ttools.plot2.layer.SpectrogramPlotter;
 
 /**
- * Action for adding a single-plotter layer control to the plot stack.
+ * Action for adding a layer control to the plot stack.
  *
  * @author   Mark Taylor
  * @since    25 Jul 2013
@@ -22,6 +24,7 @@ import uk.ac.starlink.ttools.plot2.layer.SpectrogramPlotter;
 public abstract class LayerControlAction extends BasicAction {
 
     private final ControlStack stack_;
+    private final Plotter plotter_;
 
     /**
      * Constructs a LayerControlAction from name, icon and description.
@@ -31,12 +34,15 @@ public abstract class LayerControlAction extends BasicAction {
      *                      will add; it may get doctored to generate the
      *                      icon for this action
      * @param   descrip  action description
+     * @param   plotter  single plotter associated with this layer control,
+     *                   may be null
      * @param   stack   plot stack
      */
     public LayerControlAction( String name, Icon layerIcon, String descrip,
-                               ControlStack stack ) {
+                               Plotter plotter, ControlStack stack ) {
         super( name, ResourceIcon.toAddIcon( layerIcon ), descrip );
         stack_ = stack;
+        plotter_ = plotter;
     }
 
     /**
@@ -50,7 +56,7 @@ public abstract class LayerControlAction extends BasicAction {
               plotter.getPlotterIcon(),
               "Add a new " + plotter.getPlotterName().toLowerCase()
                            + " layer control to the stack",
-              stack );
+              plotter, stack );
     }
 
     /**
@@ -65,12 +71,23 @@ public abstract class LayerControlAction extends BasicAction {
     }
 
     /**
+     * Returns the single plotter associated with this action, if any.
+     * For instances with no single plotter, null is returned.
+     *
+     * @return  plotter for this action, or null
+     */
+    public Plotter getPlotter() {
+        return plotter_;
+    }
+
+    /**
      * Attempts to return an instance of this class corresponding to
      * a given plotter.  If no suitable implementation is available,
      * null is returned.
      *
      * @param  plotter   plotter to provide an action for
      * @param  stack    stack to which controls are to be added
+     * @param  tablesModel  list of available tables
      * @param  zfact    zone id factory
      * @param  nextSupplier  manages global dispensing for some style options
      * @param  tcListener  listener for TopcatEvents
@@ -80,6 +97,7 @@ public abstract class LayerControlAction extends BasicAction {
      */
     public static LayerControlAction
             createPlotterAction( final Plotter plotter, ControlStack stack,
+                                 final TypedListModel<TopcatModel> tablesModel,
                                  final ZoneFactory zfact,
                                  final NextSupplier nextSupplier,
                                  final TopcatListener tcListener,
@@ -115,8 +133,8 @@ public abstract class LayerControlAction extends BasicAction {
                     Specifier<ZoneId> zs0 = zfact.createZoneSpecifier();
                     Configger configger = baseConfigger.layerConfigger( zs0 );
                     Specifier<ZoneId> zsel = zfact.isSingleZone() ? null : zs0;
-                    return new SpectrogramLayerControl( sPlotter, zsel,
-                                                        configger );
+                    return new SpectrogramLayerControl( sPlotter, tablesModel,
+                                                        zsel, configger );
                 }
             };
         }
@@ -127,7 +145,8 @@ public abstract class LayerControlAction extends BasicAction {
                     Specifier<ZoneId> zs0 = zfact.createZoneSpecifier();
                     Configger configger = baseConfigger.layerConfigger( zs0 );
                     Specifier<ZoneId> zsel = zfact.isSingleZone() ? null : zs0;
-                    return new HealpixLayerControl( hPlotter, zsel, configger );
+                    return new HealpixLayerControl( hPlotter, tablesModel,
+                                                    zsel, configger );
                 }
             };
         }
@@ -140,11 +159,23 @@ public abstract class LayerControlAction extends BasicAction {
                     Specifier<ZoneId> zs0 = zfact.createZoneSpecifier();
                     Configger configger = baseConfigger.layerConfigger( zs0 );
                     Specifier<ZoneId> zsel = zfact.isSingleZone() ? null : zs0;
-                    return new SingleFormLayerControl( posCoordPanel, zsel,
+                    return new SingleFormLayerControl( posCoordPanel,
+                                                       tablesModel, zsel,
                                                        true, nextSupplier,
                                                        tcListener,
                                                        plotter.getPlotterIcon(),
                                                        plotter, configger );
+                }
+            };
+        }
+        else if ( cgrp.getPositionCount() == 0 &&
+                  cgrp.getExtraCoords().length == 0 ) {
+            return new LayerControlAction( plotter, stack ) {
+                public LayerControl createLayerControl() {
+                    Specifier<ZoneId> zs0 = zfact.createZoneSpecifier();
+                    Configger configger = baseConfigger.layerConfigger( zs0 );
+                    Specifier<ZoneId> zsel = zfact.isSingleZone() ? null : zs0;
+                    return new DatalessLayerControl( plotter, zsel, configger );
                 }
             };
         }
@@ -162,8 +193,8 @@ public abstract class LayerControlAction extends BasicAction {
                     Configger configger = baseConfigger.layerConfigger( zs0 );
                     Specifier<ZoneId> zsel = zfact.isSingleZone() ? null : zs0;
                     return new BasicCoordLayerControl( plotter, zsel,
-                                                       coordPanel, configger,
-                                                       false );
+                                                       coordPanel, tablesModel,
+                                                       configger, false );
                 }
             };
         }

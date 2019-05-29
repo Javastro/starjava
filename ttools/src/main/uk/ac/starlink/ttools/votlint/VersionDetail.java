@@ -20,6 +20,7 @@ public abstract class VersionDetail {
     private static final VersionDetail V11;
     private static final VersionDetail V12;
     private static final VersionDetail V13;
+    private static final VersionDetail V14;
     private static final VersionDetail DUMMY = new DummyVersionDetail();
     private static final Map<VOTableVersion,VersionDetail> VERSION_MAP =
             createMap( new VersionDetail[] {
@@ -27,6 +28,7 @@ public abstract class VersionDetail {
         V11 = new VersionDetail11( VOTableVersion.V11 ),
         V12 = new VersionDetail12( VOTableVersion.V12 ),
         V13 = new VersionDetail13( VOTableVersion.V13 ),
+        V14 = new VersionDetail14( VOTableVersion.V14 ),
     } );
 
     /**
@@ -214,13 +216,18 @@ public abstract class VersionDetail {
                 hasID = true;
                 hasName = true;
                 map.put( "ref",
-                         new RefChecker( new String[] { "COOSYS", "GROUP" } ) );
+                         new RefChecker( new String[] { "COOSYS", "TIMESYS",
+                                                        "GROUP" } ) );
             }
             else if ( "FITS".equals( name ) ) {
             }
             else if ( "INFO".equals( name ) ) {
                 hasID = true;
-                hasName = true;
+
+                /* INFO has a name attribute.  However, we don't set hasName
+                 * here, since multiple INFOs with the same name in the same
+                 * scope is probably reasonable, so we don't want to emit
+                 * warnings in that case. */
             }
             else if ( "LINK".equals( name ) ) {
                 hasID = true;
@@ -237,7 +244,8 @@ public abstract class VersionDetail {
                 hasName = true;
                 map.put( "value", new ParamHandler.ValueChecker() );
                 map.put( "ref",
-                         new RefChecker( new String[] { "COOSYS", "GROUP" } ) );
+                         new RefChecker( new String[] { "COOSYS", "TIMESYS",
+                                                        "FIELD", "GROUP" } ) );
             }
             else if ( "RESOURCE".equals( name ) ) {
                 hasID = true;
@@ -255,6 +263,11 @@ public abstract class VersionDetail {
             }
             else if ( "TD".equals( name ) ) {
                 map.put( "ref", new RefChecker( new String[ 0 ] ) );
+            }
+            else if ( "TIMESYS".equals( name ) ) {
+                hasID = true;
+                map.put( "timescale", VocabChecker.TIMESCALE );
+                map.put( "refposition", VocabChecker.REFPOSITION );
             }
             else if ( "TR".equals( name ) ) {
             }
@@ -337,7 +350,8 @@ public abstract class VersionDetail {
                 return new ElementHandler() {
                     public void startElement() {
                         super.startElement();
-                        info( "COOSYS is deprecated at VOTable 1.2" );
+                        info( "COOSYS is deprecated at VOTable 1.2"
+                            + " (though reprieved at 1.3)" );
                     }
                 };
             }
@@ -369,7 +383,7 @@ public abstract class VersionDetail {
         }
 
         protected ElementHandler createElementHandler( String name ) {
-            ElementHandler handler = V12.createElementHandler( name );
+            ElementHandler handler = V11.createElementHandler( name );
             if ( handler != null ) {
                 return handler;
             }
@@ -384,6 +398,25 @@ public abstract class VersionDetail {
         protected Map<String,AttributeChecker>
                createAttributeCheckers( String name ) {
             return V12.createAttributeCheckers( name );
+        }
+    }
+
+    /**
+     * VersionDetail implementation for VOTable 1.4.
+     */
+    private static class VersionDetail14 extends VersionDetail {
+
+        VersionDetail14( VOTableVersion version ) {
+            super( version );
+        }
+
+        protected ElementHandler createElementHandler( String name ) {
+            return V13.createElementHandler( name );
+        }
+
+        protected Map<String,AttributeChecker>
+                createAttributeCheckers( String name ) {
+            return V13.createAttributeCheckers( name );
         }
     }
 

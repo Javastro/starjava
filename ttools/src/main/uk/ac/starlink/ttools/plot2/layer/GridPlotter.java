@@ -13,8 +13,9 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import javax.swing.Icon;
+import uk.ac.starlink.table.DefaultValueInfo;
+import uk.ac.starlink.table.ValueInfo;
 import uk.ac.starlink.ttools.gui.ResourceIcon;
-import uk.ac.starlink.ttools.plot.Range;
 import uk.ac.starlink.ttools.plot.Shader;
 import uk.ac.starlink.ttools.plot.Shaders;
 import uk.ac.starlink.ttools.plot.Style;
@@ -28,18 +29,22 @@ import uk.ac.starlink.ttools.plot2.LayerOpt;
 import uk.ac.starlink.ttools.plot2.PlotLayer;
 import uk.ac.starlink.ttools.plot2.PlotUtil;
 import uk.ac.starlink.ttools.plot2.Plotter;
+import uk.ac.starlink.ttools.plot2.Ranger;
 import uk.ac.starlink.ttools.plot2.ReportKey;
 import uk.ac.starlink.ttools.plot2.ReportMap;
 import uk.ac.starlink.ttools.plot2.ReportMeta;
 import uk.ac.starlink.ttools.plot2.Scaler;
 import uk.ac.starlink.ttools.plot2.Scaling;
+import uk.ac.starlink.ttools.plot2.Span;
 import uk.ac.starlink.ttools.plot2.Subrange;
 import uk.ac.starlink.ttools.plot2.Surface;
 import uk.ac.starlink.ttools.plot2.config.ConfigKey;
 import uk.ac.starlink.ttools.plot2.config.ConfigMap;
 import uk.ac.starlink.ttools.plot2.config.ConfigMeta;
 import uk.ac.starlink.ttools.plot2.config.DoubleConfigKey;
+import uk.ac.starlink.ttools.plot2.config.OptionConfigKey;
 import uk.ac.starlink.ttools.plot2.config.RampKeySet;
+import uk.ac.starlink.ttools.plot2.config.SliderSpecifier;
 import uk.ac.starlink.ttools.plot2.config.StyleKeys;
 import uk.ac.starlink.ttools.plot2.data.Coord;
 import uk.ac.starlink.ttools.plot2.data.CoordGroup;
@@ -63,6 +68,10 @@ public class GridPlotter implements Plotter<GridPlotter.GridStyle> {
     private final boolean transparent_;
     private final boolean reportAuxKeys_;
 
+    /** Weighting coordinate. */
+    private static final FloatingCoord WEIGHT_COORD =
+        FloatingCoord.WEIGHT_COORD;
+
     /** ReportKey for actual X bin extent. */
     public static final ReportKey<Double> XBINWIDTH_KEY =
         createBinWidthReportKey( 'x' );
@@ -85,10 +94,30 @@ public class GridPlotter implements Plotter<GridPlotter.GridStyle> {
     /** Config key for Y bin phase. */
     public static final ConfigKey<Double> YPHASE_KEY = createPhaseKey( 'y' );
 
+    /** Config key for combination mode. */
+    public static final ConfigKey<Combiner> COMBINER_KEY =
+        new OptionConfigKey<Combiner>(
+            new ConfigMeta( "combine", "Combine" )
+           .setShortDescription( "Value combination mode" )
+           .setXmlDescription( new String[] {
+               "<p>Defines how values contributing to the same grid cell",
+               "are combined together to produce the value",
+               "assigned to that cell, and hence its colour.",
+               "The combined values are the weights, but if the",
+               "<code>" + WEIGHT_COORD.getInput().getMeta().getShortName()
+                        + "</code> coordinate",
+               "is left blank, a weighting of unity is assumed.",
+               "</p>",
+            } )
+        , Combiner.class, Combiner.getKnownCombiners(), Combiner.MEAN ) {
+        public String getXmlDescription( Combiner combiner ) {
+            return combiner.getDescription();
+        }
+    }.setOptionUsage()
+     .addOptionsXml();
+
     private static final AuxScale SCALE = AuxScale.COLOR;
     private static final RampKeySet RAMP_KEYS = StyleKeys.AUX_RAMP;
-    private static final FloatingCoord WEIGHT_COORD =
-        FloatingCoord.WEIGHT_COORD;
     public static final ConfigKey<Double> TRANSPARENCY_KEY =
         StyleKeys.TRANSPARENCY;
     private static final CoordGroup COORD_GROUP =
@@ -163,7 +192,7 @@ public class GridPlotter implements Plotter<GridPlotter.GridStyle> {
         List<ConfigKey> keyList = new ArrayList<ConfigKey>();
         keyList.add( XBINSIZER_KEY );
         keyList.add( YBINSIZER_KEY );
-        keyList.add( StyleKeys.COMBINER );
+        keyList.add( COMBINER_KEY );
         if ( reportAuxKeys_ ) {
             keyList.addAll( Arrays.asList( RAMP_KEYS.getKeys() ) );
         }
@@ -180,13 +209,14 @@ public class GridPlotter implements Plotter<GridPlotter.GridStyle> {
         BinSizer ySizer = config.get( YBINSIZER_KEY );
         double xPhase = config.get( XPHASE_KEY ).doubleValue();
         double yPhase = config.get( YPHASE_KEY ).doubleValue();
-        Combiner combiner = config.get( StyleKeys.COMBINER );
+        Combiner combiner = config.get( COMBINER_KEY );
         RampKeySet.Ramp ramp = RAMP_KEYS.createValue( config );
         Scaling scaling = ramp.getScaling();
+        Subrange dataclip = ramp.getDataClip();
         float scaleAlpha = 1f - config.get( TRANSPARENCY_KEY ).floatValue();
         Shader shader = Shaders.fade( ramp.getShader(), scaleAlpha );
         return new GridStyle( xSizer, ySizer, xPhase, yPhase,
-                              scaling, shader, combiner );
+                              scaling, dataclip, shader, combiner );
     }
 
     public PlotLayer createLayer( DataGeom geom, DataSpec dataSpec,
@@ -271,7 +301,9 @@ public class GridPlotter implements Plotter<GridPlotter.GridStyle> {
             "that value multiplied by the bin width.",
             "</p>",
         } );
-        return DoubleConfigKey.createSliderKey( meta, 0, 0, 1, false );
+        return DoubleConfigKey
+              .createSliderKey( meta, 0, 0, 1, false, false,
+                                SliderSpecifier.TextOption.ENTER_ECHO );
     }
 
     /**
@@ -320,15 +352,18 @@ public class GridPlotter implements Plotter<GridPlotter.GridStyle> {
      * @param  g  graphics context
      * @param  pixer   defines pixel grid
      * @param  binResult  grid data
+     * @param  ctype   combiner type
      * @param  scaler   scales bin values to unit range
      * @param  colorModel  colour map; index zero corresponds to transparency
      * @param  surface   plot surface
      */
     private static void paintBins( Graphics g, GridPixer pixer,
                                    BinList.Result binResult,
+                                   Combiner.Type ctype,
                                    Scaler scaler, IndexColorModel colorModel,
                                    PlanarSurface surface ) {
         int ncolor = colorModel.getMapSize() - 1;
+        double binFactor = pixer.getBinFactor( ctype );
 
         /* Sample bin grid onto output pixel grid. */
         if ( true ) {
@@ -351,7 +386,7 @@ public class GridPlotter implements Plotter<GridPlotter.GridStyle> {
                 if ( ib >= 0 ) {
                     if ( ib != ib0 ) {
                         ib0 = ib;
-                        double dval = binResult.getBinValue( ib );
+                        double dval = binFactor * binResult.getBinValue( ib );
                         sval = Double.isNaN( dval )
                              ? 0
                              : Math.min( 1 + (int) ( scaler.scaleValue( dval )
@@ -393,7 +428,7 @@ public class GridPlotter implements Plotter<GridPlotter.GridStyle> {
                 for ( int ix = ixlo; ix <= ixhi; ix++ ) {
                     int ibin = pixer.getBinIndex( ix, iy );
                     assert ibin >= 0;
-                    double dval = binResult.getBinValue( ibin );
+                    double dval = binFactor * binResult.getBinValue( ibin );
                     if ( ! Double.isNaN( dval ) ) {
                         int sval =
                             Math.min( 1 + (int) ( scaler.scaleValue( dval )
@@ -438,6 +473,7 @@ public class GridPlotter implements Plotter<GridPlotter.GridStyle> {
         private final double xPhase_;
         private final double yPhase_;
         private final Scaling scaling_;
+        private final Subrange dataclip_;
         private final Shader shader_;
         private final Combiner combiner_;
 
@@ -450,17 +486,20 @@ public class GridPlotter implements Plotter<GridPlotter.GridStyle> {
          * @param  yPhase  Y axis bin reference point, 0..1
          * @param  scaling   scaling function for mapping densities to
          *                   colour map entries
+         * @param  dataclip  scaling input adjustment subrange
          * @param  shader   colour map
          * @param  combiner  value combination mode for bin calculation
          */
         public GridStyle( BinSizer xSizer, BinSizer ySizer,
-                          double xPhase, double yPhase,
-                          Scaling scaling, Shader shader, Combiner combiner ) {
+                          double xPhase, double yPhase, Scaling scaling,
+                          Subrange dataclip, Shader shader,
+                          Combiner combiner ) {
             xSizer_ = xSizer;
             ySizer_ = ySizer;
             xPhase_ = xPhase;
             yPhase_ = yPhase;
             scaling_ = scaling;
+            dataclip_ = dataclip;
             shader_ = shader;
             combiner_ = combiner;
         }
@@ -477,6 +516,7 @@ public class GridPlotter implements Plotter<GridPlotter.GridStyle> {
             code = 23 * code + Float.floatToIntBits( (float) xPhase_ );
             code = 23 * code + Float.floatToIntBits( (float) yPhase_ );
             code = 23 * code + scaling_.hashCode();
+            code = 23 * code + dataclip_.hashCode();
             code = 23 * code + shader_.hashCode();
             code = 23 * code + combiner_.hashCode();
             return code;
@@ -491,6 +531,7 @@ public class GridPlotter implements Plotter<GridPlotter.GridStyle> {
                     && this.xPhase_ == other.xPhase_
                     && this.yPhase_ == other.yPhase_
                     && this.scaling_.equals( other.scaling_ )
+                    && this.dataclip_.equals( other.dataclip_ )
                     && this.shader_.equals( other.shader_ )
                     && this.combiner_.equals( other.combiner_ );
             }
@@ -526,10 +567,10 @@ public class GridPlotter implements Plotter<GridPlotter.GridStyle> {
         }
 
         public Drawing createDrawing( Surface surface,
-                                      Map<AuxScale,Range> auxRanges,
+                                      Map<AuxScale,Span> auxSpans,
                                       PaperType ptype ) {
             return new GridDrawing( (PlanarSurface) surface,
-                                    auxRanges.get( SCALE ), ptype );
+                                    auxSpans.get( SCALE ), ptype );
         }
 
         public Map<AuxScale,AuxReader> getAuxRangers() {
@@ -538,9 +579,15 @@ public class GridPlotter implements Plotter<GridPlotter.GridStyle> {
                 public int getCoordIndex() {
                     return icWeight_;
                 }
+                public ValueInfo getAxisInfo( DataSpec dataSpec ) {
+                    return getCombinedInfo( dataSpec );
+                }
+                public Scaling getScaling() {
+                    return gstyle_.scaling_;
+                }
                 public void adjustAuxRange( Surface surface, DataSpec dataSpec,
                                             DataStore dataStore, Object[] plans,
-                                            Range range ) {
+                                            Ranger ranger ) {
 
                     /* Work out the grid we need to sample over. */
                     PlanarSurface psurf = (PlanarSurface) surface;
@@ -563,7 +610,7 @@ public class GridPlotter implements Plotter<GridPlotter.GridStyle> {
 
                     /* Use the grid pixer and binResult got by either means
                      * to adjust the aux range. */
-                    extendRange( range, psurf, pixer, binResult );
+                    extendRange( ranger, psurf, pixer, binResult );
                 }
             } );
             return map;
@@ -686,17 +733,19 @@ public class GridPlotter implements Plotter<GridPlotter.GridStyle> {
         }
 
         /**
-         * Extends a given range object to accomodate values in a supplied
+         * Updates a given ranger object to accomodate values in a supplied
          * data grid.
          *
-         * @param   range  range object to adjust
+         * @param   ranger  ranger object to update
          * @param   surface   plot surface over which data is to be surveyed
          * @param   pixer    defines grid geometry
          * @param   binResult   accumulated grid data
          */
-        private void extendRange( Range range, PlanarSurface surface,
+        private void extendRange( Ranger ranger, PlanarSurface surface,
                                   GridPixer pixer, BinList.Result binResult ) {
             double[][] dlims = surface.getDataLimits();
+            double binFactor =
+                pixer.getBinFactor( gstyle_.combiner_.getType() );
             int[] ixRange = pixer.xgrid_.getBinRange( dlims[ 0 ] );
             int[] iyRange = pixer.ygrid_.getBinRange( dlims[ 1 ] );
             int ixlo = ixRange[ 0 ];
@@ -707,9 +756,34 @@ public class GridPlotter implements Plotter<GridPlotter.GridStyle> {
                 for ( int ix = ixlo; ix <= ixhi; ix++ ) {
                     int ibin = pixer.getBinIndex( ix, iy );
                     assert ibin >= 0;
-                    range.submit( binResult.getBinValue( ibin ) );
+                    ranger.submitDatum( binFactor
+                                      * binResult.getBinValue( ibin ) );
                 }
             }
+        }
+
+        /**
+         * Returns the metadata for the combined values.
+         *
+         * @param  dataSpec  data specification
+         * @return   metadata for gridded cells
+         */
+        private ValueInfo getCombinedInfo( DataSpec dataSpec ) {
+            final ValueInfo weightInfo;
+            if ( icWeight_ < 0 || dataSpec.isCoordBlank( icWeight_ ) ) {
+                weightInfo = new DefaultValueInfo( "1", Double.class,
+                                                   "Weight unspecified"
+                                                   + ", taken as unity" );
+            }
+            else {
+                ValueInfo[] winfos = dataSpec.getUserCoordInfos( icWeight_ );
+                weightInfo = winfos != null && winfos.length == 1
+                           ? winfos[ 0 ]
+                           : new DefaultValueInfo( "Weight", Double.class );
+            }
+            Unit unit = new Unit( "unit", "unit area", "area", 1,
+                                  "X axis unit * Y axis unit" );
+            return gstyle_.combiner_.createCombinedInfo( weightInfo, unit );
         }
 
         /**
@@ -718,20 +792,20 @@ public class GridPlotter implements Plotter<GridPlotter.GridStyle> {
         private class GridDrawing implements Drawing {
 
             private final PlanarSurface surface_;
-            private final Range auxRange_;
+            private final Span auxSpan_;
             private final PaperType ptype_;
 
             /**
              * Constructor.
              *
              * @param   surface   plotting surface
-             * @param   auxRange  range defining colour scaling
+             * @param   auxSpan  range defining colour scaling
              * @param   paperType  paper type
              */
-            GridDrawing( PlanarSurface surface, Range auxRange,
+            GridDrawing( PlanarSurface surface, Span auxSpan,
                          PaperType ptype ) {
                 surface_ = surface;
-                auxRange_ = auxRange;
+                auxSpan_ = auxSpan;
                 ptype_ = ptype;
             }
 
@@ -756,15 +830,16 @@ public class GridPlotter implements Plotter<GridPlotter.GridStyle> {
             public void paintData( Object plan, Paper paper,
                                    DataStore dataStore ) {
                 final GridPlan gplan = (GridPlan) plan;
+                final Combiner.Type ctype = gstyle_.combiner_.getType();
                 ptype_.placeDecal( paper, new Decal() {
                     public void paintDecal( Graphics g ) {
                         Scaler scaler =
-                            Scaling.createRangeScaler( gstyle_.scaling_,
-                                                       auxRange_ );
+                            auxSpan_.createScaler( gstyle_.scaling_,
+                                                   gstyle_.dataclip_ );
                         IndexColorModel colorModel =
                             PixelImage.createColorModel( gstyle_.shader_,
                                                          true );
-                        paintBins( g, gplan.pixer_, gplan.result_,
+                        paintBins( g, gplan.pixer_, gplan.result_, ctype,
                                    scaler, colorModel, surface_ );
                     }
                     public boolean isOpaque() {
@@ -899,7 +974,7 @@ public class GridPlotter implements Plotter<GridPlotter.GridStyle> {
          * Returns the grid index given the X and Y grid indices.
          *
          * @param   ix  X gridder bin index
-         * @param   iy  Y girdder bin index
+         * @param   iy  Y gridder bin index
          * @return   grid index for bin list, or negative number if off-grid
          */
         int getBinIndex( int ix, int iy ) {
@@ -907,6 +982,17 @@ public class GridPlotter implements Plotter<GridPlotter.GridStyle> {
                  ? gridder_.getIndex( xgrid_.getBinOffset( ix ),
                                       ygrid_.getBinOffset( iy ) )
                  : -1;
+        }
+
+        /**
+         * Returns the area of a bin in data units.
+         * If either axis is logarithmic, this will be a strange quantity.
+         *
+         * @param  ctype  combination type
+         * @return  multiplication for bin values
+         */
+        double getBinFactor( Combiner.Type ctype ) {
+            return ctype.getBinFactor( xgrid_.binWidth_ * ygrid_.binWidth_ );
         }
 
         /**

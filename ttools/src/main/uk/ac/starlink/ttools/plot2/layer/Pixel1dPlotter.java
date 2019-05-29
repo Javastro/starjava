@@ -18,6 +18,7 @@ import uk.ac.starlink.ttools.plot2.Plotter;
 import uk.ac.starlink.ttools.plot2.ReportKey;
 import uk.ac.starlink.ttools.plot2.ReportMap;
 import uk.ac.starlink.ttools.plot2.ReportMeta;
+import uk.ac.starlink.ttools.plot2.Span;
 import uk.ac.starlink.ttools.plot2.Surface;
 import uk.ac.starlink.ttools.plot2.config.ConfigKey;
 import uk.ac.starlink.ttools.plot2.config.ConfigMeta;
@@ -46,6 +47,7 @@ public abstract class Pixel1dPlotter<S extends Style> implements Plotter<S> {
 
     private final FloatingCoord xCoord_;
     private final FloatingCoord weightCoord_;
+    private final ConfigKey<Combiner> combinerKey_;
     private final String name_;
     private final Icon icon_;
     private final SliceDataGeom pixoDataGeom_;
@@ -105,10 +107,13 @@ public abstract class Pixel1dPlotter<S extends Style> implements Plotter<S> {
      *
      * @param   xCoord  X axis coordinate
      * @param   hasWeight   true to permit histogram weighting
+     * @param   unitKey  config key to select X axis physical units,
+     *                   or null if no unit selection required
      * @param   name  plotter name
      * @param   icon  plotter icon
      */
     protected Pixel1dPlotter( FloatingCoord xCoord, boolean hasWeight,
+                              ConfigKey<Unit> unitKey,
                               String name, Icon icon ) {
         xCoord_ = xCoord;
         name_ = name;
@@ -126,6 +131,7 @@ public abstract class Pixel1dPlotter<S extends Style> implements Plotter<S> {
               .createPartialCoordGroup( new Coord[] { xCoord },
                                         new boolean[] { true } );
         }
+        combinerKey_ = createCombinerKey( weightCoord_, unitKey );
         pixoDataGeom_ =
             new SliceDataGeom( new FloatingCoord[] { xCoord_, null }, "X" );
 
@@ -155,6 +161,38 @@ public abstract class Pixel1dPlotter<S extends Style> implements Plotter<S> {
     }
 
     /**
+     * Returns an XML description snippet (zero or more P elements)
+     * discussing use of weighted coordinates for this plotter.
+     *
+     * @return  text suitable for inclusion in getPlotterDescription
+     *          return value
+     */
+    protected String getWeightingDescription() {
+        if ( icWeight_ >= 0 ) {
+            return PlotUtil.concatLines( new String[] {
+                "<p>A weighting may be applied to the calculated levels",
+                "by supplying the",
+                "<code>" + weightCoord_.getInput().getMeta().getShortName()
+                         + "</code>",
+                "coordinate.",
+                "In this case you can choose how these weights are aggregated",
+                "in each pixel bin using the",
+                "<code>" + combinerKey_.getMeta().getShortName() + "</code>",
+                "parameter.",
+                "The result is something like a smoothed version of the",
+                "corresponding weighted histogram.",
+                "Note that some combinations of the available parameters",
+                "(e.g. a normalised cumulative median-aggregated KDE)",
+                "may not make much visual sense.",
+                "</p>",
+            } );
+        }
+        else {
+            return "";
+        }
+    }
+
+    /**
      * Returns the LayerOpt suitable for a given style for this plotter.
      *
      * @param  style  plot style
@@ -171,6 +209,14 @@ public abstract class Pixel1dPlotter<S extends Style> implements Plotter<S> {
      * @return   padding in pixels required in bin array
      */
     protected abstract int getPixelPadding( S style, PlanarSurface surf );
+
+    /**
+     * Returns the bin aggregation mode implied by a given style.
+     *
+     * @param  style  plotting style
+     * @return  pixel bin aggregation mode
+     */
+    protected abstract Combiner getCombiner( S style );
 
     /** 
      * Draws the graphical representation of a given array of counts per
@@ -212,29 +258,12 @@ public abstract class Pixel1dPlotter<S extends Style> implements Plotter<S> {
                                                    boolean xLog );
 
     /**
-     * Calculates the plan object for this plotter.
+     * Returns the combination mode configuration key for this plotter.
      *
-     * @param   knownPlans  available plan objects
-     * @param   xAxis  bin width axis
-     * @param   xpad  number of pixel bins required each side of plot range
-     * @param   dataSpec  data specification
-     * @param   dataStore  data storage object
+     * @return  combiner key
      */
-    public Pixel1dPlan calculatePixelPlan( Object[] knownPlans,
-                                           Axis xAxis, int xpad,
-                                           DataSpec dataSpec,
-                                           DataStore dataStore ) {
-        for ( int ip = 0; ip < knownPlans.length; ip++ ) {
-            if ( knownPlans[ ip ] instanceof Pixel1dPlan ) {
-                Pixel1dPlan plan = (Pixel1dPlan) knownPlans[ ip ];
-                if ( plan.matches( xAxis, xpad, dataSpec ) ) {
-                    return plan;
-                }
-            }
-        }
-        BinArray binArray =
-            readBins( xAxis, MAX_KERNEL_WIDTH, dataSpec, dataStore );
-        return new Pixel1dPlan( binArray, xAxis, MAX_KERNEL_WIDTH, dataSpec );
+    public ConfigKey<Combiner> getCombinerKey() {
+        return combinerKey_;
     }
 
     /**
@@ -249,7 +278,7 @@ public abstract class Pixel1dPlotter<S extends Style> implements Plotter<S> {
         return new AbstractPlotLayer( this, pixoDataGeom_, dataSpec,
                                       style, layerOpt ) {
             public Drawing createDrawing( Surface surface,
-                                          Map<AuxScale,Range> auxRanges,
+                                          Map<AuxScale,Span> auxSpans,
                                           final PaperType paperType ) {
                 if ( ! ( surface instanceof PlanarSurface ) ) {
                     throw new IllegalArgumentException( "Not planar surface "
@@ -259,6 +288,7 @@ public abstract class Pixel1dPlotter<S extends Style> implements Plotter<S> {
                 final Axis xAxis = pSurf.getAxes()[ 0 ];
                 final boolean xLog = pSurf.getLogFlags()[ 0 ];
                 final int xpad = getPixelPadding( style, pSurf );
+                final Combiner combiner = getCombiner( style );
                 return new Drawing() {
                     public Object calculatePlan( Object[] knownPlans,
                                                  DataStore dataStore ) {
@@ -266,15 +296,18 @@ public abstract class Pixel1dPlotter<S extends Style> implements Plotter<S> {
                             if ( knownPlans[ ip ] instanceof Pixel1dPlan ) {
                                 Pixel1dPlan plan =
                                     (Pixel1dPlan) knownPlans[ ip ];
-                                if ( plan.matches( xAxis, xpad, dataSpec ) ) {
+                                if ( plan.matches( xAxis, xpad, combiner,
+                                                   dataSpec ) ) {
                                     return plan;
                                 }
                             }
                         }
-                        BinArray binArray = readBins( xAxis, MAX_KERNEL_WIDTH,
-                                                      dataSpec, dataStore );
+                        BinArray binArray =
+                            readBins( xAxis, MAX_KERNEL_WIDTH, combiner,
+                                      dataSpec, dataStore );
                         return new Pixel1dPlan( binArray, xAxis,
-                                                MAX_KERNEL_WIDTH, dataSpec );
+                                                MAX_KERNEL_WIDTH, combiner,
+                                                dataSpec );
                     }
                     public void paintData( Object plan, Paper paper,
                                            DataStore dataStore ) {
@@ -327,11 +360,12 @@ public abstract class Pixel1dPlotter<S extends Style> implements Plotter<S> {
      * @param  padPix  number of pixels in each direction
      *                 outside of the axis range over which counts should
      *                 be gathered
+     * @param  combiner   bin aggregation mode
      * @param  dataSpec  specification for frequency data values
      * @param  dataStore  data storage
      */
-    public BinArray readBins( Axis xAxis, int padPix, DataSpec dataSpec,
-                              DataStore dataStore ) {
+    public BinArray readBins( Axis xAxis, int padPix, Combiner combiner,
+                              DataSpec dataSpec, DataStore dataStore ) {
 
         /* Work out the pixel limits over which we need to accumulate counts. */
         int[] glimits = xAxis.getGraphicsLimits();
@@ -340,13 +374,13 @@ public abstract class Pixel1dPlotter<S extends Style> implements Plotter<S> {
 
         /* Accumulate the counts into a suitable results object (BinArray)
          * and return them. */
-        BinArray binArray = new BinArray( ilo, ihi );
+        BinAccumulator binAcc = new BinAccumulator( ilo, ihi, combiner );
         TupleSequence tseq = dataStore.getTupleSequence( dataSpec );
         if ( weightCoord_ == null | dataSpec.isCoordBlank( icWeight_ ) ) {
             while ( tseq.next() ) {
                 double dx = xCoord_.readDoubleCoord( tseq, icX_ );
                 double gx = xAxis.dataToGraphics( dx );
-                binArray.addToBin( gx, 1 );
+                binAcc.submitToBin( gx, 1 );
             }
         }
         else {
@@ -355,11 +389,11 @@ public abstract class Pixel1dPlotter<S extends Style> implements Plotter<S> {
                 if ( PlotUtil.isFinite( w ) ) {
                     double dx = xCoord_.readDoubleCoord( tseq, icX_ );
                     double gx = xAxis.dataToGraphics( dx );
-                    binArray.addToBin( gx, w );
+                    binAcc.submitToBin( gx, w );
                 }
             }
         }
-        return binArray;
+        return binAcc.getResult();
     }
 
     /**
@@ -372,11 +406,14 @@ public abstract class Pixel1dPlotter<S extends Style> implements Plotter<S> {
      * @param   xAxis   axis over which counts are accumulated
      * @param   kernel   smoothing kernel
      * @param   norm   normalisation mode
+     * @param   ctype  combiner type used to populate bins
+     * @param   unit    unit for scaling X axis bin width
      * @param   cumul   true for cumulative representation
      * @return  output data bin values
      */
     public static double[] getDataBins( BinArray binArray, Axis xAxis,
                                         Kernel1d kernel, Normalisation norm,
+                                        Combiner.Type ctype, Unit unit,
                                         boolean cumul ) {
         double[] bins = binArray.getBins();
         int nb = bins.length;
@@ -399,13 +436,18 @@ public abstract class Pixel1dPlotter<S extends Style> implements Plotter<S> {
          * the highest bar. */
         double max = 0;
         for ( int ib = 0; ib < bins.length; ib++ ) {
-            max = Math.max( max, Math.abs( bins[ ib ] ) );
+            double val = bins[ ib ];
+            if ( ! Double.isNaN( val ) ) {
+                max = Math.max( max, Math.abs( val ) );
+            }
         }
 
-        /* Normalise. */
-        double total = binArray.getSum();
-        double binWidth = getPixelDataWidth( xAxis );
-        double scale = norm.getScaleFactor( total, max, binWidth, cumul );
+        /* Normalise.  This probably doesn't make much sense for intensive
+         * combiners like MEAN. */
+        double total = binArray.loBin_ + binArray.midBin_ + binArray.hiBin_;
+        double binWidth = getPixelDataWidth( xAxis, unit );
+        double scale =
+            norm.getScaleFactor( total, max, binWidth, ctype, cumul );
         if ( scale != 1.0 ) {
             double[] nbins = new double[ nb ];
             for ( int ib = 0; ib < nb; ib++ ) {
@@ -414,16 +456,20 @@ public abstract class Pixel1dPlotter<S extends Style> implements Plotter<S> {
             bins = nbins;
         }
 
-        /* Cumulate. */
+        /* Cumulate.  This probably doesn't make much sense for intensive
+         * combiners like MEAN. */
         if ( cumul ) {
             double[] dlimits = xAxis.getDataLimits();
             boolean xflip = xAxis.dataToGraphics( dlimits[ 0 ] )
                           > xAxis.dataToGraphics( dlimits[ 1 ] );
             double[] cbins = new double[ nb ];
-            double sum = scale * binArray.getLowerSum( xflip );
+            double sum = scale * ( xflip ? binArray.hiBin_ : binArray.loBin_ );
             for ( int ib = 0; ib < nb; ib++ ) {
                 int jb = xflip ? nb - ib - 1 : ib;
-                sum += bins[ jb ];
+                double value = bins[ jb ];
+                if ( ! Double.isNaN( value ) ) {
+                    sum += bins[ jb ];
+                }
                 cbins[ jb ] = sum;
             }
             bins = cbins;
@@ -453,13 +499,18 @@ public abstract class Pixel1dPlotter<S extends Style> implements Plotter<S> {
      * @param   sizer   determines width in data coordinates
      * @param   xAxis   axis on which samples occur
      * @param   xLog   true for logarithmic x axis, false for linear
+     * @param   isMean   true if the smoothing is to suitable for
+     *                   intensive quantities like the mean,
+     *                   false for extensive quantities like a sum
      * @return  kernel
      */
     public static Kernel1d createKernel( Kernel1dShape kernelShape,
                                          BinSizer sizer, Axis xAxis,
-                                         boolean xLog ) {
-        return kernelShape
-              .createFixedWidthKernel( getPixelWidth( sizer, xAxis, xLog ) );
+                                         boolean xLog, boolean isMean ) {
+        double width = getPixelWidth( sizer, xAxis, xLog );
+        return isMean
+             ? kernelShape.createMeanKernel( width )
+             : kernelShape.createFixedWidthKernel( width );
     }
 
     /**
@@ -489,15 +540,77 @@ public abstract class Pixel1dPlotter<S extends Style> implements Plotter<S> {
      * for logarithmic axis it's in log(data units).
      *
      * @param  axis  axis
+     * @param  unit  axis unit scaling factor
      * @return   fixed width of pixel in data-like coordinates
      */
-    private static double getPixelDataWidth( Axis axis ) {
+    private static double getPixelDataWidth( Axis axis, Unit unit ) {
         int[] glimits = axis.getGraphicsLimits();
         double gmid = 0.5 * ( glimits[ 0 ] + glimits[ 1 ] );
-        double d1 = axis.graphicsToData( gmid - 0.5 );
-        double d2 = axis.graphicsToData( gmid + 0.5 );
+        double extent = unit.getExtent();
+        double d1 = axis.graphicsToData( gmid - 0.5 ) / extent;
+        double d2 = axis.graphicsToData( gmid + 0.5 ) / extent;
         return Math.abs( axis.isLinear() ? d2 - d1
                                          : Math.log( d2 ) - Math.log( d1 ) );
+    }
+
+    /**
+     * Creates a config key for selecting combination modes for a
+     * KDE-like plotter.
+     *
+     * @param  weightCoord   weight coordinate, or null for no weighting
+     * @param  unitKey     X-axis unit scaling key, or null for
+     *                     no unit selection
+     * @return   new config key
+     */
+    private static ConfigKey<Combiner>
+            createCombinerKey( FloatingCoord weightCoord,
+                               ConfigKey<Unit> unitKey ) {
+        ConfigMeta meta = new ConfigMeta( "combine", "Combine" );
+        boolean hasUnit = unitKey != null;
+        meta.setShortDescription( "Weight combination mode" );
+        StringBuffer dbuf = new StringBuffer();
+        dbuf.append( PlotUtil.concatLines( new String[] {
+            "<p>Defines how values contributing to the same bin",
+            "are combined together to produce the value assigned to that bin,",
+            "and hence its height.",
+            "The bins in this case are 1-pixel wide, so lack much physical",
+            "significance.",
+            "This means that while some combination modes, such as",
+            "<code>" + Combiner.WEIGHTED_DENSITY + "</code> and",
+            "<code>" + Combiner.MEAN + "</code> make sense,",
+            "others such as",
+            "<code>" + Combiner.SUM + "</code> do not.",
+            "</p>",
+            "<p>The combined values are those given by the",
+            "<code>" + weightCoord.getInput().getMeta().getShortName()
+                     + "</code> coordinate,",
+            "but if no weight is supplied,",
+            "a weighting of unity is assumed.",
+            "</p>",
+        } ) );
+        if ( hasUnit ) {
+            dbuf.append( PlotUtil.concatLines( new String[] {
+                "<p>For density-like values",
+                "(<code>" + Combiner.DENSITY + "</code>,",
+                "<code>" + Combiner.WEIGHTED_DENSITY + "</code>)",
+                "the scaling is additionally influenced by the",
+                "<code>" + unitKey.getMeta().getShortName() + "</code>",
+                "parameter.",
+                "</p>",
+            } ) );
+        }
+        meta.setXmlDescription( dbuf.toString() );
+        OptionConfigKey<Combiner> key =
+                new OptionConfigKey<Combiner>( meta, Combiner.class,
+                                               Combiner.getKnownCombiners(),
+                                               Combiner.WEIGHTED_DENSITY ) {
+            public String getXmlDescription( Combiner combiner ) {
+                return combiner.getDescription();
+            }
+        };
+        key.setOptionUsage();
+        key.addOptionsXml();
+        return key;
     }
 
     /**
@@ -507,6 +620,7 @@ public abstract class Pixel1dPlotter<S extends Style> implements Plotter<S> {
         final BinArray binArray_;
         final Axis xAxis_;
         final int xpad_;
+        final Combiner combiner_;
         final DataSpec dataSpec_;
 
         /**
@@ -516,13 +630,15 @@ public abstract class Pixel1dPlotter<S extends Style> implements Plotter<S> {
          * @param  xAxis  axis over which counts are accumulated
          * @param  xpad   number of pixels outside axis range in each direction
          *                that are stored in <code>binArray</code>
+         * @param  combiner  bin aggregation mode
          * @param  dataSpec   count data specificatin
          */
         Pixel1dPlan( BinArray binArray, Axis xAxis, int xpad,
-                     DataSpec dataSpec ) {
+                     Combiner combiner, DataSpec dataSpec ) {
             binArray_ = binArray;
             xAxis_ = xAxis;
             xpad_ = xpad;
+            combiner_ = combiner;
             dataSpec_ = dataSpec;
         }
 
@@ -535,8 +651,10 @@ public abstract class Pixel1dPlotter<S extends Style> implements Plotter<S> {
          *                in each direction that must be stored in the bin array
          * @param  dataSpec   count data specificatin
          */
-        boolean matches( Axis xAxis, int xpad, DataSpec dataSpec ) {
+        boolean matches( Axis xAxis, int xpad, Combiner combiner,
+                         DataSpec dataSpec ) {
             return xAxis_.equals( xAxis )
+                && combiner_.equals( combiner )
                 && dataSpec_.equals( dataSpec )
                 && xpad_ >= xpad;
         }
@@ -547,46 +665,30 @@ public abstract class Pixel1dPlotter<S extends Style> implements Plotter<S> {
      */
     public static class BinArray {
 
-        private final double[] bins_;
         private final int glo_;
         private final int ghi_;
-        private double loSum_;
-        private double hiSum_;
-        private double midSum_;
+        private final double[] bins_;
+        private final double loBin_;
+        private final double hiBin_;
+        private final double midBin_;
 
         /**
          * Constructor.
          *
          * @param  glo  lowest pixel index required
          * @param  ghi  1+highest pixel index required
+         * @param  bins   accumulated bin values for each integer between
+         *                glo and ghi
+         * @param  loBin  accumulated value for 
          */
-        BinArray( int glo, int ghi ) {
+        private BinArray( int glo, int ghi, double[] bins,
+                          double loBin, double hiBin, double midBin ) {
             glo_ = glo;
             ghi_ = ghi;
-            bins_ = new double[ ghi - glo ];
-        }
-
-        /**
-         * Increments the value in the bin corresponding to a given pixel index
-         * by a given amount.  If the target pixel index is out of bounds
-         * for this array, there is no effect.  No checking is performed
-         * on the <code>inc</code> value.
-         *
-         * @param   gx  target pixel index
-         * @param   inc  increment amount
-         */
-        private void addToBin( double gx, double inc ) {
-            double dx = Math.round( gx - glo_ );
-            if ( dx >= 0 && dx < bins_.length ) {
-                bins_[ (int) dx ] += inc;
-                midSum_ += inc;
-            }
-            else if ( dx < 0 ) {
-                loSum_ += inc;
-            }
-            else if ( dx >= bins_.length ) {
-                hiSum_ += inc;
-            }
+            bins_ = bins;
+            loBin_ = loBin;
+            hiBin_ = hiBin;
+            midBin_ = midBin;
         }
 
         /**
@@ -597,26 +699,6 @@ public abstract class Pixel1dPlotter<S extends Style> implements Plotter<S> {
          */
         public double[] getBins() {
             return bins_;
-        }
-
-        /**
-         * Returns the total sum of values accumulated into this bin array.
-         *
-         * @return   running total
-         */
-        public double getSum() {
-            return loSum_ + midSum_ + hiSum_;
-        }
-
-        /**
-         * Returns the sum of all the counts at one end of the axis
-         * not captured by this object's bins array.
-         *
-         * @param  flip   false for low-coordinate end,
-         *                true for high-coordinate end
-         */
-        public double getLowerSum( boolean flip ) {
-            return flip ? hiSum_ : loSum_;
         }
 
         /**
@@ -639,6 +721,91 @@ public abstract class Pixel1dPlotter<S extends Style> implements Plotter<S> {
          */
         public int getGraphicsCoord( int index ) {
             return index + glo_;
+        }
+    }
+
+    /**
+     * Data object storing counts per pixel.
+     */
+    private static class BinAccumulator {
+
+        private final Combiner.Container[] bins_;
+        private final Combiner.Container loBin_;
+        private final Combiner.Container hiBin_;
+        private final Combiner.Container midBin_;
+        private final int glo_;
+        private final int ghi_;
+
+        /**
+         * Constructor.
+         *
+         * @param  glo  lowest pixel index required
+         * @param  ghi  1+highest pixel index required
+         * @param  combiner   aggregation mode
+         */
+        BinAccumulator( int glo, int ghi, Combiner combiner ) {
+            glo_ = glo;
+            ghi_ = ghi;
+            int nbin = ghi - glo;
+            bins_ = new Combiner.Container[ nbin ];
+            for ( int i = 0; i < nbin; i++ ) {
+                bins_[ i ] = combiner.createContainer();
+            }
+            loBin_ = combiner.createContainer();
+            hiBin_ = combiner.createContainer();
+            midBin_ = combiner.createContainer();
+        }
+
+        /**
+         * Increments the value in the bin corresponding to a given pixel index
+         * by a given amount.  If the target pixel index is out of bounds
+         * for this array, there is no effect.  No checking is performed
+         * on the <code>inc</code> value.
+         *
+         * @param   gx  target pixel index
+         * @param   inc  increment amount
+         */
+        void submitToBin( double gx, double inc ) {
+            double dx = Math.round( gx - glo_ );
+            if ( dx >= 0 && dx < bins_.length ) {
+                bins_[ (int) dx ].submit( inc );
+                midBin_.submit( inc );
+            }
+            else if ( dx < 0 ) {
+                loBin_.submit( inc );
+            }
+            else if ( dx >= bins_.length ) {
+                hiBin_.submit( inc );
+            }
+        }
+
+        /**
+         * Returns the current accumulated state as a BinArray object.
+         *
+         * @return   bin state
+         */
+        BinArray getResult() {
+            double[] dbins = new double[ bins_.length ];
+            for ( int i = 0; i < bins_.length; i++ ) {
+                double val = bins_[ i ].getCombinedValue();
+                dbins[ i ] = val;
+            }
+            double loBin = getDefiniteValue( loBin_ );
+            double hiBin = getDefiniteValue( hiBin_ );
+            double midBin = getDefiniteValue( midBin_ );
+            return new BinArray( glo_, ghi_, dbins, loBin, hiBin, midBin );
+        }
+
+        /**
+         * Returns the result value of a container as a definite number.
+         * Zero is returned instead of NaN.
+         *
+         * @param  container  container to interrogate
+         * @return  definite result value, not NaN
+         */
+        private double getDefiniteValue( Combiner.Container container ) {
+            double d = container.getCombinedValue();
+            return Double.isNaN( d ) ? 0 : d;
         }
     }
 }

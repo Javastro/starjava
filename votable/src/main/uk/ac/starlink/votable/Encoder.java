@@ -4,8 +4,7 @@ import java.io.DataOutput;
 import java.io.IOException;
 import java.lang.reflect.Array;
 import java.net.URL;
-import java.util.Iterator;
-import java.util.HashMap;
+import java.util.LinkedHashMap;
 import java.util.Map;
 import java.util.logging.Logger;
 import uk.ac.starlink.table.ColumnInfo;
@@ -24,12 +23,12 @@ import uk.ac.starlink.table.ValueInfo;
  */
 abstract class Encoder {
 
-    final ValueInfo info;
-    final Map attMap = new HashMap();
-    String description;
-    String nullString;
-    String links;
-    private String content;
+    private final ValueInfo info_;
+    private final Map<String,String> attMap_;
+    private final String description_;
+    private final String links_;
+    private String nullString_;
+    private String content_;
 
     private final static Logger logger =
         Logger.getLogger( "uk.ac.starlink.votable" );
@@ -66,33 +65,34 @@ abstract class Encoder {
      * @param  datatype  value of the datatype attribute
      */
     private Encoder( ValueInfo info, String datatype ) {
-        this.info = info;
+        info_ = info;
+        attMap_ = new LinkedHashMap<String,String>();
 
         /* Datatype attribute. */
-        attMap.put( "datatype", datatype.trim() );
+        putAtt( "datatype", datatype.trim() );
 
         /* Name attribute. */
         String name = info.getName();
         if ( name != null && name.trim().length() > 0 ) {
-            attMap.put( "name", name.trim() );
+            putAtt( "name", name.trim() );
         }
 
         /* Unit attribute. */
         String units = info.getUnitString();
         if ( units != null && units.trim().length() > 0 ) {
-            attMap.put( "unit", units.trim() );
+            putAtt( "unit", units.trim() );
         }
 
         /* UCD attribute. */
         String ucd = info.getUCD();
         if ( ucd != null && ucd.trim().length() > 0 ) {
-            attMap.put( "ucd", ucd.trim() );
+            putAtt( "ucd", ucd.trim() );
         }
 
         /* Utype attribute. */
         String utype = info.getUtype();
         if ( utype != null && utype.trim().length() > 0 ) {
-            attMap.put( "utype", utype.trim() );
+            putAtt( "utype", utype.trim() );
         }
 
         /* Column auxiliary metadata items. */
@@ -104,14 +104,14 @@ abstract class Encoder {
                 (String) cinfo.getAuxDatumValue( VOStarTable.ID_INFO,
                                                  String.class );
             if ( id != null && id.trim().length() > 0 ) {
-                attMap.put( "ID", id.trim() );
+                putAtt( "ID", id.trim() );
             }
 
             /* Ref attribute. */
             String ref = (String) cinfo.getAuxDatumValue( VOStarTable.REF_INFO,
                                                           String.class );
             if ( ref != null && ref.trim().length() > 0 ) {
-                attMap.put( "ref", ref.trim() );
+                putAtt( "ref", ref.trim() );
             }
 
             /* XType attribute. */
@@ -119,7 +119,7 @@ abstract class Encoder {
                 (String) cinfo.getAuxDatumValue( VOStarTable.XTYPE_INFO,
                                                  String.class );
             if ( xtype != null && xtype.trim().length() > 0 ) {
-                attMap.put( "xtype", xtype.trim() );
+                putAtt( "xtype", xtype.trim() );
             }
 
             /* Width attribute. */
@@ -127,7 +127,7 @@ abstract class Encoder {
                 (Integer) cinfo.getAuxDatumValue( VOStarTable.WIDTH_INFO,
                                                   Integer.class );
             if ( width != null && width.intValue() > 0 ) {
-                attMap.put( "width", width.toString() );
+                putAtt( "width", width.toString() );
             }
 
             /* Precision attribute. */
@@ -135,27 +135,23 @@ abstract class Encoder {
                 (String) cinfo.getAuxDatumValue( VOStarTable.PRECISION_INFO,
                                                  String.class );
             if ( precision != null && precision.trim().length() > 0 ) {
-                attMap.put( "precision", precision.trim() );
+                putAtt( "precision", precision.trim() );
             }
         }
 
         /* Description information. */
         String desc = info.getDescription();
-        if ( desc != null ) {
-            desc = desc.trim();
-            if ( desc.length() > 0 ) { 
-                description = "<DESCRIPTION>"
-                            + VOSerializer.formatText( desc )
-                            + "</DESCRIPTION>";
-            }
-        }
+        desc = desc == null ? null : desc.trim();
+        description_ = desc == null || desc.length() == 0
+                     ? null
+                     : "<DESCRIPTION>"
+                     + VOSerializer.formatText( desc )
+                     + "</DESCRIPTION>";
 
         /* URL-type auxiliary metadata can be encoded as LINK elements. */
         if ( info instanceof ColumnInfo ) {
             StringBuffer linksBuf = new StringBuffer();
-            for ( Iterator it = ((ColumnInfo) info).getAuxData().iterator();
-                  it.hasNext(); ) {
-                DescribedValue dval = (DescribedValue) it.next();
+            for ( DescribedValue dval : ((ColumnInfo) info).getAuxData() ) {
                 ValueInfo linkInfo = dval.getInfo();
                 if ( URL.class.equals( linkInfo.getContentClass() ) ) {
                     String linkName = linkInfo.getName();
@@ -174,7 +170,10 @@ abstract class Encoder {
                     }
                 }
             }
-            links = linksBuf.toString();
+            links_ = linksBuf.toString();
+        }
+        else {
+            links_ = null;
         }
     }
 
@@ -187,23 +186,23 @@ abstract class Encoder {
      *          may be empty but will not be <tt>null</tt>
      */
     public String getFieldContent() {
-        if ( content == null ) {
+        if ( content_ == null ) {
             StringBuffer contBuf = new StringBuffer();
-            if ( description != null && description.trim().length() > 0 ) {
+            if ( description_ != null && description_.trim().length() > 0 ) {
                 contBuf.append( '\n' )
-                       .append( description );
+                       .append( description_ );
             }
-            if ( nullString != null && nullString.trim().length() > 0 ) {
+            if ( nullString_ != null && nullString_.trim().length() > 0 ) {
                 contBuf.append( '\n' )
-                       .append( "<VALUES null='" + nullString + "'/>" );
+                       .append( "<VALUES null='" + nullString_ + "'/>" );
             }
-            if ( links != null && links.trim().length() > 0 ) {
+            if ( links_ != null && links_.trim().length() > 0 ) {
                 contBuf.append( '\n' )
-                       .append( links );
+                       .append( links_ );
             }
-            content = contBuf.toString();
+            content_ = contBuf.toString();
         }
-        return content;
+        return content_;
     }
 
     /**
@@ -215,8 +214,8 @@ abstract class Encoder {
      * @return  a map of attribute name, attribute value pairs applying
      *          to this encoder
      */
-    public Map getFieldAttributes() {
-        return attMap;
+    public Map<String,String> getFieldAttributes() {
+        return attMap_;
     }
 
     /**
@@ -225,7 +224,27 @@ abstract class Encoder {
      * @param   nullString  null representation
      */
     public void setNullString( String nullString ) {
-        this.nullString = nullString;
+        nullString_ = nullString;
+    }
+
+    /**
+     * Returns the value metadata which this encoder is serializing.
+     *
+     * @return  info  description of the data this encoder will have 
+     *               to serialize
+     */
+    public ValueInfo getInfo() {
+        return info_;
+    }
+
+    /**
+     * Sets an attribute value.
+     *
+     * @param key  attribute name
+     * @param  value  attribute value
+     */
+    void putAtt( String key, String value ) {
+        attMap_.put( key, value );
     }
 
     /**
@@ -419,7 +438,7 @@ abstract class Encoder {
                  * equivalent to arraysize="*".  This makes sure there is
                  * no ambiguity. */
                 /*anonymousConstructor*/ {
-                    attMap.put( "arraysize", "1" );
+                    putAtt( "arraysize", "1" );
                 }
                 public void encodeToStream( Object val, DataOutput out )
                         throws IOException {
@@ -578,7 +597,7 @@ abstract class Encoder {
             if ( nChar > 0 ) {
                 return new Encoder( info, cwrite.getDatatype() ) {
                     /*anonymousConstructor*/ {
-                        attMap.put( "arraysize", Integer.toString( nChar ) );
+                        putAtt( "arraysize", Integer.toString( nChar ) );
                     }
 
                     public String encodeAsText( Object val ) {
@@ -606,7 +625,7 @@ abstract class Encoder {
             else {
                 return new Encoder( info, cwrite.getDatatype() ) {
                     /*anonymousConstructor*/ {
-                        attMap.put( "arraysize", "*" );
+                        putAtt( "arraysize", "*" );
                     }
 
                     public String encodeAsText( Object val ) {
@@ -674,7 +693,7 @@ abstract class Encoder {
                 char[] cbuf = new char[ nChar ];
 
                 /*anonymousConstructor*/ {
-                    attMap.put( "arraysize", arraysize );
+                    putAtt( "arraysize", arraysize );
                 }
               
                 public String encodeAsText( Object val ) {
@@ -801,7 +820,7 @@ abstract class Encoder {
                     sizeBuf.append( dims[ i ] );
                 }
             }
-            attMap.put( "arraysize", sizeBuf.toString() );
+            putAtt( "arraysize", sizeBuf.toString() );
         }
 
         public String encodeAsText( Object val ) {

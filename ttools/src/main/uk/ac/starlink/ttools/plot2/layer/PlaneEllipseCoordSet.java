@@ -1,9 +1,13 @@
 package uk.ac.starlink.ttools.plot2.layer;
 
+import uk.ac.starlink.ttools.gui.ResourceIcon;
+import uk.ac.starlink.ttools.plot2.PlotUtil;
+import uk.ac.starlink.ttools.plot2.DataGeom;
+import uk.ac.starlink.ttools.plot2.config.StyleKeys;
 import uk.ac.starlink.ttools.plot2.data.Coord;
 import uk.ac.starlink.ttools.plot2.data.FloatingCoord;
 import uk.ac.starlink.ttools.plot2.data.InputMeta;
-import uk.ac.starlink.ttools.plot2.data.TupleSequence;
+import uk.ac.starlink.ttools.plot2.data.Tuple;
 
 /**
  * MultiPointCoordSet for ellipses on a plane.
@@ -63,11 +67,11 @@ public class PlaneEllipseCoordSet implements MultiPointCoordSet {
         return NP;
     }
 
-    public boolean readPoints( TupleSequence tseq, int icol, double[] xy0,
-                               double[][] xyExtras ) {
-        double ar = AR_COORD.readDoubleCoord( tseq, icol );
-        double br = BR_COORD.readDoubleCoord( tseq, icol + 1 );
-        double posang = POSANG_COORD.readDoubleCoord( tseq, icol + 2 );
+    public boolean readPoints( Tuple tuple, int icol, DataGeom geom,
+                               double[] xy0, double[][] xyExtras ) {
+        double ar = AR_COORD.readDoubleCoord( tuple, icol );
+        double br = BR_COORD.readDoubleCoord( tuple, icol + 1 );
+        double posang = POSANG_COORD.readDoubleCoord( tuple, icol + 2 );
         boolean aNan = Double.isNaN( ar );
         boolean bNan = Double.isNaN( br );
         if ( aNan && bNan ) {
@@ -123,5 +127,33 @@ public class PlaneEllipseCoordSet implements MultiPointCoordSet {
             xy4[ 1 ] = dy0 + by;
             return true;
         }
+    }
+
+    /**
+     * Creates a MultiPointForm that can plot ellipses on the plane,
+     * corresponding to this coordset.
+     *
+     * @return  new form
+     */
+    public static MultiPointForm createForm() {
+        String descrip = PlotUtil.concatLines( new String[] {
+            "<p>Plots an ellipse (or rectangle, triangle,",
+            "or other similar figure)",
+            "defined by two principal radii and",
+            "an optional angle of rotation,",
+            "the so-called position angle.",
+            "This angle, if specified, is in degrees and",
+            "gives the angle counterclockwise from the horizontal axis",
+            "to the first principal radius.",
+            "</p>",
+        } );
+        boolean canScale = true;
+        if ( canScale ) {
+            descrip += MultiPointForm.getDefaultScalingDescription( "ellipse" );
+        }
+        return MultiPointForm
+              .createDefaultForm( "XYEllipse", ResourceIcon.FORM_XYELLIPSE,
+                                  descrip, new PlaneEllipseCoordSet(),
+                                  StyleKeys.ELLIPSE_SHAPE, canScale );
     }
 }

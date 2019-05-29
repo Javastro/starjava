@@ -25,6 +25,7 @@ import uk.ac.starlink.table.WrapperStarTable;
  */
 public class ColFitsTableSerializer implements FitsTableSerializer {
 
+    private final WideFits wide_;
     private final ColumnStore[] colStores_;
     private final String[] colids_;
     private final int ncol_;
@@ -37,9 +38,13 @@ public class ColFitsTableSerializer implements FitsTableSerializer {
      * Constructor.
      *
      * @param   table  table to serialize
+     * @param   wide   convention for representing over-wide tables;
+     *                 null to avoid this convention
+     * @throws IOException if it won't be possible to write the given table
      */
-    public ColFitsTableSerializer( StarTable table )
+    public ColFitsTableSerializer( StarTable table, WideFits wide )
             throws IOException {
+        wide_ = wide;
 
         /* Prepare an array of column storage objects which know how to do
          * serial storage/retrieval of the data in a table column. */
@@ -47,6 +52,7 @@ public class ColFitsTableSerializer implements FitsTableSerializer {
         ncol_ = table.getColumnCount();
         colStores_ = new ColumnStore[ ncol_ ];
         colids_ = new String[ ncol_ ];
+        int nUseCol = 0;
         for ( int icol = 0; icol < ncol_; icol++ ) {
             ColumnInfo info = table.getColumnInfo( icol );
             colids_[ icol ] = info.toString();
@@ -54,7 +60,11 @@ public class ColFitsTableSerializer implements FitsTableSerializer {
             if ( colStores_[ icol ] == null ) {
                 logger_.warning( "Can't serialize column " + info );
             }
+            else {
+                nUseCol++;
+            }
         }
+        FitsConstants.checkColumnCount( wide, nUseCol );
 
         /* Store the table data into these storage objects. */
         boolean ok = false;
@@ -104,14 +114,28 @@ public class ColFitsTableSerializer implements FitsTableSerializer {
 
         /* Work out the length of the single table row. */
         long size = 0L; 
+        long extSize = 0L;
         int nUseCol = 0;
         for ( int icol = 0; icol < ncol_; icol++ ) {
             ColumnStore colStore = colStores_[ icol ];
             if ( colStore != null ) {
                 nUseCol++;
-                size += colStore.getDataLength();
+                long leng = colStore.getDataLength();
+                size += leng;
+                if ( wide_ != null &&
+                     nUseCol >= wide_.getContainerColumnIndex() ) {
+                    extSize += leng;
+                }
             }
         }
+
+        /* Work out the number of standard and extended columns.
+         * This won't fail because of checks carried out in constructor. */
+        int nStdCol =
+              wide_ != null && nUseCol > wide_.getContainerColumnIndex()
+            ? wide_.getContainerColumnIndex()
+            : nUseCol;
+        boolean hasExtCol = nUseCol > nStdCol;
 
         /* Write the standard part of the FITS header. */
         Header hdr = new Header();
@@ -122,12 +146,18 @@ public class ColFitsTableSerializer implements FitsTableSerializer {
         hdr.addValue( "NAXIS2", 1, "single-row table" );
         hdr.addValue( "PCOUNT", 0, "size of special data area" );
         hdr.addValue( "GCOUNT", 1, "one data group" );
-        hdr.addValue( "TFIELDS", nUseCol, "number of columns" );
+        hdr.addValue( "TFIELDS", nStdCol, "number of columns" );
 
         /* Add EXTNAME record containing table name. */
         if ( tname_ != null && tname_.trim().length() > 0 ) {
             FitsConstants
            .addTrimmedValue( hdr, "EXTNAME", tname_, "table name" );
+        }
+
+        /* Add extended column header information if applicable. */
+        if ( hasExtCol ) {
+            wide_.addExtensionHeader( hdr, nUseCol );
+            AbstractWideFits.logWideWrite( logger_, nStdCol, nUseCol ); 
         }
 
         /* Ask each ColumnStore to add header cards describing the data
@@ -136,7 +166,15 @@ public class ColFitsTableSerializer implements FitsTableSerializer {
         for ( int icol = 0; icol < ncol_; icol++ ) {
             ColumnStore colStore = colStores_[ icol ];
             if ( colStore != null ) {
-                colStore.addHeaderInfo( hdr, ++jcol );
+                jcol++;
+                if ( hasExtCol && jcol == nStdCol ) {
+                    wide_.addContainerColumnHeader( hdr, extSize, nrow_ );
+                }
+                BintableColumnHeader colhead =
+                      hasExtCol && jcol >= nStdCol
+                    ? wide_.createExtendedHeader( nStdCol, jcol )
+                    : BintableColumnHeader.createStandardHeader( jcol );
+                colStore.addHeaderInfo( hdr, colhead, jcol );
             }
         }
         return hdr;
@@ -213,22 +251,26 @@ public class ColFitsTableSerializer implements FitsTableSerializer {
 
     private static String getCardValue( ColumnStore colStore, String tcard ) {
         Header hdr = new Header();
-        try {
-            int icol = 99;
-            Level level = logger_.getLevel();
+        int icol = 99;
+        BintableColumnHeader colhead =
+            BintableColumnHeader.createStandardHeader( icol );
 
-            /* Avoid unwanted logging messages that might occur in case of
-             * truncated card values. */
-            logger_.setLevel( Level.SEVERE );
-            colStore.addHeaderInfo( hdr, icol );
-            logger_.setLevel( level );
-            String key = tcard + icol;
-            return hdr.containsKey( key )
-                 ? hdr.findCard( key ).getValue().trim()
-                 : null;
+        /* Avoid unwanted logging messages that might occur in case of
+         * truncated card values. */
+        Level level = logger_.getLevel();
+        logger_.setLevel( Level.SEVERE );
+        try {
+            colStore.addHeaderInfo( hdr, colhead, icol );
         }
         catch ( HeaderCardException e ) {
             throw new AssertionError( e );
         }
+        finally {
+            logger_.setLevel( level );
+        }
+        String key = colhead.getKeyName( tcard );
+        return hdr.containsKey( key )
+             ? hdr.findCard( key ).getValue().trim()
+             : null;
     }
 }

@@ -26,8 +26,8 @@ public abstract class TapMetaPolicy {
     /** Tries its best to do something sensible. */
     public static final TapMetaPolicy AUTO;
 
-    /** Uses the VOSI tables endpoint. */
-    public static final TapMetaPolicy TABLESET;
+    /** Uses the VOSI 1.0 /tables endpoint. */
+    public static final TapMetaPolicy VOSI10;
 
     /** Uses the TAP_SCHEMA tables, with columns on demand. */
     public static final TapMetaPolicy TAPSCHEMA_C;
@@ -41,16 +41,13 @@ public abstract class TapMetaPolicy {
     /** Uses the non-standard VizieR two-level tables endpoint. */
     public static final TapMetaPolicy VIZIER;
 
-    /** Uses the non-standard proposed VOSI 1.1 two-level tables endpoint. */
-    public static final TapMetaPolicy CADC;
-
-    /** Uses the proposed VOSI 1.1 one-stage (detail=max) /tables endpoint. */
+    /** Uses the VOSI 1.1 one-stage (detail=max) /tables endpoint. */
     public static final TapMetaPolicy VOSI11_MAX;
 
-    /** Uses the proposed VOSI 1.1 two-stage (detail=min) /tables endpoint. */
+    /** Uses the VOSI 1.1 two-stage (detail=min) /tables endpoint. */
     public static final TapMetaPolicy VOSI11_MIN;
 
-    /** Uses the proposed VOSI 1.1 /tables endpoint (backward compatible). */
+    /** Uses the VOSI 1.1 /tables endpoint (backward compatible). */
     public static final TapMetaPolicy VOSI11_NULL;
 
     private static final TapMetaPolicy[] KNOWN_VALUES = {
@@ -66,10 +63,20 @@ public abstract class TapMetaPolicy {
                 return createAutoMetaReader( endpointSet, coding, 5000 );
             }
         },
-        TABLESET = new TapMetaPolicy( "TableSet",
-                                      "Reads all metadata in one go from the "
-                                    + "vs:TableSet document at the VOSI tables "
-                                    + "endpoint of the TAP service" ) {
+        TAPSCHEMA_C = createTapSchemaPolicy( "TAP_SCHEMA-C", false, true ),
+        TAPSCHEMA_CF =
+            createTapSchemaPolicy( "TAP_SCHEMA-CF", false, false ),
+        TAPSCHEMA =
+            createTapSchemaPolicy( "TAP_SCHEMA", true, false ),
+        VOSI11_NULL = createVosi11Policy( "TableSet-VOSI1.1",
+                                          Vosi11TapMetaReader.DetailMode.NULL ),
+        VOSI11_MAX = createVosi11Policy( "TableSet-VOSI1.1-1step",
+                                         Vosi11TapMetaReader.DetailMode.MAX ),
+        VOSI11_MIN = createVosi11Policy( "TableSet-VOSI1.1-2step",
+                                         Vosi11TapMetaReader.DetailMode.MIN ),
+        VOSI10 = new TapMetaPolicy( "TableSet-VOSI1.0",
+                                    "Reads all metadata in one go from the "
+                                  + "VOSI-1.0 /tables endpoint" ) {
             public TapMetaReader createMetaReader( EndpointSet endpointSet,
                                                    ContentCoding coding ) {
                 MetaNameFixer fixer = MetaNameFixer.createDefaultFixer();
@@ -77,11 +84,6 @@ public abstract class TapMetaPolicy {
                 return new TableSetTapMetaReader( tablesUrl, fixer, coding );
             }
         },
-        TAPSCHEMA_C = createTapSchemaPolicy( "TAP_SCHEMA_C", false, true ),
-        TAPSCHEMA_CF =
-            createTapSchemaPolicy( "TAP_SCHEMA_CF", false, false ),
-        TAPSCHEMA =
-            createTapSchemaPolicy( "TAP_SCHEMA", true, false ),
         VIZIER = new TapMetaPolicy( "VizieR",
                                     "Uses TAPVizieR's non-standard two-stage "
                                   + "VOSI tables endpoint" ) {
@@ -92,23 +94,6 @@ public abstract class TapMetaPolicy {
                 return new VizierTapMetaReader( tablesetUrl, fixer, coding );
             }
         },
-        CADC = new TapMetaPolicy( "CADC",
-                                  "Uses CADC's non-standard multi-stage "
-                                + "VOSI tables endpoint" ) {
-            public TapMetaReader createMetaReader( EndpointSet endpointSet,
-                                                   ContentCoding coding ) {
-                URL tablesetUrl = endpointSet.getTablesEndpoint();
-                CadcTapMetaReader.Config config =
-                    CadcTapMetaReader.Config.POPULATE_SCHEMAS;
-                return new CadcTapMetaReader( tablesetUrl, config, coding );
-            }
-        },
-        VOSI11_MAX = createVosi11Policy( "VOSI11-1step",
-                                         Vosi11TapMetaReader.DetailMode.MAX ),
-        VOSI11_MIN = createVosi11Policy( "VOSI11-2step",
-                                         Vosi11TapMetaReader.DetailMode.MIN ),
-        VOSI11_NULL = createVosi11Policy( "VOSI11",
-                                          Vosi11TapMetaReader.DetailMode.NULL ),
     };
 
     /**
@@ -172,7 +157,6 @@ public abstract class TapMetaPolicy {
         return AUTO;
     }
 
-
     /**
      * Sorts an array of schemas in place by schema name.
      *
@@ -209,15 +193,14 @@ public abstract class TapMetaPolicy {
 
 
     /**
-     * Create a policy instance that uses the VOSI-1.1 WD20160129
-     * proposal.
+     * Create a policy instance that uses the VOSI-1.1 variable-detail option.
      *
      * @param  name  policy name
      * @param  dmode   requested detail mode for metadata queries
      */
     private static TapMetaPolicy
             createVosi11Policy( String name,
-                              final Vosi11TapMetaReader.DetailMode dmode ) {
+                                final Vosi11TapMetaReader.DetailMode dmode ) {
         String descrip =
              new StringBuffer()
             .append( "Reads metadata from the VOSI-1.1 /tables endpoint;\n" )
@@ -338,19 +321,14 @@ public abstract class TapMetaPolicy {
 
         /* If there are fewer columns than the threshold, or the column
          * count failed, use the VOSI tables endpoint instead.
-         * It would be nice to use the VOSI 1.1 endpoint here
-         * (Vosi11TapMetaReader with DetailMode.MAX) since it should
-         * allow services to regulate how their metadata is dispensed.
-         * The backwardly compatible way that VOSI1.1 TableSet detail
-         * negotiation is defined means that in principle it ought to
-         * do something sensible for VOSI 1.0 compliant services too.
-         * But at time of writing, at least a couple of existing services
-         * with cranky/broken VOSI1.0 implementations fail if you try that
-         * (CADC, TAPVizieR). */
-        logger_.info( "Use VOSI tables endpoint for "
+         * The VOSI 1.1 scalable request format is defined in a way
+         * that's backwardly compatible, so VOSI 1.1 should work for
+         * VOSI 1.0 services too. */
+        logger_.info( "Use VOSI-1.1 tables endpoint for "
                     + endpointSet.getIdentity() );
-        return new TableSetTapMetaReader( endpointSet.getTablesEndpoint(),
-                                          fixer, coding );
+        return new Vosi11TapMetaReader( endpointSet.getTablesEndpoint(),
+                                        fixer, coding,
+                                        Vosi11TapMetaReader.DetailMode.MAX );
     }
 
     /**

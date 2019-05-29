@@ -36,6 +36,7 @@ public abstract class AbstractInputTableParameter<T> extends Parameter<T> {
 
     private InputFormatParameter formatParam_;
     private BooleanParameter streamParam_;
+    private final boolean allowSystem_ = true;
     private static final Logger logger_ =
         Logger.getLogger( "uk.ac.starlink.ttools.task" );
     private static final String[] KNOWN_PREFIXES =
@@ -128,18 +129,21 @@ public abstract class AbstractInputTableParameter<T> extends Parameter<T> {
      */
     protected StarTable makeTable( Environment env, String loc )
             throws TaskException {
-        String fmt = formatParam_.stringValue( env );
-        boolean stream = streamParam_.booleanValue( env );
+        String fmt = getFormatParameter().stringValue( env );
+        boolean stream = getStreamParameter().booleanValue( env );
         StarTableFactory tfact = LineTableEnvironment.getTableFactory( env );
         try {
             if ( loc.equals( "-" ) ) {
                 InputStream in =
-                    new BufferedInputStream( DataSource.getInputStream( loc ) );
+                    new BufferedInputStream( DataSource
+                                            .getInputStream( loc,
+                                                             allowSystem_ ) );
                 return getStreamedTable( tfact, in, fmt, null );
             }
             else if ( stream ) {
                 return getStreamedTable( tfact,
-                                         DataSource.makeDataSource( loc ),
+                                         DataSource
+                                        .makeDataSource( loc, allowSystem_ ),
                                          fmt );
             }
             else {
@@ -170,8 +174,8 @@ public abstract class AbstractInputTableParameter<T> extends Parameter<T> {
      */
     protected StarTable[] makeTables( Environment env, String loc )
             throws TaskException {
-        String fmt = formatParam_.stringValue( env );
-        boolean stream = streamParam_.booleanValue( env );
+        String fmt = getFormatParameter().stringValue( env );
+        boolean stream = getStreamParameter().booleanValue( env );
         StarTableFactory tfact = LineTableEnvironment.getTableFactory( env );
         String streamWarning =
             "Can't currently stream multiple tables" +
@@ -180,13 +184,15 @@ public abstract class AbstractInputTableParameter<T> extends Parameter<T> {
             if ( loc.equals( "-" ) ) {
                 logger_.warning( streamWarning );
                 InputStream in =
-                    new BufferedInputStream( DataSource.getInputStream( loc ) );
+                    new BufferedInputStream( DataSource
+                                            .getInputStream( loc,
+                                                             allowSystem_ ) );
                 return new StarTable[] {
                     getStreamedTable( tfact, in, fmt, null )
                 };
             }
             else {
-                if ( streamParam_.booleanValue( env ) ) {
+                if ( stream ) {
                     logger_.warning( streamWarning );
                 }
                 DataSource datsrc = DataSource.makeDataSource( loc );
@@ -224,7 +230,7 @@ public abstract class AbstractInputTableParameter<T> extends Parameter<T> {
         if ( inFmt == null ||
              inFmt.equals( StarTableFactory.AUTO_HANDLER ) ) {
             String msg = "Must specify input format for streamed table";
-            throw new ParameterValueException( formatParam_, msg );
+            throw new ParameterValueException( getFormatParameter(), msg );
         }
         final TableBuilder tbuilder = tfact.getTableBuilder( inFmt );
         assert tbuilder != null;

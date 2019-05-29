@@ -24,7 +24,9 @@ import javax.swing.event.ListDataListener;
 import javax.swing.event.ListSelectionEvent;
 import javax.swing.event.ListSelectionListener;
 import uk.ac.starlink.topcat.ActionForwarder;
+import uk.ac.starlink.topcat.CheckBoxList;
 import uk.ac.starlink.topcat.RowSubset;
+import uk.ac.starlink.util.gui.ConstrainedViewportLayout;
 
 /**
  * Provides a panel with a list of subsets and a configuration panel
@@ -59,6 +61,7 @@ public class SubsetStack {
         JScrollPane listScroller = new JScrollPane( subList_ );
         listScroller.setHorizontalScrollBarPolicy(
             JScrollPane.HORIZONTAL_SCROLLBAR_NEVER );
+        listScroller.getViewport().setLayout( new ConstrainedViewportLayout() );
         final JComponent configHolder = new JPanel( new BorderLayout() );
         configHolder.setBorder( BorderFactory.createEmptyBorder( 5, 5, 5, 5 ) );
         JScrollPane configScroller = new JScrollPane( configHolder );
@@ -72,7 +75,7 @@ public class SubsetStack {
         subList_.addListSelectionListener( new ListSelectionListener() {
             public void valueChanged( ListSelectionEvent evt ) {
                 configHolder.removeAll();
-                RowSubset rset = (RowSubset) subList_.getSelectedValue();
+                RowSubset rset = subList_.getSelectedValue();
                 if ( rset != null ) {
                     configHolder.add( subManager_
                                      .getConfiggerComponent( rset ) );

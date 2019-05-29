@@ -21,6 +21,9 @@ public class HealpixTiling implements SkyTiling {
     private final PixTools pixTools_;
     private final double resolution_;
 
+    /** Maximum healpix level permitted by PixTools implementation (20). */
+    public static final int MAX_LEVEL = 20;
+
     /**
      * Constructor.
      *
@@ -28,7 +31,7 @@ public class HealpixTiling implements SkyTiling {
      * @param  nest  true for nesting scheme, false for ring scheme
      */
     public HealpixTiling( int k, boolean nest ) {
-        if ( k > 29 ) {
+        if ( k > MAX_LEVEL ) {
             throw new IllegalArgumentException( "k " + k + " too large" );
         }
         k_ = k;
@@ -36,6 +39,24 @@ public class HealpixTiling implements SkyTiling {
         nest_ = nest;
         pixTools_ = PixTools.getInstance();
         resolution_ = pixTools_.PixRes( nside_ ) / 3600;
+    }
+
+    /**
+     * Returns the HEALpix level.
+     *
+     * @return  log2(nside)
+     */
+    public int getHealpixK() {
+        return k_;
+    }
+
+    /**
+     * Indicates HEALPix ordering scheme.
+     *
+     * @return   true for NEST, false for RING
+     */
+    public boolean isNest() {
+        return nest_;
     }
 
     public long getPixelCount() {

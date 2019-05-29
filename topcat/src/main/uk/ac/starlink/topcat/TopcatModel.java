@@ -14,6 +14,7 @@ import java.util.HashMap;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
+import java.util.logging.Level;
 import java.util.logging.Logger;
 import javax.swing.AbstractAction;
 import javax.swing.AbstractListModel;
@@ -42,12 +43,14 @@ import uk.ac.starlink.table.RowListStarTable;
 import uk.ac.starlink.table.ShapeIterator;
 import uk.ac.starlink.table.StarTable;
 import uk.ac.starlink.table.StarTableOutput;
+import uk.ac.starlink.table.TableBuilder;
 import uk.ac.starlink.table.ValueInfo;
 import uk.ac.starlink.table.gui.StarTableColumn;
+import uk.ac.starlink.topcat.activate.ActivationMeta;
+import uk.ac.starlink.topcat.activate.ActivationWindow;
 import uk.ac.starlink.ttools.jel.RandomJELRowReader;
 import uk.ac.starlink.ttools.convert.Conversions;
 import uk.ac.starlink.ttools.convert.ValueConverter;
-import uk.ac.starlink.topcat.interop.RowActivity;
 
 /**
  * Defines all the state for the representation of a given table as
@@ -70,46 +73,48 @@ public class TopcatModel {
     private final ViewerTableModel viewModel_;
     private final TableColumnModel columnModel_;
     private final ColumnList columnList_;
-    private final OptionsListModel subsets_;
+    private final OptionsListModel<RowSubset> subsets_;
     private final Map subsetCounts_;
-    private final OptionsListModel activators_;
     private final ComboBoxModel sortSelectionModel_;
     private final ComboBoxModel subsetSelectionModel_;
     private final SortSenseModel sortSenseModel_;
-    private final ToggleButtonModel rowSendModel_;
     private final Collection listeners_;
     private final Map columnSelectorMap_;
+    private final TableBuilder tableBuilder_;
+    private ActivationWindow activationWindow_;
     private SubsetConsumerDialog subsetConsumerDialog_;
     private final int id_;
     private final ControlWindow controlWindow_;
     private String location_;
     private String label_;
-    private Activator activator_;
     private long lastHighlight_ = -1L;
-
-    private ActivationQueryWindow activationWindow_;
 
     private Action newsubsetAct_;
     private Action unsortAct_;
-    private TopcatWindowAction activationAct_;
 
     private static final Logger logger_ =
         Logger.getLogger( "uk.ac.starlink.topcat" );
-    private static volatile int instanceCount = 0;
+    private static volatile int instanceCount_ = 0;
     private static StarTableColumn DUMMY_COLUMN;
-    private static RowActivity rowActivity_;
 
     /**
      * Constructs a new model from a given table.
      * The only row subset available is ALL.
      *
      * @param   startab  random-access table providing the data
+     * @param   id       id number; should be unique for loaded tables
      * @param   location  location string
      * @param   controlWindow  control window instance
      */
-    protected TopcatModel( StarTable startab, String location,
+    protected TopcatModel( StarTable startab, int id, String location,
                            ControlWindow controlWindow ) {
         controlWindow_ = controlWindow;
+
+        /* Pull out the information about the input table format that
+         * should have been stashed in the table's parametr list
+         * by the TopcatTableFactory.  Remove the relevant parameter from
+         * the list so that the rest of the application doesn't see it. */
+        tableBuilder_ = TopcatPreparation.removeFormatParameter( startab );
 
         /* Ensure that we have random access. */
         if ( ! startab.isRandom() && startab.getRowCount() != 0 ) {
@@ -119,7 +124,7 @@ public class TopcatModel {
         /* Initialize the label. */
         location_ = location;
         label_ = location_;
-        id_ = ++instanceCount;
+        id_ = id;
         if ( label_ == null ) {
             label_ = startab.getName();
         }
@@ -176,14 +181,8 @@ public class TopcatModel {
         sortSelectionModel_ = new SortSelectionModel();
         sortSenseModel_ = new SortSenseModel();
 
-        /* Set up model for whether activated rows are broadcast. */
-        rowSendModel_ =
-            new ToggleButtonModel( "Broadcast Row", null,
-                                   "Whether to broadcast row index to other "
-                                 + "clients at at row activation" );
-
         /* Initialise subsets list. */
-        subsets_ = new OptionsListModel();
+        subsets_ = new OptionsListModel<RowSubset>();
         subsets_.add( RowSubset.ALL );
 
         /* Set up the current subset selector. */
@@ -194,32 +193,8 @@ public class TopcatModel {
         subsetCounts_.put( RowSubset.NONE, new Long( 0 ) );
         subsetCounts_.put( RowSubset.ALL, new Long( startab.getRowCount() ) );
 
-        /* Set up a dummy row activator. */
-        activator_ = Activator.NOP;
-
         /* Set up a map to contain column selector models. */
         columnSelectorMap_ = new HashMap();
-
-        /* If there are any activation strings stored in the table, 
-         * pull them out and store them. */
-        activators_ = new OptionsListModel();
-
-        // Don't do this for now - the string version doesn't isn't always 
-        // in a suitable format.
-        // DescribedValue actVal = 
-        //     startab.getParameterByName( TopcatUtils.ACTIVATORS_INFO
-        //                                            .getName() );
-        // if ( actVal != null ) {
-        //     Object av = actVal.getValue();
-        //     if ( av instanceof String ) {
-        //         activators_.add( av );
-        //     }
-        //     else if ( av instanceof String[] ) {
-        //         for ( int i = 0; i < ((String[]) av).length; i++ ) {
-        //             activators_.add( ((String[]) av)[ i ] );
-        //         }
-        //     }
-        // }
 
         /* Install numeric converters as appropriate. */
         for ( int icol = 0; icol < dataModel_.getColumnCount(); icol++ ) {
@@ -241,9 +216,6 @@ public class TopcatModel {
                                          "Define a new row subset" );
         unsortAct_ = new ModelAction( "Unsort", ResourceIcon.UNSORT,
                                       "Use natural row order" );
-        activationAct_ = new TopcatWindowAction( 
-                           "Set Activation Action", null,
-                           "Set what happens when a row/point is clicked on" );
 
         /* Set up the listeners. */
         listeners_ = new ArrayList();
@@ -282,6 +254,16 @@ public class TopcatModel {
         return id_;
     }
 
+    /**
+     * Returns the table builder object that originally loaded
+     * this model's table.
+     *
+     * @return   table origin input handler if known, or null
+     */
+    public TableBuilder getTableFormat() {
+        return tableBuilder_;
+    }
+
     public String toString() {
         return id_ + ": " + getLabel();
     }
@@ -297,72 +279,6 @@ public class TopcatModel {
 
             /* Notify listeners. */
             fireModelChanged( TopcatEvent.LABEL, null );
-        }
-    }
-
-    /**
-     * Sets the row activator object.
-     *
-     * @param  activator  activator to use
-     */
-    public void setActivator( Activator activator ) {
-        if ( ! equalObject( activator, activator_ ) ) {
-            activator_ = activator;
-
-            /* Reflect the change in the bound table parameter (so it can
-             * be serialized). */
-            if ( activator_ != null && activator_ != Activator.NOP ) {
-                List params = dataModel_.getParameters();
-                params.remove( dataModel_
-                              .getParameterByName( TopcatUtils.ACTIVATORS_INFO
-                                                  .getName() ) );
-                params.add( new DescribedValue( TopcatUtils.ACTIVATORS_INFO,
-                                                activator_.toString() ) );
-            }
-
-            /* Notify listeners. */
-            fireModelChanged( TopcatEvent.ACTIVATOR, null );
-        }
-    }
-
-    /**
-     * Returns the row activator object.
-     *
-     * @return   activator
-     */
-    public Activator getActivator() {
-        return activator_;
-    }
-
-    /**
-     * Returns the list which contains a list of the known activators for
-     * this table.  The elements of the list are strings which can be 
-     * turned into Activator objects using the {@link #makeActivator} method.
-     *
-     * @return  list of activator strings which may come in useful for 
-     *          this table
-     */
-    public OptionsListModel getActivatorList() {
-        return activators_;
-    }
-
-    /**
-     * Gets an activator object from a string representation of one.
-     * This usually involves compiling it using JEL, so it can result in a
-     * CompilationException.
-     *
-     * @param  actstr  string representation of the activator
-     * @return  activator object corresponding to <tt>actstr</tt>
-     */
-    public Activator makeActivator( String actstr )
-            throws CompilationException {
-        if ( actstr == null || 
-             actstr.trim().length() == 0 ||
-             actstr.equals( Activator.NOP.toString() ) ) {
-            return Activator.NOP;
-        }
-        else {
-            return new JELActivator( this, actstr );
         }
     }
 
@@ -424,7 +340,7 @@ public class TopcatModel {
      *
      * @return   the RowSubset list model
      */
-    public OptionsListModel getSubsets() {
+    public OptionsListModel<RowSubset> getSubsets() {
         return subsets_;
     }
 
@@ -518,13 +434,28 @@ public class TopcatModel {
     }
 
     /**
-     * Returns a toggle button model which determines whether a row 
-     * activation will automatically generate an interop row highlight message.
+     * Returns the window that manages this model's activation actions.
      *
-     * @return   row send model
+     * @return  activation window, created lazily
      */
-    public ToggleButtonModel getRowSendModel() {
-        return rowSendModel_;
+    public ActivationWindow getActivationWindow() {
+        if ( activationWindow_ == null ) {
+            activationWindow_ =
+                new ActivationWindow( this, ControlWindow.getInstance() );
+        }
+        return activationWindow_;
+    }
+
+    /**
+     * Indicates whether this model currently has an activation window.
+     * If this method returns false, then calling {@link #getActivationWindow}
+     * will result in one being created.
+     *
+     * @return  true iff an activation window has already been created
+     *          for this model
+     */
+    public boolean hasActivationWindow() {
+        return activationWindow_ != null;
     }
 
     /**
@@ -583,27 +514,9 @@ public class TopcatModel {
     public void highlightRow( long lrow, boolean sendOut ) {
         if ( lrow != lastHighlight_ ) {
             fireModelChanged( TopcatEvent.ROW, new Long( lrow ) );
-            if ( activator_ != null &&
-                 ( sendOut ||
-                   ! ActivationQueryWindow.isRowSender( activator_ ) ) ) {
-                String msg = "Activate row " + ( lrow + 1 );
-                String report = activator_.activateRow( lrow );
-                if ( report != null && report.trim().length() > 0 ) {
-                    msg += ": " + report;
-                }
-                logger_.info( msg );
-            }
-            if ( sendOut && 
-                 rowSendModel_.isSelected() &&
-                 controlWindow_.getCommunicator() != null &&
-                 controlWindow_.getCommunicator().isConnected() ) {
-                try {
-                    getRowActivity().highlightRow( this, lrow );
-                }
-                catch ( IOException e ) {
-                    logger_.info( "Row send fail: " + e );
-                }
-            }
+            ActivationMeta meta = sendOut ? ActivationMeta.NORMAL
+                                          : ActivationMeta.INHIBIT_SEND;
+            getActivationWindow().activateRow( lrow, meta );
         }
     }
 
@@ -628,17 +541,6 @@ public class TopcatModel {
     }
 
     /**
-     * Gets an action which will allow the user to choose what happens
-     * if a row is activated.  This probably results in a dialog box
-     * or something.
-     *
-     * @return  activation configuration action
-     */
-    public Action getActivationAction() {
-        return activationAct_;
-    }
-
-    /**
      * Returns an action which sorts the table on the contents of a given
      * column.  The sort is effected by creating a mapping between model
      * rows and (sorted) view rows, and installing this into this 
@@ -658,21 +560,6 @@ public class TopcatModel {
                 sortBy( order, ascending );
             }
         };
-    }
-
-    /**
-     * Returns a unique ID string for the given table column, which
-     * should be one of the columns in this object's dataModel
-     * (though not necessarily its columnModel).  The id will consist
-     * of a '$' sign followed by an integer.
-     *
-     * @param   cinfo column metadata
-     * @return  ID string
-     */
-    public String getColumnID( ColumnInfo cinfo ) {
-        return cinfo.getAuxDatum( TopcatUtils.COLID_INFO )
-                    .getValue()
-                    .toString();
     }
 
     /**
@@ -782,18 +669,16 @@ public class TopcatModel {
         String baseExpr = baseInfo.getAuxDatum( TopcatUtils.COLID_INFO )
                                   .getValue().toString();
         ColumnInfo elInfo = new ColumnInfo( baseInfo );
-        RandomJELRowReader rowReader =
-            new TopcatJELRowReader( dataModel_,
-                                    new RowSubset[ 0 ], new int[ 0 ] );
+        RandomJELRowReader rowReader = createJELRowReader();
         elInfo.setShape( null );
         int ipos = 0;
-        for ( Iterator it = new ShapeIterator( baseInfo.getShape() );
+        for ( Iterator<int[]> it = new ShapeIterator( baseInfo.getShape() );
               it.hasNext(); ipos++ ) {
-            int[] pos = (int[]) it.next();
+            int[] pos = it.next();
             StringBuffer postxt = new StringBuffer();
-            for ( int i = 0; i < pos.length; i++ ) {
+            for ( int coord : pos ) {
                 postxt.append( '_' );
-                postxt.append( Integer.toString( pos[ i ] + 1 ) );
+                postxt.append( Integer.toString( coord + 1 ) );
             }
             ColumnInfo colInfo = new ColumnInfo( elInfo );
             colInfo.setName( baseName + postxt.toString() );
@@ -899,14 +784,7 @@ public class TopcatModel {
      * @return  row reader
      */
     public RandomJELRowReader createJELRowReader() {
-        int nset = subsets_.size();
-        RowSubset[] subsetArray = new RowSubset[ nset ];
-        int[] subsetIds = new int[ nset ];
-        for ( int isub = 0; isub < nset; isub++ ) {
-            subsetArray[ isub ] = (RowSubset) subsets_.get( isub );
-            subsetIds[ isub ] = subsets_.indexToId( isub );
-        }
-        return new TopcatJELRowReader( dataModel_, subsetArray, subsetIds );
+        return new TopcatJELRowReader( this );
     }
 
     /**
@@ -923,7 +801,7 @@ public class TopcatModel {
         boolean done = false;
         int nset = subsets_.size();
         for ( int is = 0; is < nset && ! done; is++ ) {
-            RowSubset rs = (RowSubset) subsets_.get( is );
+            RowSubset rs = subsets_.get( is );
             if ( rset != RowSubset.ALL &&
                  rset.getName().equals( rs.getName() ) ) {
                 subsets_.set( is, rset );
@@ -951,7 +829,7 @@ public class TopcatModel {
         RandomJELRowReader jeller = createJELRowReader();
         int nset = subsets_.size();
         for ( int is = 0; is < nset; is++ ) {
-            RowSubset rs = (RowSubset) subsets_.get( is );
+            RowSubset rs = subsets_.get( is );
             if ( rs instanceof SyntheticRowSubset ) {
                 SyntheticRowSubset ss = (SyntheticRowSubset) rs;
                 try {
@@ -1105,18 +983,6 @@ public class TopcatModel {
     }
 
     /**
-     * Returns a RowActivity object which can be used from this model.
-     *
-     * @return  lazily constructed row activity
-     */
-    private RowActivity getRowActivity() {
-        if ( rowActivity_ == null ) {
-            rowActivity_ = controlWindow_.getCommunicator().createRowActivity();
-        }
-        return rowActivity_;
-    }
-
-    /**
      * Utility method to check equality of two objects without choking
      * on nulls.
      */
@@ -1138,7 +1004,8 @@ public class TopcatModel {
                                             ControlWindow controlWindow ) {
 
         /* Construct model. */
-        TopcatModel tcModel = new TopcatModel( table, location, controlWindow );
+        TopcatModel tcModel =
+            createRawTopcatModel( table, location, controlWindow );
 
         /* Add subsets for any boolean type columns. */
         StarTable dataModel = tcModel.getDataModel();
@@ -1167,7 +1034,20 @@ public class TopcatModel {
     public static TopcatModel
                   createRawTopcatModel( StarTable table, String location,
                                         ControlWindow controlWindow ) {
-        return new TopcatModel( table, location, controlWindow );
+        return new TopcatModel( table, ++instanceCount_,
+                                location, controlWindow );
+    }
+
+    /**
+     * Returns a new TopcatModel that is supposed to be used independently
+     * rather than loaded into the main topcat application list.
+     *
+     * @param  table  random-access table providing the data
+     * @param  name   name by which the table will be known
+     */
+    public static TopcatModel createUnloadedTopcatModel( StarTable table,
+                                                         final String name ) {
+        return new TopcatModel( table, 0, name, (ControlWindow) null );
     }
 
     /**
@@ -1178,14 +1058,9 @@ public class TopcatModel {
      *
      * @return  new empty TopcatModel
      */
-    public static synchronized TopcatModel createDummyModel() {
-        int ic = instanceCount;
-        instanceCount = -1;
-        TopcatModel dummy = 
-            new TopcatModel( new RowListStarTable( new ColumnInfo[ 0 ] ),
-                             "dummy", null );
-        instanceCount = ic;
-        return dummy;
+    public static TopcatModel createDummyModel() {
+        return createUnloadedTopcatModel(
+            new RowListStarTable( new ColumnInfo[ 0 ] ), "dummy" );
     }
 
     /**
@@ -1209,40 +1084,6 @@ public class TopcatModel {
             }
             else {
                 assert false;
-            }
-        }
-    }
-
-    /**
-     * Implementations of Actions associated with show/hide of windows.
-     */
-    private class TopcatWindowAction extends WindowAction {
-
-        TopcatWindowAction( String name, Icon icon, String shortdesc ) {
-            super( name, icon, shortdesc );
-        }
-
-        public boolean hasWindow() {
-            if ( this == activationAct_ ) {
-                return activationWindow_ != null;
-            }
-            else {
-                throw new AssertionError();
-            }
-        }
-
-        public Window getWindow( Component parent ) {
-            TopcatModel tcModel = TopcatModel.this;
-            if ( this == activationAct_ ) {
-                if ( ! hasWindow() ) {
-                    activationWindow_ = 
-                        new ActivationQueryWindow( tcModel, parent );
-                    activationWindow_.setVisible( true );
-                }
-                return activationWindow_;
-            }
-            else {
-                throw new AssertionError();
             }
         }
     }

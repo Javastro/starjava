@@ -84,15 +84,14 @@ public interface StarTable {
     void setName( String name );
 
     /**
-     * Returns a list of table parameters, that is items which pertain to
-     * the entire table.  Each element of this list must be a 
-     * {@link DescribedValue} object.
+     * Returns a list of table parameters, that is metadata items
+     * which pertain to the entire table.
      *
      * @return  a <tt>List</tt> of <tt>DescribedValue</tt> objects 
      *          constituting table-wide metadata not covered elsewhere 
      *          in this interface
      */
-    List getParameters();
+    List<DescribedValue> getParameters();
 
     /**
      * Returns a parameter (table-wide metadata item) of this table located
@@ -123,7 +122,7 @@ public interface StarTable {
     ColumnInfo getColumnInfo( int icol );
 
     /**
-     * Returns an ordered list of {@link ValueInfo} objects representing 
+     * Returns an ordered list of ValueInfo objects representing 
      * the auxiliary metadata returned by 
      * <tt>getColumnInfo(int).getAuxData()</tt> calls.
      * The idea is that the resulting list can be used to find out 
@@ -141,7 +140,7 @@ public interface StarTable {
      * @return  an unmodifiable ordered set of known metadata keys
      * @see  ColumnInfo#getAuxData
      */
-    List getColumnAuxDataInfos();
+    List<ValueInfo> getColumnAuxDataInfos();
 
     /**
      * Returns an object which can iterate over all the rows in the table

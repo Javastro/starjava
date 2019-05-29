@@ -12,10 +12,13 @@ import javax.swing.Box;
 import javax.swing.ComboBoxModel;
 import javax.swing.JComboBox;
 import javax.swing.JComponent;
+import javax.swing.JLabel;
+import uk.ac.starlink.topcat.AlignedBox;
 import uk.ac.starlink.topcat.LineBox;
 import uk.ac.starlink.topcat.RowSubset;
 import uk.ac.starlink.topcat.TablesListComboBox;
 import uk.ac.starlink.topcat.TopcatModel;
+import uk.ac.starlink.topcat.TypedListModel;
 import uk.ac.starlink.ttools.plot2.DataGeom;
 import uk.ac.starlink.ttools.plot2.LegendEntry;
 import uk.ac.starlink.ttools.plot2.PlotLayer;
@@ -54,6 +57,7 @@ public class BasicCoordLayerControl extends ConfigControl
      * @param   zsel    zone id specifier, may be null for single-zone case
      * @param   coordPanel   panel which displays the plotter's coordinates,
      *                       and supplies a DataGeom
+     * @param   tablesModel  list of available tables
      * @param   baseConfigger   provides global configuration info
      * @param  autoPopulate  if true, when the table is changed an attempt
      *                       will be made to initialise the coordinate fields
@@ -61,6 +65,7 @@ public class BasicCoordLayerControl extends ConfigControl
      */
     public BasicCoordLayerControl( Plotter<?> plotter, Specifier<ZoneId> zsel,
                                    PositionCoordPanel coordPanel,
+                                   TypedListModel<TopcatModel> tablesModel,
                                    Configger baseConfigger,
                                    boolean autoPopulate ) {
         super( null, plotter.getPlotterIcon() );
@@ -72,7 +77,7 @@ public class BasicCoordLayerControl extends ConfigControl
         styler_ = new ConfigStyler( coordPanel_.getComponent() );
 
         /* Create data selection components. */
-        tableSelector_ = new TablesListComboBox();
+        tableSelector_ = new TablesListComboBox( tablesModel, 250 );
         subsetSelector_ = new JComboBox();
         dummyComboBoxModel_ = subsetSelector_.getModel();
 
@@ -90,10 +95,12 @@ public class BasicCoordLayerControl extends ConfigControl
         subsetSelector_.addActionListener( forwarder );
 
         /* Configure panel for specifying the data. */
-        JComponent dataPanel = Box.createVerticalBox();
-        dataPanel.add( new LineBox( "Table",
-                                    new ShrinkWrapper( tableSelector_ ),
-                                    true ) );
+        JComponent dataPanel = AlignedBox.createVerticalBox();
+        JComponent tline = Box.createHorizontalBox();
+        tline.add( new JLabel( "Table: " ) );
+        tline.add( tableSelector_ );
+        dataPanel.add( tline );
+        dataPanel.add( Box.createVerticalStrut( 5 ) );
         dataPanel.add( coordPanel_.getComponent() );
         dataPanel.add( Box.createVerticalStrut( 5 ) );
         dataPanel.add( new LineBox( "Row Subset",
@@ -126,19 +133,25 @@ public class BasicCoordLayerControl extends ConfigControl
         return tcModel_ == null ? "<no table>" : tcModel_.toString();
     }
 
-    public PlotLayer[] getPlotLayers() {
+    public TopcatLayer[] getLayers() {
         RowSubset subset = (RowSubset) subsetSelector_.getSelectedItem();
         GuiCoordContent[] coordContents = coordPanel_.getContents();
         if ( tcModel_ == null || coordContents == null || subset == null ) {
-            return new PlotLayer[ 0 ];
+            return new TopcatLayer[ 0 ];
         }
         DataGeom geom = coordPanel_.getDataGeom();
         DataSpec dataSpec = new GuiDataSpec( tcModel_, subset, coordContents );
         ConfigMap config = getConfig();
         config.putAll( baseConfigger_.getConfig() );
-        PlotLayer layer =
+        config.putAll( coordPanel_.getConfig() );
+        PlotLayer plotLayer =
             styler_.createLayer( plotter_, geom, dataSpec, config );
-        return layer == null ? new PlotLayer[ 0 ] : new PlotLayer[] { layer };
+        return plotLayer == null
+             ? new TopcatLayer[ 0 ]
+             : new TopcatLayer[] {
+                   new TopcatLayer( plotLayer, config, null, tcModel_,
+                                    coordContents, subset ),
+               };
     }
 
     public String getCoordLabel( String userCoordName ) {
@@ -154,6 +167,10 @@ public class BasicCoordLayerControl extends ConfigControl
         return zsel_;
     }
 
+    public TablesListComboBox getTableSelector() {
+        return tableSelector_;
+    }
+
     @Override
     public ConfigMap getConfig() {
         ConfigMap config = super.getConfig();
@@ -162,8 +179,10 @@ public class BasicCoordLayerControl extends ConfigControl
     }
 
     public void submitReports( Map<LayerId,ReportMap> reports ) {
-        PlotLayer[] layers = getPlotLayers();
-        PlotLayer layer = layers.length == 1 ? layers[ 0 ] : null;
+        TopcatLayer[] tcLayers = getLayers();
+        PlotLayer layer = tcLayers.length == 1
+                        ? tcLayers[ 0 ].getPlotLayer()
+                        : null;
         if ( layer != null ) {
             ReportMap report = reports.get( LayerId.createLayerId( layer ) );
             if ( report != null ) {
@@ -210,7 +229,7 @@ public class BasicCoordLayerControl extends ConfigControl
         }
         else {
             subselModel = tcModel.getSubsets().makeComboBoxModel();
-            subselModel.setSelectedItem( RowSubset.ALL );
+            subselModel.setSelectedItem( tcModel.getSelectedSubset() );
         }
         subsetSelector_.setModel( subselModel );
     }

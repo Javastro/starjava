@@ -12,6 +12,7 @@ import uk.ac.starlink.util.ByteList;
 import uk.ac.starlink.util.DoubleList;
 import uk.ac.starlink.util.FloatList;
 import uk.ac.starlink.util.IntList;
+import uk.ac.starlink.util.LongList;
 import uk.ac.starlink.util.ShortList;
 
 /**
@@ -52,6 +53,12 @@ public class MemoryColumnFactory implements CachedColumnFactory {
             public CachedColumn createColumn( long nrow ) {
                 return nrow >= 0 ? new FixedFloatColumn( nrow )
                                  : new UnknownFloatColumn();
+            }
+        } );
+        map.put( StorageType.LONG, new ColumnCreator() {
+            public CachedColumn createColumn( long nrow ) {
+                return nrow >= 0 ? new FixedLongColumn( nrow )
+                                 : new UnknownLongColumn();
             }
         } );
         map.put( StorageType.INT, new ColumnCreator() {
@@ -97,15 +104,13 @@ public class MemoryColumnFactory implements CachedColumnFactory {
             public CachedColumn createColumn( long nrow ) {
                 return nrow >= 0
                     ? new FixedIntArrayColumn( 3, nrow ) {
-                          protected CachedSequence
-                                    createSequence( int[] data ) {
-                              return new IntSequence3( data );
+                          protected CachedReader createReader( int[] data ) {
+                              return new IntReader3( data );
                           }
                       }
                     : new UnknownIntArrayColumn( 3 ) {
-                          protected CachedSequence
-                                    createSequence( int[] data ) {
-                              return new IntSequence3( data );
+                          protected CachedReader createReader( int[] data ) {
+                              return new IntReader3( data );
                           }
                       };
             }
@@ -114,15 +119,13 @@ public class MemoryColumnFactory implements CachedColumnFactory {
             public CachedColumn createColumn( long nrow ) {
                 return nrow >= 0
                     ? new FixedDoubleArrayColumn( 3, nrow ) {
-                          protected CachedSequence
-                                    createSequence( double[] data ) {
-                              return new DoubleSequence3( data );
+                          protected CachedReader createReader( double[] data ) {
+                              return new DoubleReader3( data );
                           }
                       }
                     : new UnknownDoubleArrayColumn( 3 ) {
-                          protected CachedSequence
-                                    createSequence( double[] data ) {
-                              return new DoubleSequence3( data );
+                          protected CachedReader createReader( double[] data ) {
+                              return new DoubleReader3( data );
                           }
                       };
             }
@@ -131,15 +134,13 @@ public class MemoryColumnFactory implements CachedColumnFactory {
             public CachedColumn createColumn( long nrow ) {
                 return nrow >= 0
                     ? new FixedFloatArrayColumn( 3, nrow ) {
-                          protected CachedSequence
-                                    createSequence( float[] data ) {
-                              return new FloatSequence3( data );
+                          protected CachedReader createReader( float[] data ) {
+                              return new FloatReader3( data );
                           }
                       }
                     : new UnknownFloatArrayColumn( 3 ) {
-                          protected CachedSequence
-                                    createSequence( float[] data ) {
-                              return new FloatSequence3( data );
+                          protected CachedReader createReader( float[] data ) {
+                              return new FloatReader3( data );
                           }
                       };
             }
@@ -167,6 +168,16 @@ public class MemoryColumnFactory implements CachedColumnFactory {
      */
     private static float toFloat( Object obj ) {
         return ((Number) obj).floatValue();
+    }
+
+    /**
+     * Converts an object to a long.
+     *
+     * @param  obj, presumed numeric
+     * @return  numerical value of <code>obj</code>
+     */
+    private static long toLong( Object obj ) {
+        return ((Number) obj).longValue();
     }
 
     /**
@@ -242,7 +253,6 @@ public class MemoryColumnFactory implements CachedColumnFactory {
     private static class BitSetColumn implements CachedColumn {
         private final BitSet mask_;
         private int irow_;
-        private Integer nrow_;
 
         /**
          * Constructor.
@@ -259,10 +269,12 @@ public class MemoryColumnFactory implements CachedColumnFactory {
             mask_.set( irow_++, toBoolean( value ) );
         }
         public void endAdd() {
-            nrow_ = new Integer( irow_ );
         }
-        public CachedSequence createSequence() {
-            return new BitSetSequence( mask_, nrow_.intValue() );
+        public long getRowCount() {
+            return irow_;
+        }
+        public CachedReader createReader() {
+            return new BitSetReader( mask_ );
         }
     }
 
@@ -300,8 +312,12 @@ public class MemoryColumnFactory implements CachedColumnFactory {
             assert irow_ == nrow_;
         }
 
-        public CachedSequence createSequence() {
-            return new ObjectArraySequence<T>( data_ );
+        public long getRowCount() {
+            return irow_;
+        }
+
+        public CachedReader createReader() {
+            return new ObjectArrayReader<T>( data_ );
         }
     }
 
@@ -334,8 +350,12 @@ public class MemoryColumnFactory implements CachedColumnFactory {
             assert irow_ == nrow_;
         }
 
-        public CachedSequence createSequence() {
-            return new DoubleArraySequence( data_ );
+        public long getRowCount() {
+            return irow_;
+        }
+
+        public CachedReader createReader() {
+            return new DoubleArrayReader( data_ );
         }
     }
 
@@ -368,8 +388,50 @@ public class MemoryColumnFactory implements CachedColumnFactory {
             assert irow_ == nrow_;
         }
 
-        public CachedSequence createSequence() {
-            return new FloatArraySequence( data_ );
+        public long getRowCount() {
+            return irow_;
+        }
+
+        public CachedReader createReader() {
+            return new FloatArrayReader( data_ );
+        }
+    }
+
+    /**
+     * CachedColumn implementation for long values, column length is known.
+     */
+    private static class FixedLongColumn implements CachedColumn {
+        private final int nrow_;
+        private final long[] data_;
+        private int irow_;
+
+        /**
+         * Constructor.
+         *
+         * @param  nrow  column length
+         */
+        FixedLongColumn( long nrow ) {
+            if ( nrow > Integer.MAX_VALUE ) {
+                throw new UnsupportedOperationException( "Too long " + nrow );
+            }
+            nrow_ = (int) nrow;
+            data_ = new long[ nrow_ ];
+        }
+
+        public void add( Object value ) {
+            data_[ irow_++ ] = toLong( value );
+        }
+
+        public void endAdd() {
+            assert irow_ == nrow_;
+        }
+
+        public long getRowCount() {
+            return irow_;
+        }
+
+        public CachedReader createReader() {
+            return new LongArrayReader( data_ );
         }
     }
 
@@ -402,8 +464,12 @@ public class MemoryColumnFactory implements CachedColumnFactory {
             assert irow_ == nrow_;
         }
 
-        public CachedSequence createSequence() {
-            return new IntArraySequence( data_ );
+        public long getRowCount() {
+            return irow_;
+        }
+
+        public CachedReader createReader() {
+            return new IntArrayReader( data_ );
         }
     }
 
@@ -436,8 +502,12 @@ public class MemoryColumnFactory implements CachedColumnFactory {
             assert irow_ == nrow_;
         }
 
-        public CachedSequence createSequence() {
-            return new ShortArraySequence( data_ );
+        public long getRowCount() {
+            return irow_;
+        }
+
+        public CachedReader createReader() {
+            return new ShortArrayReader( data_ );
         }
     }
 
@@ -470,8 +540,12 @@ public class MemoryColumnFactory implements CachedColumnFactory {
             assert irow_ == nrow_;
         }
 
-        public CachedSequence createSequence() {
-            return new ByteArraySequence( data_ );
+        public long getRowCount() {
+            return irow_;
+        }
+
+        public CachedReader createReader() {
+            return new ByteArrayReader( data_ );
         }
     }
 
@@ -512,17 +586,21 @@ public class MemoryColumnFactory implements CachedColumnFactory {
             assert ipos_ == nrow_ * ncol_;
         }
 
-        public CachedSequence createSequence() {
-            return createSequence( data_ );
+        public long getRowCount() {
+            return ipos_ / ncol_;
+        }
+
+        public CachedReader createReader() {
+            return createReader( data_ );
         }
 
         /**
-         * Returns a CachedSequence based on a single vector of floating
+         * Returns a CachedReader based on a single vector of floating
          * point data, with columns varying quickest.
          *
          * @param  data  array data
          */
-        protected abstract CachedSequence createSequence( double[] data );
+        protected abstract CachedReader createReader( double[] data );
     }
 
     /**
@@ -562,17 +640,21 @@ public class MemoryColumnFactory implements CachedColumnFactory {
             assert ipos_ == nrow_ * ncol_;
         }
 
-        public CachedSequence createSequence() {
-            return createSequence( data_ );
+        public long getRowCount() {
+            return ipos_ / ncol_;
+        }
+
+        public CachedReader createReader() {
+            return createReader( data_ );
         }
 
         /**
-         * Returns a CachedSequence based on a single vector of floating
+         * Returns a CachedReader based on a single vector of floating
          * point data, with columns varying quickest.
          *
          * @param  data  array data
          */
-        protected abstract CachedSequence createSequence( float[] data );
+        protected abstract CachedReader createReader( float[] data );
     }
 
     /**
@@ -612,17 +694,21 @@ public class MemoryColumnFactory implements CachedColumnFactory {
             assert ipos_ == nrow_ * ncol_;
         }
 
-        public CachedSequence createSequence() {
-            return createSequence( data_ );
+        public long getRowCount() {
+            return ipos_ / ncol_;
+        }
+
+        public CachedReader createReader() {
+            return createReader( data_ );
         }
 
         /**
-         * Returns a CachedSequence based on a single vector of integer
+         * Returns a CachedReader based on a single vector of integer
          * data, with columns varying quickest.
          *
          * @param   data   array data
          */
-        protected abstract CachedSequence createSequence( int[] data );
+        protected abstract CachedReader createReader( int[] data );
     }
 
     /**
@@ -638,7 +724,7 @@ public class MemoryColumnFactory implements CachedColumnFactory {
          * Constructor.
          *
          * @param   clazz  element class for type to be returned from
-         *                 sequence getObject method
+         *                 reader getObject method
          */
         UnknownObjectColumn( Class<T> clazz ) {
             clazz_ = clazz;
@@ -657,8 +743,12 @@ public class MemoryColumnFactory implements CachedColumnFactory {
             list_ = null;
         }
 
-        public CachedSequence createSequence() {
-            return new ObjectArraySequence<T>( data_ );
+        public long getRowCount() {
+            return data_ == null ? list_.size() : data_.length;
+        }
+
+        public CachedReader createReader() {
+            return new ObjectArrayReader<T>( data_ );
         }
     }
 
@@ -685,8 +775,12 @@ public class MemoryColumnFactory implements CachedColumnFactory {
             list_ = null;
         }
 
-        public CachedSequence createSequence() {
-            return new DoubleArraySequence( data_ );
+        public long getRowCount() {
+            return data_ == null ? list_.size() : data_.length;
+        }
+
+        public CachedReader createReader() {
+            return new DoubleArrayReader( data_ );
         }
     }
 
@@ -710,8 +804,41 @@ public class MemoryColumnFactory implements CachedColumnFactory {
             list_ = null;
         }
 
-        public CachedSequence createSequence() {
-            return new FloatArraySequence( data_ );
+        public long getRowCount() {
+            return data_ == null ? list_.size() : data_.length;
+        }
+
+        public CachedReader createReader() {
+            return new FloatArrayReader( data_ );
+        }
+    }
+
+    /**
+     * CachedColumn implementation for long values, column length not known.
+     */
+    private static class UnknownLongColumn implements CachedColumn {
+        private LongList list_;
+        private long[] data_;
+
+        UnknownLongColumn() {
+            list_ = new LongList();
+        }
+
+        public void add( Object value ) {
+            list_.add( toLong( value ) );
+        }
+
+        public void endAdd() {
+            data_ = list_.toLongArray();
+            list_ = null;
+        }
+
+        public long getRowCount() {
+            return data_ == null ? list_.size() : data_.length;
+        }
+
+        public CachedReader createReader() {
+            return new LongArrayReader( data_ );
         }
     }
 
@@ -735,8 +862,12 @@ public class MemoryColumnFactory implements CachedColumnFactory {
             list_ = null;
         }
 
-        public CachedSequence createSequence() {
-            return new IntArraySequence( data_ );
+        public long getRowCount() {
+            return data_ == null ? list_.size() : data_.length;
+        }
+
+        public CachedReader createReader() {
+            return new IntArrayReader( data_ );
         }
     }
 
@@ -760,8 +891,12 @@ public class MemoryColumnFactory implements CachedColumnFactory {
             list_ = null;
         }
 
-        public CachedSequence createSequence() {
-            return new ShortArraySequence( data_ );
+        public long getRowCount() {
+            return data_ == null ? list_.size() : data_.length;
+        }
+
+        public CachedReader createReader() {
+            return new ShortArrayReader( data_ );
         }
     }
 
@@ -785,8 +920,12 @@ public class MemoryColumnFactory implements CachedColumnFactory {
             list_ = null;
         }
 
-        public CachedSequence createSequence() {
-            return new ByteArraySequence( data_ );
+        public long getRowCount() {
+            return data_ == null ? list_.size() : data_.length;
+        }
+
+        public CachedReader createReader() {
+            return new ByteArrayReader( data_ );
         }
     }
 
@@ -822,17 +961,21 @@ public class MemoryColumnFactory implements CachedColumnFactory {
             list_ = null;
         }
 
-        public CachedSequence createSequence() {
-            return createSequence( data_ );
+        public long getRowCount() {
+            return ( data_ == null ? list_.size() : data_.length ) / ncol_;
+        }
+
+        public CachedReader createReader() {
+            return createReader( data_ );
         }
 
         /**
-         * Returns a CachedSequence based on a single vector of floating
+         * Returns a CachedReader based on a single vector of floating
          * point data, with columns varying quickest.
          *
          * @param  data  array data
          */
-        protected abstract CachedSequence createSequence( double[] data );
+        protected abstract CachedReader createReader( double[] data );
     }
 
     /**
@@ -867,17 +1010,21 @@ public class MemoryColumnFactory implements CachedColumnFactory {
             list_ = null;
         }
 
-        public CachedSequence createSequence() {
-            return createSequence( data_ );
+        public long getRowCount() {
+            return ( data_ == null ? list_.size() : data_.length ) / ncol_;
+        }
+
+        public CachedReader createReader() {
+            return createReader( data_ );
         }
 
         /**
-         * Returns a CachedSequence based on a single vector of floating
+         * Returns a CachedReader based on a single vector of floating
          * point data, with columns varying quickest.
          *
          * @param  data  array data
          */
-        protected abstract CachedSequence createSequence( float[] data );
+        protected abstract CachedReader createReader( float[] data );
     }
 
     /**
@@ -912,380 +1059,388 @@ public class MemoryColumnFactory implements CachedColumnFactory {
             list_ = null;
         }
 
-        public CachedSequence createSequence() {
-            return createSequence( data_ );
+        public long getRowCount() {
+            return ( data_ == null ? list_.size() : data_.length ) / ncol_;
+        }
+
+        public CachedReader createReader() {
+            return createReader( data_ );
         }
 
         /**
-         * Returns a CachedSequence based on a single vector of integer
+         * Returns a CachedReader based on a single vector of integer
          * data, with columns varying quickest.
          *
          * @param  data  array data
          */
-        protected abstract CachedSequence createSequence( int[] data );
+        protected abstract CachedReader createReader( int[] data );
     }
 
     /**
-     * Boolean-yielding CachedSequence implementation based on a BitSet.
+     * Boolean-yielding CachedReader implementation based on a BitSet.
      */
-    private static class BitSetSequence implements CachedSequence {
+    private static class BitSetReader implements CachedReader {
         private final BitSet mask_;
-        private final int nrow_;
-        private int irow_ = -1;
 
         /**
          * Constructor.
          *
          * @param  mask  bit vector
-         * @param  nrow  number of items in sequence
          */
-        public BitSetSequence( BitSet mask, int nrow ) {
+        public BitSetReader( BitSet mask ) {
             mask_ = mask;
-            nrow_ = nrow;
         }
-        public boolean next() {
-            return ++irow_ < nrow_;
+        public Object getObjectValue( long ix ) {
+            return Boolean.valueOf( mask_.get( (int) ix ) );
         }
-        public Object getObjectValue() {
-            return Boolean.valueOf( mask_.get( irow_ ) );
+        public boolean getBooleanValue( long ix ) {
+            return mask_.get( (int) ix );
         }
-        public boolean getBooleanValue() {
-            return mask_.get( irow_ );
-        }
-        public double getDoubleValue() {
+        public double getDoubleValue( long ix ) {
             return Double.NaN;
         }
-        public int getIntValue() {
+        public int getIntValue( long ix ) {
             return Integer.MIN_VALUE;
+        }
+        public long getLongValue( long ix ) {
+            return Long.MIN_VALUE;
         }
     }
 
     /**
-     * Object-yielding CachedSequence implementation based on an Object array.
+     * Object-yielding CachedReader implementation based on an Object array.
      */
-    private static class ObjectArraySequence<T> implements CachedSequence {
+    private static class ObjectArrayReader<T> implements CachedReader {
         private final T[] data_;
-        private final int nrow_;
-        private int irow_ = -1;
 
         /**
          * Constructor.
          *
          * @param   data  data array
          */
-        public ObjectArraySequence( T[] data ) {
+        public ObjectArrayReader( T[] data ) {
             data_ = data;
-            nrow_ = data.length;
         }
-        public boolean next() {
-            return ++irow_ < nrow_;
+        public T getObjectValue( long ix ) {
+            return data_[ (int) ix ];
         }
-        public T getObjectValue() {
-            return data_[ irow_ ];
-        }
-        public double getDoubleValue() {
+        public double getDoubleValue( long ix ) {
             return Double.NaN;
         }
-        public int getIntValue() {
+        public int getIntValue( long ix ) {
             return Integer.MIN_VALUE;
         }
-        public boolean getBooleanValue() {
+        public long getLongValue( long ix ) {
+            return Long.MIN_VALUE;
+        }
+        public boolean getBooleanValue( long ix ) {
             return false;
         }
     }
 
     /**
-     * Double-yielding CachedSequence implementation based on a double array.
+     * Double-yielding CachedReader implementation based on a double array.
      */
-    private static class DoubleArraySequence implements CachedSequence {
+    private static class DoubleArrayReader implements CachedReader {
         private final double[] data_;
-        private final int nrow_;
-        private int irow_ = -1;
 
         /**
          * Constructor.
          *
          * @param   data  data array
          */
-        DoubleArraySequence( double[] data ) {
+        DoubleArrayReader( double[] data ) {
             data_ = data;
-            nrow_ = data.length;
         }
-        public boolean next() {
-            return ++irow_ < nrow_;
+        public Object getObjectValue( long ix ) {
+            return new Double( data_[ (int) ix ] );
         }
-        public Object getObjectValue() {
-            return new Double( data_[ irow_ ] );
+        public double getDoubleValue( long ix ) {
+            return data_[ (int) ix ];
         }
-        public double getDoubleValue() {
-            return data_[ irow_ ];
+        public int getIntValue( long ix ) {
+            return (int) data_[ (int) ix ];
         }
-        public int getIntValue() {
-            return (int) data_[ irow_ ];
+        public long getLongValue( long ix ) {
+            return (long) data_[ (int) ix ];
         }
-        public boolean getBooleanValue() {
+        public boolean getBooleanValue( long ix ) {
             return false;
         }
     }
 
     /**
-     * Double-yielding CachedSequence implementation based on an float array.
+     * Double-yielding CachedReader implementation based on an float array.
      */
-    private static class FloatArraySequence implements CachedSequence {
+    private static class FloatArrayReader implements CachedReader {
         private final float[] data_;
-        private final int nrow_;
-        private int irow_ = -1;
 
         /**
          * Constructor.
          *
          * @param   data  data array
          */
-        FloatArraySequence( float[] data ) {
+        FloatArrayReader( float[] data ) {
             data_ = data;
-            nrow_ = data.length;
         }
-        public boolean next() {
-            return ++irow_ < nrow_;
+        public Object getObjectValue( long ix ) {
+            return new Float( data_[ (int) ix ] );
         }
-        public Object getObjectValue() {
-            return new Float( data_[ irow_ ] );
+        public double getDoubleValue( long ix ) {
+            return (double) data_[ (int) ix ];
         }
-        public double getDoubleValue() {
-            return (double) data_[ irow_ ];
+        public int getIntValue( long ix ) {
+            return (int) data_[ (int) ix ];
         }
-        public int getIntValue() {
-            return (int) data_[ irow_ ];
+        public long getLongValue( long ix ) {
+            return (long) data_[ (int) ix ];
         }
-        public boolean getBooleanValue() {
+        public boolean getBooleanValue( long ix ) {
             return false;
         }
     }
 
     /**
-     * Int-yielding CachedSequence implementation based on an int array.
+     * Long-yielding CachedReader implementation based on a flat array.
      */
-    private static class IntArraySequence implements CachedSequence {
+    private static class LongArrayReader implements CachedReader {
+        private final long[] data_;
+
+        /**
+         * Constructor.
+         */
+        LongArrayReader( long[] data ) {
+            data_ = data;
+        }
+        public Object getObjectValue( long ix ) {
+            return new Long( data_[ (int) ix ] );
+        }
+        public double getDoubleValue( long ix ) {
+            return (double) data_[ (int) ix ];
+        }
+        public int getIntValue( long ix ) {
+            return (int) data_[ (int) ix ];
+        }
+        public long getLongValue( long ix ) {
+            return data_[ (int) ix ];
+        }
+        public boolean getBooleanValue( long ix ) {
+            return false;
+        }
+    }
+
+    /**
+     * Int-yielding CachedReader implementation based on an int array.
+     */
+    private static class IntArrayReader implements CachedReader {
         private final int[] data_;
-        private final int nrow_;
-        private int irow_ = -1;
 
         /**
          * Constructor.
          *
          * @param   data  data array
          */
-        IntArraySequence( int[] data ) {
+        IntArrayReader( int[] data ) {
             data_ = data;
-            nrow_ = data.length;
         }
-        public boolean next() {
-            return ++irow_ < nrow_;
+        public Object getObjectValue( long ix ) {
+            return new Integer( data_[ (int) ix ] );
         }
-        public Object getObjectValue() {
-            return new Integer( data_[ irow_ ] );
+        public double getDoubleValue( long ix ) {
+            return data_[ (int) ix ];
         }
-        public double getDoubleValue() {
-            return data_[ irow_ ];
+        public int getIntValue( long ix ) {
+            return data_[ (int) ix ];
         }
-        public int getIntValue() {
-            return data_[ irow_ ];
+        public long getLongValue( long ix ) {
+            return data_[ (int) ix ];
         }
-        public boolean getBooleanValue() {
+        public boolean getBooleanValue( long ix ) {
             return false;
         }
     }
 
     /**
-     * Int-yielding CachedSequence implementation based on a short array.
+     * Int-yielding CachedReader implementation based on a short array.
      */
-    private static class ShortArraySequence implements CachedSequence {
+    private static class ShortArrayReader implements CachedReader {
         private final short[] data_;
-        private final int nrow_;
-        private int irow_ = -1;
 
         /**
          * Constructor.
          *
          * @param   data  data array
          */
-        ShortArraySequence( short[] data ) {
+        ShortArrayReader( short[] data ) {
             data_ = data;
-            nrow_ = data.length;
         }
-        public boolean next() {
-            return ++irow_ < nrow_;
+        public Object getObjectValue( long ix ) {
+            return new Short( data_[ (int) ix ] );
         }
-        public Object getObjectValue() {
-            return new Short( data_[ irow_ ] );
+        public double getDoubleValue( long ix ) {
+            return data_[ (int) ix ];
         }
-        public double getDoubleValue() {
-            return data_[ irow_ ];
+        public int getIntValue( long ix ) {
+            return data_[ (int) ix ];
         }
-        public int getIntValue() {
-            return data_[ irow_ ];
+        public long getLongValue( long ix ) {
+            return data_[ (int) ix ];
         }
-        public boolean getBooleanValue() {
+        public boolean getBooleanValue( long ix ) {
             return false;
         }
     }
 
     /**
-     * Int-yielding CachedSequence implementation based on a byte array.
+     * Int-yielding CachedReader implementation based on a byte array.
      */
-    private static class ByteArraySequence implements CachedSequence {
+    private static class ByteArrayReader implements CachedReader {
         private final byte[] data_;
-        private final int nrow_;
-        private int irow_ = -1;
 
         /**
          * Constructor.
          *
          * @param   data  data array
          */
-        ByteArraySequence( byte[] data ) {
+        ByteArrayReader( byte[] data ) {
             data_ = data;
-            nrow_ = data.length;
         }
-        public boolean next() {
-            return ++irow_ < nrow_;
+        public Object getObjectValue( long ix ) {
+            return new Byte( data_[ (int) ix ] );
         }
-        public Object getObjectValue() {
-            return new Byte( data_[ irow_ ] );
+        public double getDoubleValue( long ix ) {
+            return data_[ (int) ix ];
         }
-        public double getDoubleValue() {
-            return data_[ irow_ ];
+        public int getIntValue( long ix ) {
+            return data_[ (int) ix ];
         }
-        public int getIntValue() {
-            return data_[ irow_ ];
+        public long getLongValue( long ix ) {
+            return data_[ (int) ix ];
         }
-        public boolean getBooleanValue() {
+        public boolean getBooleanValue( long ix ) {
             return false;
         }
     }
 
     /**
-     * Double[3]-yielding CachedSequence implementation
+     * Double[3]-yielding CachedReader implementation
      * based on a double array.
      */
-    private static class DoubleSequence3 implements CachedSequence {
+    private static class DoubleReader3 implements CachedReader {
         private final double[] data_;
-        private final int nrow_;
         private final double[] v3_;
-        private int irow_ = -1;
 
         /**
          * Constructor.
          *
          * @param  data  3n-element array
          */
-        DoubleSequence3( double[] data ) {
+        DoubleReader3( double[] data ) {
             data_ = data;
-            nrow_ = data.length / 3;
             v3_ = new double[ 3 ];
-            assert data.length % 3 == 0;
+            if ( data.length % 3 != 0 ) {
+                throw new IllegalArgumentException();
+            }
         }
-        public boolean next() {
-            return ++irow_ < nrow_;
-        }
-        public Object getObjectValue() {
-            int ipos = irow_ * 3;
+        public Object getObjectValue( long ix ) {
+            int ipos = ((int) ix) * 3;
             v3_[ 0 ] = data_[ ipos++ ];
             v3_[ 1 ] = data_[ ipos++ ];
-            v3_[ 2 ] = data_[ ipos++ ];
+            v3_[ 2 ] = data_[ ipos   ];
             return v3_;
         }
-        public double getDoubleValue() {
+        public double getDoubleValue( long ix ) {
             return Double.NaN;
         }
-        public int getIntValue() {
+        public int getIntValue( long ix ) {
             return Integer.MIN_VALUE;
         }
-        public boolean getBooleanValue() {
+        public long getLongValue( long ix ) {
+            return Long.MIN_VALUE;
+        }
+        public boolean getBooleanValue( long ix ) {
             return false;
         }
     }
 
     /**
-     * Float[3]-yielding CachedSequence implementation
+     * Float[3]-yielding CachedReader implementation
      * based on a float array.
      */
-    private static class FloatSequence3 implements CachedSequence {
+    private static class FloatReader3 implements CachedReader {
         private final float[] data_;
-        private final int nrow_;
         private final float[] v3_;
-        private int irow_ = -1;
 
         /**
          * Constructor.
          *
          * @param  data  3n-element array
          */
-        FloatSequence3( float[] data ) {
+        FloatReader3( float[] data ) {
             data_ = data;
-            nrow_ = data.length / 3;
             v3_ = new float[ 3 ];
-            assert data.length % 3 == 0;
+            if ( data.length % 3 != 0 ) {
+                throw new IllegalArgumentException();
+            }
         }
-        public boolean next() {
-            return ++irow_ < nrow_;
-        }
-        public Object getObjectValue() {
-            int ipos = irow_ * 3;
+        public Object getObjectValue( long ix ) {
+            int ipos = ((int) ix) * 3;
             v3_[ 0 ] = data_[ ipos++ ];
             v3_[ 1 ] = data_[ ipos++ ];
-            v3_[ 2 ] = data_[ ipos++ ];
+            v3_[ 2 ] = data_[ ipos   ];
             return v3_;
         }
-        public double getDoubleValue() {
+        public double getDoubleValue( long ix ) {
             return Double.NaN;
         }
-        public int getIntValue() {
+        public int getIntValue( long ix ) {
             return Integer.MIN_VALUE;
         }
-        public boolean getBooleanValue() {
+        public long getLongValue( long ix ) {
+            return Long.MIN_VALUE;
+        }
+        public boolean getBooleanValue( long ix ) {
             return false;
         }
     }
 
     /**
-     * Int[3]-yielding CachedSequence implementation
+     * Int[3]-yielding CachedReader implementation
      * based on an int array.
      */
-    private static class IntSequence3 implements CachedSequence {
+    private static class IntReader3 implements CachedReader {
         private final int[] data_;
-        private final int nrow_;
         private final int[] v3_;
-        private int irow_ = -1;
 
         /**
          * Constructor.
          *
          * @param  data  3n-element array
          */
-        IntSequence3( int[] data ) {
+        IntReader3( int[] data ) {
             data_ = data;
-            nrow_ = data.length / 3;
             v3_ = new int[ 3 ];
-            assert data.length % 3 == 0;
+            if ( data.length % 3 != 0 ) {
+                throw new IllegalArgumentException();
+            }
         }
-        public boolean next() {
-            return ++irow_ < nrow_;
-        }
-        public Object getObjectValue() {
-            int ipos = irow_ * 3;
+        public Object getObjectValue( long ix ) {
+            int ipos = ((int) ix) * 3;
             v3_[ 0 ] = data_[ ipos++ ];
             v3_[ 1 ] = data_[ ipos++ ];
-            v3_[ 2 ] = data_[ ipos++ ];
+            v3_[ 2 ] = data_[ ipos   ];
             return v3_;
         }
-        public double getDoubleValue() {
+        public double getDoubleValue( long ix ) {
             return Double.NaN;
         }
-        public int getIntValue() {
+        public int getIntValue( long ix ) {
             return Integer.MIN_VALUE;
         }
-        public boolean getBooleanValue() {
+        public long getLongValue( long ix ) {
+            return Long.MIN_VALUE;
+        }
+        public boolean getBooleanValue( long ix ) {
             return false;
         }
     }

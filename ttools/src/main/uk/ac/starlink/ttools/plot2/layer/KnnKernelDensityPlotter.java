@@ -12,6 +12,7 @@ import uk.ac.starlink.ttools.plot2.config.ConfigKey;
 import uk.ac.starlink.ttools.plot2.config.ConfigMap;
 import uk.ac.starlink.ttools.plot2.config.ConfigMeta;
 import uk.ac.starlink.ttools.plot2.config.DoubleConfigKey;
+import uk.ac.starlink.ttools.plot2.config.PerUnitConfigKey;
 import uk.ac.starlink.ttools.plot2.config.SliderSpecifier;
 import uk.ac.starlink.ttools.plot2.config.Specifier;
 import uk.ac.starlink.ttools.plot2.data.FloatingCoord;
@@ -96,12 +97,12 @@ public class KnnKernelDensityPlotter extends AbstractKernelDensityPlotter {
      *
      * @param   xCoord  X axis coordinate
      * @param   hasWeight   true to permit histogram weighting
-     * @param   normKey   config key for normalisation options
+     * @param   unitKey  config key to select X axis physical units,
+     *                   or null if no unit selection required
      */
-    public KnnKernelDensityPlotter( FloatingCoord xCoord,
-                                    boolean hasWeight,
-                                    ConfigKey<Normalisation> normKey ) {
-        super( xCoord, hasWeight, normKey, "Knn", ResourceIcon.FORM_KNN );
+    public KnnKernelDensityPlotter( FloatingCoord xCoord, boolean hasWeight,
+                                    PerUnitConfigKey<Unit> unitKey ) {
+        super( xCoord, hasWeight, unitKey, "Knn", ResourceIcon.FORM_KNN );
     }
 
     public String getPlotterDescription() {
@@ -154,6 +155,7 @@ public class KnnKernelDensityPlotter extends AbstractKernelDensityPlotter {
                                        "Smoothing min/max are "
                                      + "the wrong way round" );
         }
+        assert config.get( getCombinerKey() ).getType().isExtensive();
         return new KnnKernelFigure( k, isSymmetric, minSizer, maxSizer );
     }
 

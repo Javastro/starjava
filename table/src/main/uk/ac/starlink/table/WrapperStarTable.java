@@ -75,7 +75,7 @@ public class WrapperStarTable implements StarTable {
         this.nameSet = true;
     }
 
-    public List getParameters() {
+    public List<DescribedValue> getParameters() {
         return baseTable.getParameters();
     }
 
@@ -95,7 +95,7 @@ public class WrapperStarTable implements StarTable {
         return baseTable.getColumnInfo( icol );
     }
 
-    public List getColumnAuxDataInfos() {
+    public List<ValueInfo> getColumnAuxDataInfos() {
         return baseTable.getColumnAuxDataInfos();
     }
 

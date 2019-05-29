@@ -62,6 +62,7 @@ public class SmartColumnFactory implements CachedColumnFactory {
         map.put( StorageType.BOOLEAN, immutableComparison );
         map.put( StorageType.DOUBLE, immutableComparison );
         map.put( StorageType.FLOAT, immutableComparison );
+        map.put( StorageType.LONG, immutableComparison );
         map.put( StorageType.INT, immutableComparison );
         map.put( StorageType.SHORT, immutableComparison );
         map.put( StorageType.BYTE, immutableComparison );
@@ -125,6 +126,7 @@ public class SmartColumnFactory implements CachedColumnFactory {
         private CachedColumn bulkCol_;
         private Object value1_;
         private long constCount_;
+        private long count_;
 
         /**
          * Constructor.
@@ -140,6 +142,7 @@ public class SmartColumnFactory implements CachedColumnFactory {
         }
 
         public void add( Object value ) {
+            count_++;
 
             /* Have already had varying values.  Delegate to a column capable
              * of storing varying values. */
@@ -185,13 +188,17 @@ public class SmartColumnFactory implements CachedColumnFactory {
             assert constCol_ == null || nrow_ < 0 || constCount_ == nrow_;
         }
 
-        public CachedSequence createSequence() {
+        public long getRowCount() {
+            return count_;
+        }
 
-            /* Return a sequence based on a varying or non-varying underlying
+        public CachedReader createReader() {
+
+            /* Return a reader based on a varying or non-varying underlying
              * column as appropriate. */
             return bulkCol_ != null
-                 ? bulkCol_.createSequence()
-                 : new ConstantSequence( constCol_, constCount_ );
+                 ? bulkCol_.createReader()
+                 : new ConstantReader( constCol_ );
         }
     }
 
@@ -199,48 +206,54 @@ public class SmartColumnFactory implements CachedColumnFactory {
      * Presents a single-entry sequence as a multi-entry sequence in which
      * all the values are the same.
      */
-    private static class ConstantSequence implements CachedSequence {
+    private static class ConstantReader implements CachedReader {
         private final boolean booleanValue_;
         private final int intValue_;
+        private final long longValue_;
         private final double doubleValue_;
         private final Object objectValue_;
-        private final long nrow_;
-        private long irow_;
 
         /**
          * Constructor.
          *
          * @param  col1  single-entry column
-         * @param  nrow  number of entries in output sequence (&gt;=0)
          */
-        ConstantSequence( CachedColumn col1, long nrow ) {
-            nrow_ = nrow;
-            CachedSequence constSeq = col1.createSequence();
-            boolean hasValue = constSeq.next();
-            booleanValue_ = hasValue ? constSeq.getBooleanValue() : false;
-            intValue_ = hasValue ? constSeq.getIntValue() : Integer.MIN_VALUE;
-            doubleValue_ = hasValue ? constSeq.getDoubleValue() : Double.NaN;
-            objectValue_ = hasValue ? constSeq.getObjectValue() : null;
+        ConstantReader( CachedColumn col1 ) {
+            if ( col1.getRowCount() > 0 ) {
+                CachedReader constRdr = col1.createReader();
+                booleanValue_ = constRdr.getBooleanValue( 0 );
+                intValue_ = constRdr.getIntValue( 0 );
+                longValue_ = constRdr.getLongValue( 0 );
+                doubleValue_ = constRdr.getDoubleValue( 0 );
+                objectValue_ = constRdr.getObjectValue( 0 );
+            }
+            else {
+                booleanValue_ = false;
+                intValue_ = Integer.MIN_VALUE;
+                longValue_ = Long.MIN_VALUE;
+                doubleValue_ = Double.NaN;
+                objectValue_ = null;
+            }
         }
 
-        public boolean getBooleanValue() {
+        public boolean getBooleanValue( long ix ) {
             return booleanValue_;
         }
 
-        public int getIntValue() {
+        public int getIntValue( long ix ) {
             return intValue_;
         }
 
-        public double getDoubleValue() {
+        public long getLongValue( long ix ) {
+            return longValue_;
+        }
+
+        public double getDoubleValue( long ix ) {
             return doubleValue_;
         }
 
-        public Object getObjectValue() {
+        public Object getObjectValue( long ix ) {
             return objectValue_;
-        }
-
-        public boolean next() {
-            return irow_++ < nrow_;
         }
     }
 

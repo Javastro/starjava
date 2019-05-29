@@ -28,11 +28,11 @@ public class VotLintContentHandler implements ContentHandler, ErrorHandler {
     private final VotLintContext context_;
     private final VersionDetail versionDetail_;
     private final HandlerStack stack_;
-    private final Set namespaceSet_;
+    private final Set<String> namespaceSet_;
 
     private static final Pattern NS_PAT = getNamespaceNamePattern();
     private final static Map EMPTY_MAP =
-        Collections.unmodifiableMap( new HashMap() );
+        Collections.unmodifiableMap( new HashMap<String,String>() );
 
 
     /**
@@ -45,7 +45,7 @@ public class VotLintContentHandler implements ContentHandler, ErrorHandler {
         versionDetail_ = VersionDetail.getInstance( context );
         assert versionDetail_ != null;
         stack_ = new HandlerStack();
-        namespaceSet_ = new HashSet();
+        namespaceSet_ = new HashSet<String>();
     }
 
     //
@@ -61,6 +61,7 @@ public class VotLintContentHandler implements ContentHandler, ErrorHandler {
 
     public void endDocument() {
         context_.reportUncheckedRefs();
+        context_.reportUnusedIds();
     }
 
     public void startPrefixMapping( String prefix, String uri ) {
@@ -85,7 +86,7 @@ public class VotLintContentHandler implements ContentHandler, ErrorHandler {
         /* Tell it what attributes it has. */
         int natt = atts.getLength();
         if ( natt > 0 ) {
-            Map attMap = new HashMap();
+            Map<String,String> attMap = new HashMap<String,String>();
             for ( int i = 0; i < natt; i++ ) {
                 attMap.put( atts.getQName( i ), atts.getValue( i ) );
             }
@@ -167,17 +168,29 @@ public class VotLintContentHandler implements ContentHandler, ErrorHandler {
     // ErrorHandler implementation.
 
     public void warning( SAXParseException e ) {
-        context_.message( "WARN", null, e );
+        String msg = e.getMessage();
+        if ( msg == null ) {
+            msg = e.toString();
+        }
+        context_.warning( msg );
     }
 
     public void error( SAXParseException e ) {
         if ( ! isNamespaceError( e ) ) {
-            context_.message( "ERROR", null, e );
+            String msg = e.getMessage();
+            if ( msg == null ) {
+                msg = e.toString();
+            }
+            context_.error( msg );
         }
     }
 
     public void fatalError( SAXParseException e ) {
-        context_.message( "FATAL", null, e );
+        String msg = e.getMessage();
+        if ( msg == null ) {
+            msg = e.toString();
+        }
+        context_.error( msg );
     }
 
     /**

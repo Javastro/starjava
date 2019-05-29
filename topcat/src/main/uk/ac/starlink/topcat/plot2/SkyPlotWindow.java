@@ -5,19 +5,16 @@ import java.awt.Component;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
-import uk.ac.starlink.table.ColumnData;
 import uk.ac.starlink.table.ValueInfo;
 import uk.ac.starlink.topcat.ColumnDataComboBoxModel;
 import uk.ac.starlink.topcat.TopcatModel;
+import uk.ac.starlink.topcat.TypedListModel;
 import uk.ac.starlink.ttools.plot2.DataGeom;
 import uk.ac.starlink.ttools.plot2.GangerFactory;
 import uk.ac.starlink.ttools.plot2.PlotType;
-import uk.ac.starlink.ttools.plot2.PlotUtil;
 import uk.ac.starlink.ttools.plot2.SingleGanger;
 import uk.ac.starlink.ttools.plot2.config.ConfigKey;
-import uk.ac.starlink.ttools.plot2.config.ConfigMeta;
 import uk.ac.starlink.ttools.plot2.config.Specifier;
-import uk.ac.starlink.ttools.plot2.config.SkySysConfigKey;
 import uk.ac.starlink.ttools.plot2.geom.SkyAspect;
 import uk.ac.starlink.ttools.plot2.geom.SkyDataGeom;
 import uk.ac.starlink.ttools.plot2.geom.SkyPlotType;
@@ -34,16 +31,18 @@ public class SkyPlotWindow
        extends StackPlotWindow<SkySurfaceFactory.Profile,SkyAspect> {
     private static final SkyPlotType PLOT_TYPE = SkyPlotType.getInstance();
     private static final ConfigKey<SkySys> DATASYS_KEY =
-        new SkySysConfigKey( new ConfigMeta( "datasys", "Data Sky System" ),
-                             false );
+        SkySurfaceFactory.DATASYS_KEY;
 
     /**
      * Constructor.
      *
      * @param  parent   parent component
+     * @param  tablesModel  list of available tables
      */
-    public SkyPlotWindow( Component parent ) {
-        super( "Sky Plot", parent, PLOT_TYPE, new SkyPlotTypeGui() );
+    public SkyPlotWindow( Component parent,
+                          TypedListModel<TopcatModel> tablesModel ) {
+        super( "Sky Plot", parent, PLOT_TYPE, new SkyPlotTypeGui(),
+               tablesModel );
         getToolBar().addSeparator();
         addHelp( "SkyPlotWindow" );
     }
@@ -79,6 +78,14 @@ public class SkyPlotWindow
             return true;
         }
 
+        public boolean isPlanar() {
+            return false;
+        }
+
+        public FigureMode[] getFigureModes() {
+            return SkyFigureMode.MODES;
+        }
+
         public GangerFactory getGangerFactory() {
             return SingleGanger.FACTORY;
         }
@@ -86,6 +93,10 @@ public class SkyPlotWindow
         public ZoneFactory createZoneFactory() {
             return ZoneFactories.FIXED;
         } 
+
+        public CartesianRanger getCartesianRanger() {
+            return null;
+        }
 
         public String getNavigatorHelpId() {
             return "skyNavigation";
@@ -102,7 +113,29 @@ public class SkyPlotWindow
     private static abstract class SkyPositionCoordPanel
             extends PositionCoordPanel {
 
+        private final int npos_;
         private final Specifier<SkySys> dataSysSpecifier_;
+
+        private static final String[] LONLAT = new String[] { "lon", "lat" };
+        private static final String[] RADEC = new String[] { "ra", "dec" };
+        private static final String[] RAJDEJ = new String[] { "raj", "dej" };
+        private static final CoordSpotter[] LONLAT_SPOTTERS = {
+            CoordSpotter.createUcdSpotter( "pos.eq", RADEC, false ),
+            CoordSpotter.createUcdSpotter( "pos.eq", RADEC, true ),
+            CoordSpotter.createUcdSpotter( "pos.ecliptic", LONLAT, false ),
+            CoordSpotter.createUcdSpotter( "pos.ecliptic", LONLAT, true ),
+            CoordSpotter.createUcdSpotter( "pos.galactic", LONLAT, false ),
+            CoordSpotter.createUcdSpotter( "pos.galactic", LONLAT, true ),
+            CoordSpotter.createUcdSpotter( "pos.bodyrc", LONLAT, false ),
+            CoordSpotter.createUcdSpotter( "pos.bodyrc", LONLAT, true ),
+            CoordSpotter.createUcdSpotter( "pos.earth", LONLAT, false ),
+            CoordSpotter.createUcdSpotter( "pos.earth", LONLAT, true ),
+            CoordSpotter.createNamePrefixSpotter( LONLAT, true ),
+            CoordSpotter.createNamePrefixSpotter( LONLAT, false ),
+            CoordSpotter.createNamePrefixSpotter( RADEC, true ),
+            CoordSpotter.createNamePrefixSpotter( RADEC, false ),
+            CoordSpotter.createNamePrefixSpotter( RAJDEJ, true ),
+        };
 
         /**
          * Constructor.
@@ -113,6 +146,7 @@ public class SkyPlotWindow
             super( multiplyCoords( SkyDataGeom.createGeom( null, null )
                                               .getPosCoords(), npos ),
                    new ConfigKey[] { DATASYS_KEY } );
+            npos_ = npos;
             dataSysSpecifier_ =
                 getConfigSpecifier().getSpecifier( DATASYS_KEY );
         }
@@ -141,13 +175,40 @@ public class SkyPlotWindow
 
         @Override
         public void autoPopulate() {
-            ColumnDataComboBoxModel lonModel = getColumnSelector( 0, 0 );
-            ColumnDataComboBoxModel latModel = getColumnSelector( 0, 1 );
-            SkySys currentSys = dataSysSpecifier_.getSpecifiedValue();
-            SkySys sys = new ColPopulator( lonModel, latModel )
-                        .attemptPopulate( currentSys );
-            if ( sys != null && sys != currentSys ) {
-                dataSysSpecifier_.setSpecifiedValue( sys );
+
+            /* Override the default autoPopulate behaviour, which won't
+             * work well since we have coordinates with multiple components. */
+
+            /* Do some special handling for the (most common)
+             * single-position case: try to work out the data sky system
+             * as well as picking suitable columns. */
+            if ( npos_ == 1 ) {
+                ColumnDataComboBoxModel lonModel = getColumnSelector( 0, 0 );
+                ColumnDataComboBoxModel latModel = getColumnSelector( 0, 1 );
+                SkySys currentSys = dataSysSpecifier_.getSpecifiedValue();
+                SkySys sys = new ColPopulator( lonModel, latModel )
+                            .attemptPopulate( currentSys );
+                if ( sys != null && sys != currentSys ) {
+                    dataSysSpecifier_.setSpecifiedValue( sys );
+                }
+            }
+
+            /* Otherwise, just look for matched groups of lon/lat coords.
+             * This is less effort, but still better than nothing. */
+            else {
+                ValueInfo[] lonlatInfos =
+                    CoordSpotter
+                   .findCoordGroups( npos_,
+                                     getInfos( getColumnSelector( 0, 0 ) ),
+                                     LONLAT_SPOTTERS );
+                if ( lonlatInfos != null ) {
+                    for ( int ipos = 0; ipos < npos_; ipos++ ) {
+                        populate( getColumnSelector( ipos, 0 ),
+                                  lonlatInfos[ ipos * 2 + 0 ] );
+                        populate( getColumnSelector( ipos, 1 ),
+                                  lonlatInfos[ ipos * 2 + 1 ] );
+                    }
+                }
             }
         }
     }
@@ -175,9 +236,10 @@ public class SkyPlotWindow
             /* We expect that the models are selectors on the same list
              * of table columns.  If they are not, some of the implementation
              * assumptions of this class will fail. */
-            assert Arrays.equals( getInfoNames( getInfos( lonModel ) ),
-                                  getInfoNames( getInfos( latModel ) ) );
-            infos_ = getInfos( lonModel );
+            assert Arrays
+                  .equals( getInfoNames( CoordPanel.getInfos( lonModel ) ),
+                           getInfoNames( CoordPanel.getInfos( latModel ) ) );
+            infos_ = CoordPanel.getInfos( lonModel );
         }
 
         /**
@@ -206,8 +268,10 @@ public class SkyPlotWindow
             for ( SkySys sys : systems ) {
                 int[] pair = sys.getCoordPair( infos_ );
                 if ( pair != null ) {
-                    if ( populate( lonModel_, infos_[ pair[ 0 ] ] ) &&
-                         populate( latModel_, infos_[ pair[ 1 ] ] ) ) {
+                    if ( CoordPanel.populate( lonModel_,
+                                              infos_[ pair[ 0 ] ] ) &&
+                         CoordPanel.populate( latModel_,
+                                              infos_[ pair[ 1 ] ] ) ) {
                         return sys;
                     }
                     else {
@@ -216,49 +280,6 @@ public class SkyPlotWindow
                 }
             }
             return null;
-        }
-
-        /**
-         * Tries to find an item of a given combo box model matching a given
-         * metadata item.  If it finds it, it will set the selection and
-         * return true.
-         *
-         * @param   model   list model
-         * @param  info   template for selection value
-         * @return  true if selection was successfully performed
-         */
-        private static boolean populate( ColumnDataComboBoxModel model,
-                                         ValueInfo info ) {
-            for ( int i = 0; i < model.getSize(); i++ ) {
-                ColumnData cdata = model.getColumnDataAt( i );
-                if ( cdata != null &&
-                     infoMatches( cdata.getColumnInfo(), info ) ) {
-                    model.setSelectedItem( cdata );
-                    return true;
-                }
-            }
-            return false;
-        }
-
-        /**
-         * Returns a list of column metadata items for the items in a
-         * list model of columns.
-         *
-         * @param  model  column list model
-         * @return  list of valueinfos
-         */
-        private static ValueInfo[] getInfos( ColumnDataComboBoxModel model ) {
-            List<ValueInfo> list = new ArrayList<ValueInfo>();
-            for ( int i = 0; i < model.getSize(); i++ ) {
-                ColumnData cdata = model.getColumnDataAt( i );
-                if ( cdata != null ) {
-                    ValueInfo info = cdata.getColumnInfo();
-                    if ( info != null ) {
-                        list.add( info );
-                    }
-                }
-            }
-            return list.toArray( new ValueInfo[ 0 ] );
         }
 
         /**
@@ -275,19 +296,6 @@ public class SkyPlotWindow
                 names[ i ] = infos[ i ] == null ? null : infos[ i ].getName();
             }
             return names;
-        }
-
-        /**
-         * Indicates whether two infos match.
-         * The criterion is that both name and UCD are the same.
-         *
-         * @param  info1  first item
-         * @param  info2  second item
-         * @return  true iff match
-         */
-        private static boolean infoMatches( ValueInfo info1, ValueInfo info2 ) {
-            return PlotUtil.equals( info1.getName(), info2.getName() )
-                && PlotUtil.equals( info1.getUCD(), info2.getUCD() );
         }
     }
 }

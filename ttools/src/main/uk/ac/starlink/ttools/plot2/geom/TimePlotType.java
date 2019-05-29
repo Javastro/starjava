@@ -10,6 +10,7 @@ import uk.ac.starlink.ttools.plot2.PlotUtil;
 import uk.ac.starlink.ttools.plot2.Plotter;
 import uk.ac.starlink.ttools.plot2.SurfaceFactory;
 import uk.ac.starlink.ttools.plot2.config.ConfigKey;
+import uk.ac.starlink.ttools.plot2.config.PerUnitConfigKey;
 import uk.ac.starlink.ttools.plot2.config.StyleKeys;
 import uk.ac.starlink.ttools.plot2.layer.CartesianErrorCoordSet;
 import uk.ac.starlink.ttools.plot2.layer.DensogramPlotter;
@@ -21,14 +22,15 @@ import uk.ac.starlink.ttools.plot2.layer.HistogramPlotter;
 import uk.ac.starlink.ttools.plot2.layer.KnnKernelDensityPlotter;
 import uk.ac.starlink.ttools.plot2.layer.LabelPlotter;
 import uk.ac.starlink.ttools.plot2.layer.LinePlotter;
+import uk.ac.starlink.ttools.plot2.layer.LinearFitPlotter;
 import uk.ac.starlink.ttools.plot2.layer.MarkForm;
 import uk.ac.starlink.ttools.plot2.layer.MultiPointForm;
-import uk.ac.starlink.ttools.plot2.layer.Normalisation;
 import uk.ac.starlink.ttools.plot2.layer.ShapeForm;
 import uk.ac.starlink.ttools.plot2.layer.ShapeMode;
 import uk.ac.starlink.ttools.plot2.layer.ShapePlotter;
 import uk.ac.starlink.ttools.plot2.layer.SpectrogramPlotter;
 import uk.ac.starlink.ttools.plot2.layer.Stats1Plotter;
+import uk.ac.starlink.ttools.plot2.layer.Unit;
 import uk.ac.starlink.ttools.plot2.layer.TracePlotter;
 import uk.ac.starlink.ttools.plot2.paper.PaperTypeSelector;
 
@@ -62,28 +64,30 @@ public class TimePlotType implements PlotType {
             "</p>",
         } );
         MultiPointForm errorForm =
-            new MultiPointForm( "YError", ResourceIcon.FORM_ERROR1, descrip,
-                                CartesianErrorCoordSet
-                               .createSingleAxisErrorCoordSet( 2, 1, "Y" ),
-                                false, StyleKeys.ERROR_SHAPE_1D );
+            MultiPointForm
+           .createDefaultForm( "YError", ResourceIcon.FORM_ERROR1, descrip,
+                               CartesianErrorCoordSet
+                              .createSingleAxisErrorCoordSet( 2, 1, "Y" ),
+                               StyleKeys.ERROR_SHAPE_1D, false );
         ShapeForm[] modeForms = new ShapeForm[] { MarkForm.SINGLE };
         List<Plotter> plotters = new ArrayList<Plotter>();
+        PerUnitConfigKey<Unit> unitKey = TimeUnit.createHistogramConfigKey();
         plotters.addAll( Arrays
                         .asList( ShapePlotter
                                 .createShapePlotters( modeForms,
                                                       ShapeMode.MODES_2D ) ) );
-        ConfigKey<Normalisation> normKey = StyleKeys.NORMALISE_TIME;
         plotters.addAll( Arrays.asList( new Plotter[] {
             new LinePlotter(),
+            new LinearFitPlotter( true ),
             new FillPlotter( false ),
             new TracePlotter( false ),
             new GridPlotter( true ),
-            new HistogramPlotter( TimeDataGeom.T_COORD, true, normKey ),
+            new HistogramPlotter( TimeDataGeom.T_COORD, true, unitKey ),
             new FixedKernelDensityPlotter( TimeDataGeom.T_COORD, true,
-                                           normKey ),
-            new KnnKernelDensityPlotter( TimeDataGeom.T_COORD, true, normKey ),
+                                           unitKey ),
+            new KnnKernelDensityPlotter( TimeDataGeom.T_COORD, true, unitKey ),
             new DensogramPlotter( TimeDataGeom.T_COORD, true ),
-            new Stats1Plotter( TimeDataGeom.T_COORD, true, normKey ),
+            new Stats1Plotter( TimeDataGeom.T_COORD, true, unitKey ),
             ShapePlotter.createFlat2dPlotter( errorForm ),
             new SpectrogramPlotter( TimeDataGeom.T_COORD ),
             new LabelPlotter(),

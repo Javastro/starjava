@@ -11,12 +11,14 @@ import java.awt.image.IndexColorModel;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.HashMap;
+import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 import javax.swing.Icon;
+import uk.ac.starlink.table.DefaultValueInfo;
+import uk.ac.starlink.table.ValueInfo;
 import uk.ac.starlink.ttools.func.Tilings;
 import uk.ac.starlink.ttools.gui.ResourceIcon;
-import uk.ac.starlink.ttools.plot.Range;
 import uk.ac.starlink.ttools.plot.Shader;
 import uk.ac.starlink.ttools.plot.Shaders;
 import uk.ac.starlink.ttools.plot.Style;
@@ -31,11 +33,15 @@ import uk.ac.starlink.ttools.plot2.LayerOpt;
 import uk.ac.starlink.ttools.plot2.Pixer;
 import uk.ac.starlink.ttools.plot2.PlotLayer;
 import uk.ac.starlink.ttools.plot2.PlotUtil;
+import uk.ac.starlink.ttools.plot2.Ranger;
 import uk.ac.starlink.ttools.plot2.ReportKey;
 import uk.ac.starlink.ttools.plot2.ReportMap;
 import uk.ac.starlink.ttools.plot2.ReportMeta;
 import uk.ac.starlink.ttools.plot2.Scaler;
 import uk.ac.starlink.ttools.plot2.Scaling;
+import uk.ac.starlink.ttools.plot2.Scalings;
+import uk.ac.starlink.ttools.plot2.Span;
+import uk.ac.starlink.ttools.plot2.Subrange;
 import uk.ac.starlink.ttools.plot2.Surface;
 import uk.ac.starlink.ttools.plot2.config.ConfigKey;
 import uk.ac.starlink.ttools.plot2.config.ConfigMap;
@@ -48,9 +54,10 @@ import uk.ac.starlink.ttools.plot2.data.DataSpec;
 import uk.ac.starlink.ttools.plot2.data.DataStore;
 import uk.ac.starlink.ttools.plot2.data.FloatingCoord;
 import uk.ac.starlink.ttools.plot2.data.InputMeta;
+import uk.ac.starlink.ttools.plot2.data.Tuple;
 import uk.ac.starlink.ttools.plot2.data.TupleSequence;
 import uk.ac.starlink.ttools.plot2.geom.CubeSurface;
-import uk.ac.starlink.ttools.plot2.geom.PlaneSurface;
+import uk.ac.starlink.ttools.plot2.geom.PlanarSurface;
 import uk.ac.starlink.ttools.plot2.geom.SkySurface;
 import uk.ac.starlink.ttools.plot2.paper.Paper;
 import uk.ac.starlink.ttools.plot2.paper.PaperType;
@@ -258,8 +265,8 @@ public abstract class ShapeMode implements ModePlotter.Mode {
      */
     private static ReportMap getPixelReport( Surface surface ) {
         ReportMap report = new ReportMap();
-        if ( surface instanceof PlaneSurface ) {
-            Axis[] axes = ((PlaneSurface) surface).getAxes();
+        if ( surface instanceof PlanarSurface ) {
+            Axis[] axes = ((PlanarSurface) surface).getAxes();
             addPixelSize( report, REPKEY_XPIX, axes[ 0 ] );
             addPixelSize( report, REPKEY_YPIX, axes[ 1 ] );
         }
@@ -767,15 +774,18 @@ public abstract class ShapeMode implements ModePlotter.Mode {
         public PlotLayer createLayer( ShapePlotter plotter, ShapeForm form,
                                       DataGeom geom, DataSpec dataSpec,
                                       Outliner outliner, Stamper stamper ) {
-            final Shader shader = ((DensityStamper) stamper).shader_;
-            final Scaling scaling = ((DensityStamper) stamper).scaling_;
+            DensityStamper dstamper = (DensityStamper) stamper;
+            final Shader shader = dstamper.shader_;
+            final Scaling scaling = dstamper.scaling_;
+            final Subrange dataclip = dstamper.dataclip_;
             ShapeStyle style = new ShapeStyle( outliner, stamper );
             LayerOpt opt = Shaders.isTransparent( shader ) ? LayerOpt.NO_SPECIAL
                                                            : LayerOpt.OPAQUE;
             return new ShapePlotLayer( plotter, geom, dataSpec, style, opt,
                                        outliner ) {
                 public Drawing createDrawing( DrawSpec drawSpec ) {
-                    return new DensityDrawing( drawSpec, shader, scaling );
+                    return new DensityDrawing( drawSpec, shader, scaling,
+                                               dataclip );
                 }
             };
         }
@@ -786,6 +796,7 @@ public abstract class ShapeMode implements ModePlotter.Mode {
         private static class DensityDrawing extends BinShapeDrawing {
             private final Shader shader_;
             private final Scaling scaling_;
+            private final Subrange dataclip_;
 
             /**
              * Constructor.
@@ -793,12 +804,14 @@ public abstract class ShapeMode implements ModePlotter.Mode {
              * @param  drawSpec  common drawing attributes
              * @param  shader  determines colours in colour map
              * @param  scaling  quantitative mapping from counts to colour
+             * @param  dataclip  count mapping range adjustment
              */
             DensityDrawing( DrawSpec drawSpec, Shader shader,
-                            Scaling scaling ) {
+                            Scaling scaling, Subrange dataclip ) {
                 super( drawSpec );
                 shader_ = shader;
                 scaling_ = scaling;
+                dataclip_ = dataclip;
             }
 
             PixelImage createPixelImage( Object plan ) {
@@ -825,26 +838,28 @@ public abstract class ShapeMode implements ModePlotter.Mode {
              * @param   nlevel   number of levels represented in output
              */
             private void scaleLevels( int[] buf, int nlevel ) {
+                Ranger ranger =
+                    Scalings.createRanger( new Scaling[] { scaling_ } );
                 int n = buf.length;
                 int max = 0;
                 for ( int i = 0; i < n; i++ ) {
-                    max = Math.max( max, buf[ i ] );
+                    int b = buf[ i ];
+                    if ( b > 0 ) {
+                        max = Math.max( b, max );
+                        ranger.submitDatum( b );
+                    }
                 }
 
                 /* Leave 0 as 0 - this is transparent (no plot).
                  * Values >= 1 map to range 1..nlevel. */
                 if ( max > 0 ) {
-                    max = Math.max( max, PlotUtil.MIN_RAMP_UNIT );
-                    CountScaler scaler =
-                        new CountScaler( scaling_, max, nlevel );
-                    if ( max == 1 && scaler.scaleCount( 1 ) == 1 ) {
-                        // special case: array is already in the required form
-                        // (zeros and ones), no action required
-                    }
-                    else {
-                        for ( int i = 0; i < n; i++ ) {
-                            buf[ i ] = scaler.scaleCount( buf[ i ] );
-                        }
+                    ranger.submitDatum( 1 );
+                    ranger.submitDatum( PlotUtil.MIN_RAMP_UNIT );
+                    Scaler scaler = ranger.createSpan()
+                                   .createScaler( scaling_, dataclip_ );
+                    CountScaler countScaler = new CountScaler( scaler, nlevel );
+                    for ( int i = 0; i < n; i++ ) {
+                        buf[ i ] = countScaler.scaleCount( buf[ i ] );
                     }
                 }
             }
@@ -857,16 +872,20 @@ public abstract class ShapeMode implements ModePlotter.Mode {
     public static class DensityStamper implements Stamper {
         final Shader shader_;
         final Scaling scaling_;
+        final Subrange dataclip_;
 
         /**
          * Constructor.
          *
          * @param   shader  colour shader
          * @param  scaling  count scaling strategy
+         * @param  dataclip  scaling range adjustment
          */
-        public DensityStamper( Shader shader, Scaling scaling ) {
+        public DensityStamper( Shader shader, Scaling scaling,
+                               Subrange dataclip ) {
             shader_ = shader;
             scaling_ = scaling;
+            dataclip_ = dataclip;
         }
 
         public Icon createLegendIcon( Outliner outliner ) {
@@ -879,7 +898,8 @@ public abstract class ShapeMode implements ModePlotter.Mode {
             if ( o instanceof DensityStamper ) {
                 DensityStamper other = (DensityStamper) o;
                 return this.shader_.equals( other.shader_ )
-                    && this.scaling_.equals( other.scaling_ );
+                    && this.scaling_.equals( other.scaling_ )
+                    && this.dataclip_.equals( other.dataclip_ );
             }
             else {
                 return false;
@@ -891,6 +911,7 @@ public abstract class ShapeMode implements ModePlotter.Mode {
             int code = 3311;
             code = 23 * code + shader_.hashCode();
             code = 23 * code + scaling_.hashCode();
+            code = 23 * code + dataclip_.hashCode();
             return code;
         }
     }
@@ -941,7 +962,8 @@ public abstract class ShapeMode implements ModePlotter.Mode {
             Shader baseShader = Shaders.stretch( Shaders.SCALE_V, 1f, 0.2f );
             Shader densityShader =
                 Shaders.applyShader( baseShader, baseColor, COLOR_MAP_SIZE );
-            return new DensityStamper( densityShader, Scaling.AUTO );
+            return new DensityStamper( densityShader, Scaling.AUTO,
+                                       new Subrange() );
         }
     }
 
@@ -994,7 +1016,8 @@ public abstract class ShapeMode implements ModePlotter.Mode {
             Shader densityShader =
                 Shaders.applyShader( baseShader, baseColor, COLOR_MAP_SIZE );
             Scaling scaling = ramp.getScaling();
-            return new DensityStamper( densityShader, scaling );
+            Subrange dataclip = ramp.getDataClip();
+            return new DensityStamper( densityShader, scaling, dataclip );
         }
     }
 
@@ -1073,13 +1096,14 @@ public abstract class ShapeMode implements ModePlotter.Mode {
             RampKeySet.Ramp ramp = RAMP_KEYS.createValue( config );
             Shader shader = ramp.getShader();
             Scaling scaling = ramp.getScaling();
+            Subrange dataclip = ramp.getDataClip();
             Color nullColor = config.get( StyleKeys.AUX_NULLCOLOR );
             double opaque = transparent_
                           ? config.get( StyleKeys.AUX_OPAQUE )
                           : 1;
             float scaleAlpha = 1f / (float) opaque;
             Color baseColor = config.get( StyleKeys.COLOR );
-            return new ShadeStamper( shader, scaling, baseColor,
+            return new ShadeStamper( shader, scaling, dataclip, baseColor,
                                      nullColor, scaleAlpha );
         }
 
@@ -1094,6 +1118,7 @@ public abstract class ShapeMode implements ModePlotter.Mode {
             ShadeStamper shStamper = (ShadeStamper) stamper;
             final Shader shader = shStamper.shader_;
             final Scaling scaling = shStamper.scaling_;
+            final Subrange dataclip = shStamper.dataclip_;
             final Color baseColor = shStamper.baseColor_;
             final Color nullColor = shStamper.nullColor_;
             final float scaleAlpha = shStamper.scaleAlpha_;
@@ -1108,20 +1133,19 @@ public abstract class ShapeMode implements ModePlotter.Mode {
                     Map<AuxScale,AuxReader> map = super.getAuxRangers();
                     AuxReader shadeReader =
                         new FloatingCoordAuxReader( SHADE_COORD, iShadeCoord,
-                                                    geom, true );
+                                                    geom, true, scaling );
                     map.put( SCALE, shadeReader );
                     map.putAll( outliner.getAuxRangers( geom ) );
                     return map;
                 }
                 public Drawing createDrawing( Surface surface,
-                                              Map<AuxScale,Range> auxRanges,
+                                              Map<AuxScale,Span> auxSpans,
                                               PaperType paperType ) {
-                    Range shadeRange = auxRanges.get( SCALE );
-                    Scaler scaler =
-                        Scaling.createRangeScaler( scaling, shadeRange );
+                    Span shadeSpan = auxSpans.get( SCALE );
+                    Scaler scaler = shadeSpan.createScaler( scaling, dataclip );
                     DrawSpec drawSpec =
                         new DrawSpec( surface, geom, dataSpec, outliner,
-                                      auxRanges, paperType );
+                                      auxSpans, paperType );
 
                     // A possible optimisation would be in the case that we
                     // have an opaque 2D plot to return a planned drawing,
@@ -1143,95 +1167,6 @@ public abstract class ShapeMode implements ModePlotter.Mode {
                     return drawSpec.createDrawing( kit );
                 }
             };
-        }
-
-        /**
-         * Encapsulates information about how to colour data points for
-         * AuxShadingMode.
-         */
-        private static class AuxColorKit implements ColorKit {
-
-            private final int icShade_;
-            private final Shader shader_;
-            private final Scaler scaler_;
-            private final Color scaledNullColor_;
-            private final float scaleAlpha_;
-            private final float[] baseRgba_;
-            private final float[] rgba_;
-            private Color lastColor_;
-            private float lastScale_;
-
-            /**
-             * Constructor.
-             *
-             * @param  icShade  column index in tuple sequence at which
-             *                  shade values are found
-             * @param  shader   colour shader
-             * @param  scaler   scales data values to normalised shader range
-             * @param  baseColor  colour to adjust for non-absolute shaders
-             * @param  nullColor  colour to use in case of null
-             *                    aux coordinate; if null, such points are
-             *                    not plotted
-             * @param  scaleAlpha  alpha scaling for output colours;
-             *                     1 means opaque
-             */
-            AuxColorKit( int icShade, Shader shader, Scaler scaler,
-                         Color baseColor, Color nullColor, float scaleAlpha ) {
-                icShade_ = icShade;
-                shader_ = shader;
-                scaler_ = scaler;
-                scaleAlpha_ = scaleAlpha;
-                scaledNullColor_ = nullColor == null
-                                 ? null
-                                 : toOutputColor( nullColor
-                                                 .getRGBComponents( null ) );
-                baseRgba_ = baseColor.getRGBComponents( null );
-                rgba_ = new float[ 4 ];
-                lastColor_ = scaledNullColor_;
-                lastScale_ = Float.NaN;
-            }
-
-            public Color readColor( TupleSequence tseq ) {
-                double auxVal = SHADE_COORD.readDoubleCoord( tseq, icShade_ );
-                float scaleVal = (float) scaler_.scaleValue( auxVal );
-
-                /* If null input return special null output value. */
-                if ( Float.isNaN( scaleVal ) ) {
-                    return scaledNullColor_;
-                }
-
-                /* If no change in input return the last output for
-                 * efficiency (may get many the same in sequence). */
-                else if ( lastScale_ == scaleVal ) {
-                    return lastColor_;
-                }
-
-                /* Otherwise calculate, store and return a colour based on
-                 * scaled input aux coordinate. */
-                else {
-                    System.arraycopy( baseRgba_, 0, rgba_, 0, 4 );
-                    shader_.adjustRgba( rgba_, scaleVal );
-                    Color color = toOutputColor( rgba_ );
-                    lastScale_ = scaleVal;
-                    lastColor_ = color;
-                    return color;
-                }
-            }
-
-            /**
-             * Returns a colour for output based on RGBA values.
-             * Alpha scaling is applied.  Null is returned for a completely
-             * transparent colour.
-             *
-             * @param  4-element R,G,B,A array (elements in range 0..1)
-             * @return  colour for output, or null
-             */
-            private Color toOutputColor( float[] rgba ) {
-                float alpha = rgba[ 3 ];
-                return alpha > 0 ? new Color( rgba[ 0 ], rgba[ 1 ], rgba[ 2 ],
-                                              alpha * scaleAlpha_ )
-                                 : null;
-            }
         }
     }
 
@@ -1307,8 +1242,9 @@ public abstract class ShapeMode implements ModePlotter.Mode {
             Shader shader =
                 Shaders.applyShader( baseShader, baseColor, COLOR_MAP_SIZE );
             Scaling scaling = ramp.getScaling();
+            Subrange dataclip = ramp.getDataClip();
             Combiner combiner = config.get( COMBINER_KEY );
-            return new WeightStamper( shader, scaling, combiner );
+            return new WeightStamper( shader, scaling, dataclip, combiner );
         }
 
         public PlotLayer createLayer( ShapePlotter plotter, ShapeForm form,
@@ -1343,7 +1279,19 @@ public abstract class ShapeMode implements ModePlotter.Mode {
                 "to use one of the other shading modes instead.",
                 "</p>",
             } );
-            Combiner[] options = Combiner.getKnownCombiners();
+
+            /* Prepare a list of suitable options.  We exclude density-like
+             * options, since they require scaling by bin size.
+             * Although we could come up with a physical bin size in some
+             * cases (2d, linear axes), it can't really be done in others
+             * (logarithmic axes, and especially 3d). */
+            List<Combiner> optionList = new ArrayList<Combiner>();
+            for ( Combiner c : Combiner.getKnownCombiners() ) {
+                if ( ! Combiner.Type.DENSITY.equals( c.getType() ) ) {
+                    optionList.add( c );
+                }
+            }
+            Combiner[] options = optionList.toArray( new Combiner[ 0 ] );
             Combiner dflt = Combiner.MEAN;
             OptionConfigKey<Combiner> key =
                     new OptionConfigKey<Combiner>( meta, Combiner.class,
@@ -1387,6 +1335,20 @@ public abstract class ShapeMode implements ModePlotter.Mode {
                 assert dataSpec.getCoord( icWeight_ ) == WEIGHT_COORD;
             }
 
+            /**
+             * Indicates whether BinList.Result scaling is required.
+             * This is used in assertions, and should always return false,
+             * since no density-like combiners are in use by this mode.
+             * The idea is to provide evidence in the source code that
+             * bin scaling has not been overlooked.
+             *
+             * @return  whether BinList.Result values need to be scaled;
+             *          always false
+             */
+            boolean isBinFactorRequired() {
+                return wstamper_.combiner_.getType().getBinFactor( 0.01 ) != 1.;
+            }
+
             @Override
             public Map<AuxScale,AuxReader> getAuxRangers() {
                 Map<AuxScale,AuxReader> map = super.getAuxRangers();
@@ -1395,57 +1357,92 @@ public abstract class ShapeMode implements ModePlotter.Mode {
                     public int getCoordIndex() {
                         return icWeight_;
                     }
+                    public Scaling getScaling() {
+                        return wstamper_.scaling_;
+                    }
+                    public ValueInfo getAxisInfo( DataSpec dataSpec ) {
+                        Combiner combiner = wstamper_.combiner_;
+                        final ValueInfo weightInfo;
+                        if ( icWeight_ < 0 ||
+                             dataSpec.isCoordBlank( icWeight_ ) ) {
+                            weightInfo =
+                                new DefaultValueInfo( "1", Double.class,
+                                                      "Weight unspecified"
+                                                    + ", taken as unity" );
+                        }
+                        else {
+                            ValueInfo[] winfos =
+                                dataSpec.getUserCoordInfos( icWeight_ );
+                            weightInfo = winfos != null && winfos.length == 1
+                                       ? winfos[ 0 ]
+                                       : new DefaultValueInfo( "Weight",
+                                                               Double.class );
+                        }
+                        return wstamper_.combiner_
+                              .createCombinedInfo( weightInfo, Unit.UNIT );
+                    }
                     public void adjustAuxRange( Surface surface,
                                                 DataSpec dataSpec,
                                                 DataStore dataStore,
                                                 Object[] knownPlans,
-                                                Range range ) {
+                                                Ranger ranger ) {
                         WeightPlan wplan =
                             getWeightPlan( knownPlans, surface, dataSpec );
                         final BinList.Result binResult;
                         if ( wplan == null ) {
-                            // no auxRanges - have to fake it.
-                            Map<AuxScale,Range> auxRanges =
-                                new HashMap<AuxScale,Range>();
+                            // no auxSpans - have to fake it.
+                            Map<AuxScale,Span> auxSpans =
+                                new HashMap<AuxScale,Span>();
                             binResult = readBinList( surface, dataSpec,
-                                                     dataStore, auxRanges )
+                                                     dataStore, auxSpans )
                                        .getResult();
                         }
                         else {
                             binResult = wplan.binResult_;
                         }
-                        PlotUtil.extendRange( range, binResult );
+                        assert ! isBinFactorRequired();
+                        for ( Iterator<Long> it = binResult.indexIterator();
+                              it.hasNext(); ) {
+                            long ibin = it.next().longValue();
+                            ranger.submitDatum( binResult.getBinValue( ibin ) );
+                        }
                     }
                 } );
                 return map;
             }
 
             public Drawing createDrawing( Surface surface,
-                                          Map<AuxScale,Range> auxRanges,
+                                          Map<AuxScale,Span> auxSpans,
                                           PaperType paperType ) {
-                return new WeightDrawing( surface, auxRanges, paperType );
+                return new WeightDrawing( surface, auxSpans, paperType );
             }
 
             /**
              * Constructs the binlist data structure containing the information
-             * about how to do the plot.
+             * about how to do the plot.  There is no need to scale the
+             * result of this call using a bin factor.
              *
              * @param  surface  plot surface
              * @param  dataSpec  data specification
              * @param  dataStore  data storage
              * @param  tseq    point sequence
-             * @param  auxRanges   aux data range map
+             * @param  auxSpans   aux data range map
+             * @return  bin list that does not require scaling
              */
             private BinList readBinList( Surface surface, DataSpec dataSpec,
                                          DataStore dataStore,
-                                         Map<AuxScale,Range> auxRanges ) {
+                                         Map<AuxScale,Span> auxSpans ) {
                 DataGeom geom = getDataGeom();
                 WeightPaper wpaper =
                     new WeightPaper( surface.getPlotBounds(),
                                      wstamper_.combiner_ );
+                GlyphPaper.GlyphPaperType ptype = wpaper.getPaperType();
                 ShapePainter painter =
-                    outliner_.create2DPainter( surface, geom, auxRanges,
-                                               wpaper.getPaperType() );
+                      surface instanceof CubeSurface
+                    ? outliner_.create3DPainter( (CubeSurface) surface, geom,
+                                                 auxSpans, ptype )
+                    : outliner_.create2DPainter( surface, geom,
+                                                 auxSpans, ptype );
                 TupleSequence tseq = dataStore.getTupleSequence( dataSpec );
 
                 /* Under normal circumstances, use the submitted combiner
@@ -1470,6 +1467,11 @@ public abstract class ShapeMode implements ModePlotter.Mode {
                         painter.paintPoint( tseq, null, wpaper );
                     }
                 }
+
+                /* We have excluded density-like combiners because it's
+                 * hard to know what to use as a bin size, so no scaling
+                 * of bin list results is required. */
+                assert ! isBinFactorRequired();
                 return wpaper.binList_;
             }
 
@@ -1488,20 +1490,20 @@ public abstract class ShapeMode implements ModePlotter.Mode {
              */
             private class WeightDrawing implements Drawing {
                 final Surface surface_;
-                final Map<AuxScale,Range> auxRanges_;
+                final Map<AuxScale,Span> auxSpans_;
                 final PaperType paperType_;
 
                 /**
                  * Constructor.
                  *
                  * @param  surface  plot surface
-                 * @param  auxRanges   aux data ranges
+                 * @param  auxSpans   aux data ranges
                  * @param  paperType   paper type
                  */
-                WeightDrawing( Surface surface, Map<AuxScale,Range> auxRanges,
+                WeightDrawing( Surface surface, Map<AuxScale,Span> auxSpans,
                                PaperType paperType ) {
                     surface_ = surface;
-                    auxRanges_ = auxRanges;
+                    auxSpans_ = auxSpans;
                     paperType_ = paperType;
                 }
 
@@ -1515,7 +1517,7 @@ public abstract class ShapeMode implements ModePlotter.Mode {
                     }
                     else {
                         BinList binList = readBinList( surface_, dataSpec,
-                                                       dataStore, auxRanges_ );
+                                                       dataStore, auxSpans_ );
                         int nbin = (int) binList.getSize();  // pixel count
                         Combiner combiner = binList.getCombiner();
                         BinList.Result binResult =
@@ -1556,16 +1558,15 @@ public abstract class ShapeMode implements ModePlotter.Mode {
                  */
                 private void paintBins( Graphics g, int nbin,
                                         BinList.Result binResult ) {
-                    Range auxRange = auxRanges_.get( SCALE );
-                    if ( auxRange == null ) {
-                        auxRange = new Range();
+                    Span auxSpan = auxSpans_.get( SCALE );
+                    if ( auxSpan == null ) {
+                        auxSpan = PlotUtil.EMPTY_SPAN;
                     }
                     Rectangle plotBounds = surface_.getPlotBounds();
                     IndexColorModel colorModel =
                         PixelImage.createColorModel( wstamper_.shader_, true );
-                    Scaler scaler =
-                        Scaling.createRangeScaler( wstamper_.scaling_,
-                                                   auxRange );
+                    Scaler scaler = auxSpan.createScaler( wstamper_.scaling_,
+                                                          wstamper_.dataclip_ );
                     int[] pixels =
                         scaleLevels( nbin, binResult, scaler,
                                      colorModel.getMapSize() - 1 );
@@ -1593,6 +1594,7 @@ public abstract class ShapeMode implements ModePlotter.Mode {
                 private int[] scaleLevels( int nbin, BinList.Result binResult,
                                            Scaler scaler, int nlevel ) {
                     int[] pixels = new int[ nbin ];
+                    assert ! isBinFactorRequired();
                     for ( int i = 0; i < nbin; i++ ) {
                         double val = binResult.getBinValue( i );
                         if ( ! Double.isNaN( val ) ) {
@@ -1713,7 +1715,7 @@ public abstract class ShapeMode implements ModePlotter.Mode {
                 int nbin = gridder_.getLength();
                 BinList binlist = combiner.createArrayBinList( nbin );
                 binList_ = binlist == null
-                         ? combiner.createHashBinList( nbin )
+                         ? new HashBinList( nbin, combiner )
                          : binlist;
                 xoff_ = bounds_.x;
                 yoff_ = bounds_.y;
@@ -1747,6 +1749,7 @@ public abstract class ShapeMode implements ModePlotter.Mode {
     public static class WeightStamper implements Stamper {
         final Shader shader_;
         final Scaling scaling_;
+        final Subrange dataclip_;
         final Combiner combiner_;
 
         /**
@@ -1754,12 +1757,14 @@ public abstract class ShapeMode implements ModePlotter.Mode {
          *
          * @param   shader  colour shader
          * @param  scaling  count scaling strategy
+         * @param  dataclip  count scaling range adjustment
          * @param  combiner   combiner
          */
-        public WeightStamper( Shader shader, Scaling scaling,
+        public WeightStamper( Shader shader, Scaling scaling, Subrange dataclip,
                               Combiner combiner ) {
             shader_ = shader;
             scaling_ = scaling;
+            dataclip_ = dataclip;
             combiner_ = combiner;
         }
 
@@ -1774,6 +1779,7 @@ public abstract class ShapeMode implements ModePlotter.Mode {
                 WeightStamper other = (WeightStamper) o;
                 return this.shader_.equals( other.shader_ )
                     && this.scaling_.equals( other.scaling_ )
+                    && this.dataclip_.equals( other.dataclip_ )
                     && this.combiner_.equals( other.combiner_ );
             }
             else {
@@ -1786,6 +1792,7 @@ public abstract class ShapeMode implements ModePlotter.Mode {
             int code = 3311;
             code = 23 * code + shader_.hashCode();
             code = 23 * code + scaling_.hashCode();
+            code = 23 * code + dataclip_.hashCode();
             code = 23 * code + combiner_.hashCode();
             return code;
         }
@@ -1797,6 +1804,7 @@ public abstract class ShapeMode implements ModePlotter.Mode {
     public static class ShadeStamper implements Stamper {
         final Shader shader_;
         final Scaling scaling_;
+        final Subrange dataclip_;
         final Color baseColor_;
         final Color nullColor_;
         final float scaleAlpha_;
@@ -1806,6 +1814,7 @@ public abstract class ShapeMode implements ModePlotter.Mode {
          *
          * @param  shader  colour shader 
          * @param  scaling   scaling function from data to shade value
+         * @param  dataclip  scaling function range adjustment
          * @param  baseColor  colour to use for adjustments in case of
          *                    non-absolute shader
          * @param  nullColor  colour to use for null aux coordinate,
@@ -1813,10 +1822,12 @@ public abstract class ShapeMode implements ModePlotter.Mode {
          * @param  scaleAlpha  factor to scale output colour alpha by;
          *                     1 means opaque
          */
-        public ShadeStamper( Shader shader, Scaling scaling, Color baseColor,
-                             Color nullColor, float scaleAlpha ) {
+        public ShadeStamper( Shader shader, Scaling scaling, Subrange dataclip,
+                             Color baseColor, Color nullColor,
+                             float scaleAlpha ) {
             shader_ = shader;
             scaling_ = scaling;
+            dataclip_ = dataclip;
             baseColor_ = baseColor;
             nullColor_ = nullColor;
             scaleAlpha_ = scaleAlpha;
@@ -1833,6 +1844,7 @@ public abstract class ShapeMode implements ModePlotter.Mode {
                 ShadeStamper other = (ShadeStamper) o;
                 return this.shader_.equals( other.shader_ )
                     && this.scaling_.equals( other.scaling_ )
+                    && this.dataclip_.equals( other.dataclip_ )
                     && PlotUtil.equals( this.baseColor_, other.baseColor_ )
                     && PlotUtil.equals( this.nullColor_, other.nullColor_ )
                     && this.scaleAlpha_ == other.scaleAlpha_;
@@ -1847,6 +1859,7 @@ public abstract class ShapeMode implements ModePlotter.Mode {
             int code = 7301;
             code = 23 * code + shader_.hashCode();
             code = 23 * code + scaling_.hashCode();
+            code = 23 * code + dataclip_.hashCode();
             code = 23 * code + PlotUtil.hashCode( baseColor_ );
             code = 23 * code + PlotUtil.hashCode( nullColor_ );
             code = 23 * code + Float.floatToIntBits( scaleAlpha_ );
@@ -1890,7 +1903,7 @@ public abstract class ShapeMode implements ModePlotter.Mode {
         final DataGeom geom_;
         final DataSpec dataSpec_;
         final Outliner outliner_;
-        final Map<AuxScale,Range> auxRanges_;
+        final Map<AuxScale,Span> auxSpans_;
         final PaperType paperType_;
         final ShapePainter painter_;
 
@@ -1901,25 +1914,25 @@ public abstract class ShapeMode implements ModePlotter.Mode {
          * @param  geom   data position coordinate definition
          * @param  dataSpec  data specification
          * @param  outliner  outline shape
-         * @param  auxRanges   data ranges calculated by request
+         * @param  auxSpans   data ranges calculated by request
          * @param  paperType  graphics destination type
          */
         DrawSpec( Surface surface, DataGeom geom, DataSpec dataSpec,
-                  Outliner outliner, Map<AuxScale,Range> auxRanges,
+                  Outliner outliner, Map<AuxScale,Span> auxSpans,
                   PaperType paperType ) {
             surface_ = surface;
             geom_ = geom;
             dataSpec_ = dataSpec;
             outliner_ = outliner;
-            auxRanges_ = auxRanges;
+            auxSpans_ = auxSpans;
             paperType_ = paperType;
             if ( paperType instanceof PaperType2D ) {
-                painter_ = outliner.create2DPainter( surface, geom, auxRanges,
+                painter_ = outliner.create2DPainter( surface, geom, auxSpans,
                                                      (PaperType2D) paperType );
             }
             else if ( paperType instanceof PaperType3D ) {
                 painter_ = outliner.create3DPainter( (CubeSurface) surface,
-                                                     geom, auxRanges,
+                                                     geom, auxSpans,
                                                      (PaperType3D) paperType );
             }
             else {
@@ -1937,7 +1950,7 @@ public abstract class ShapeMode implements ModePlotter.Mode {
         public Object calculateBinPlan( Object[] knownPlans,
                                         DataStore dataStore ) {
             return outliner_
-                  .calculateBinPlan( surface_, geom_, auxRanges_, dataStore,
+                  .calculateBinPlan( surface_, geom_, auxSpans_, dataStore,
                                      dataSpec_, knownPlans );
         }
 
@@ -1963,21 +1976,6 @@ public abstract class ShapeMode implements ModePlotter.Mode {
                 }
             };
         }
-    }
-
-    /**
-     * Rule for colouring points according to data values.
-     */
-    private interface ColorKit {
-
-        /**
-         * Acquires a colour appropriate for the current element of
-         * a given tuple sequence.
-         *
-         * @param  tseq  tuple sequence positioned at the row of interest
-         * @return  plotting colour, or null to omit point
-         */
-        Color readColor( TupleSequence tseq );
     }
 
     /**
@@ -2019,11 +2017,11 @@ public abstract class ShapeMode implements ModePlotter.Mode {
         }
 
         public Drawing createDrawing( Surface surface,
-                                      Map<AuxScale,Range> auxRanges,
+                                      Map<AuxScale,Span> auxSpans,
                                       PaperType paperType ) {
             DrawSpec drawSpec =
                 new DrawSpec( surface, getDataGeom(), getDataSpec(), outliner_,
-                              auxRanges, paperType );
+                              auxSpans, paperType );
             return createDrawing( drawSpec );
         }
     }

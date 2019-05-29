@@ -13,10 +13,11 @@ import java.beans.PropertyChangeEvent;
 import java.beans.PropertyChangeListener;
 import java.util.BitSet;
 import java.util.logging.Logger;
-import java.util.regex.Pattern;
 import javax.swing.AbstractAction;
 import javax.swing.Action;
+import javax.swing.Box;
 import javax.swing.JComponent;
+import javax.swing.JLabel;
 import javax.swing.JMenu;
 import javax.swing.JOptionPane;
 import javax.swing.JPopupMenu;
@@ -35,6 +36,7 @@ import javax.swing.event.TableColumnModelListener;
 import javax.swing.event.TableModelEvent;
 import javax.swing.event.TableModelListener;
 import uk.ac.starlink.table.ColumnInfo;
+import uk.ac.starlink.table.StarTable;
 import uk.ac.starlink.table.Tables;
 import uk.ac.starlink.table.gui.StarJTable;
 import uk.ac.starlink.table.gui.StarTableColumn;
@@ -59,10 +61,14 @@ public class TableViewerWindow extends AuxWindow {
     private final ListSelectionListener rowSelListener_;
     private final TableColumnModel colModel_;
     private final ViewerTableModel viewModel_;
+    private final StarTable dataModel_;
     private final ListSelectionModel rowSelectionModel_;
     private final TableColumnModel dummyColModel_;
     private final PropertyChangeListener viewbaseListener_;
     private final TableRowHeader rowHeader_;
+    private final ColumnSearchWindow searchWindow_;
+    private final JLabel nvisLabel_;
+    private final JLabel nselLabel_;
     private RowManager rowManager_;
     private int lastViewRowCount_;
     private boolean selfHighlighting_;
@@ -83,7 +89,8 @@ public class TableViewerWindow extends AuxWindow {
         tcModel_ = tcModel;
         colModel_ = tcModel.getColumnModel();
         viewModel_ = tcModel.getViewModel();
-        rowSelectionModel_ = new DefaultListSelectionModel();
+        dataModel_ = tcModel.getDataModel();
+        rowSelectionModel_ = createRowSelectionModel();
         rowSelectionModel_.setSelectionMode( ListSelectionModel
                                             .MULTIPLE_INTERVAL_SELECTION );
 
@@ -119,8 +126,7 @@ public class TableViewerWindow extends AuxWindow {
                 return viewModel_.getBaseRow( irow ) + 1;
             }
         };
-        rowHeader_.setLongestNumber( (int) Math.min( tcModel.getDataModel()
-                                                            .getRowCount(),
+        rowHeader_.setLongestNumber( (int) Math.min( dataModel_.getRowCount(),
                                                      Integer.MAX_VALUE ) );
         rowHeader_.installOnScroller( scroller_ );
         viewbaseListener_ = new PropertyChangeListener() {
@@ -131,6 +137,23 @@ public class TableViewerWindow extends AuxWindow {
                 }
             }
         };
+
+        /* Set up status line. */
+        JComponent statusLine = Box.createHorizontalBox();
+        nvisLabel_ = new JLabel();
+        nselLabel_ = new JLabel();
+        statusLine.add( new JLabel( "Total: " ) );
+        statusLine.add( new JLabel( TopcatUtils
+                                   .formatLong( dataModel_.getRowCount() ) ) );
+        statusLine.add( Box.createHorizontalStrut( 20 ) );
+        statusLine.add( new JLabel( "Visible: " ) );
+        statusLine.add( nvisLabel_ );
+        statusLine.add( Box.createHorizontalStrut( 20 ) );
+        statusLine.add( new JLabel( "Selected: " ) );
+        statusLine.add( nselLabel_ );
+        nselLabel_.setText( "0" );
+        statusLine.add( Box.createHorizontalGlue() );
+        getMainArea().add( statusLine, BorderLayout.SOUTH );
 
         /* Configure for the current state of the apparent table and arrange
          * for reconfiguration if the row count changes. */
@@ -168,6 +191,16 @@ public class TableViewerWindow extends AuxWindow {
         final Action includeAct = new SelectionSubsetAction( true );
         final Action excludeAct = new SelectionSubsetAction( false );
 
+        /* Prepare cell search action. */
+        searchWindow_ = new ColumnSearchWindow( this, tcModel );
+        Action searchAct = new BasicAction( "Search Column",
+                                            ResourceIcon.SEARCH,
+                                            "Search for value in cell" ) {
+            public void actionPerformed( ActionEvent evt ) {
+                searchWindow_.setVisible( true );
+            }
+        };
+
         /* Configure a listener for row selection events. */
         rowSelListener_ = new ListSelectionListener() {
             long lastActive = -1;
@@ -203,6 +236,8 @@ public class TableViewerWindow extends AuxWindow {
                     else {
                         lastActive = -1;
                     }
+                    int nsel = jtable_.getSelectedRowCount();
+                    nselLabel_.setText( TopcatUtils.formatLong( nsel ) );
                 }
             }
         };
@@ -259,28 +294,30 @@ public class TableViewerWindow extends AuxWindow {
         /* Add actions to the toolbar. */
         getToolBar().add( includeAct );
         getToolBar().add( excludeAct );
+        getToolBar().add( searchAct );
         getToolBar().addSeparator();
 
         /* Add print action to the File menu. */
         getWindowMenu().insert( printAct, 1 );
 
-        /* Add a subsets menu. */
-        JMenu subsetMenu = new JMenu( "Subsets" );
-        subsetMenu.setMnemonic( KeyEvent.VK_S );
-        getJMenuBar().add( subsetMenu );
-        subsetMenu.add( includeAct );
-        subsetMenu.add( excludeAct );
-        final OptionsListModel subsets = tcModel.getSubsets();
+        /* Add a rows menu. */
+        JMenu rowMenu = new JMenu( "Rows" );
+        rowMenu.setMnemonic( KeyEvent.VK_R );
+        getJMenuBar().add( rowMenu );
+        rowMenu.add( includeAct );
+        rowMenu.add( excludeAct );
+        rowMenu.add( searchAct );
+        final OptionsListModel<RowSubset> subsets = tcModel.getSubsets();
         Action applysubsetAct = new AbstractAction() {
             public void actionPerformed( ActionEvent evt ) {
                 int index = evt.getID();
-                tcModel_.applySubset( (RowSubset) subsets.get( index ) );
+                tcModel_.applySubset( subsets.get( index ) );
             }
         };
         Action highlightsubsetAct = new AbstractAction() {
             public void actionPerformed( ActionEvent evt ) {
                 int index = evt.getID();
-                setSelection( (RowSubset) subsets.get( index ) );
+                setSelection( subsets.get( index ) );
             }
         };
         JMenu applysubsetMenu =
@@ -295,17 +332,26 @@ public class TableViewerWindow extends AuxWindow {
         highlightsubsetMenu.setIcon( ResourceIcon.HIGHLIGHT );
         highlightsubsetMenu.setToolTipText( "Marks the rows of a selected "
                                           + "subset" );
-        subsetMenu.add( highlightsubsetMenu );
+        rowMenu.add( highlightsubsetMenu );
 
         /* This action, formerly known as "Apply Subset", is a bit dangerous,
          * since it changes the globally selected subset in a way that might
          * not be obvious.  Comment it out for now. */
         if ( false ) {
-            subsetMenu.add( applysubsetMenu );
+            rowMenu.add( applysubsetMenu );
         }
 
         /* Add help information. */
         addHelp( "TableViewerWindow" );
+    }
+
+    /**
+     * Returns the row selection model for this window's JTable.
+     *
+     * @return  row selection model
+     */
+    public ListSelectionModel getRowSelectionModel() {
+        return rowSelectionModel_;
     }
 
     /**
@@ -344,6 +390,10 @@ public class TableViewerWindow extends AuxWindow {
         if ( tm0 != tm1 ) {
             rowHeader_.modelChanged();
         }
+
+        /* Update row count. */
+        nvisLabel_.setText( TopcatUtils
+                           .formatLong( viewModel_.getRowCount() ) );
 
         /* Sensible default position. */
         scroller_.getViewport().setViewPosition( new Point( 0, 0 ) );
@@ -472,12 +522,15 @@ public class TableViewerWindow extends AuxWindow {
         }
 
         /* Action to search for a string. */
-        if ( ! rowHead && colInfo.getContentClass() == String.class ) {
+        if ( ! rowHead && searchWindow_.canSearchColumn( colInfo ) ) {
             Action searchAct =
                 new BasicAction( "Search Column", ResourceIcon.SEARCH,
-                                 "Search for regular expression in cell" ) {
+                                 "Search column for cell content" ) {
                     public void actionPerformed( ActionEvent evt ) {
-                        findRegex( tcol, jcol );
+                        if ( tcol != null ) {
+                            searchWindow_.setColumn( tcol );
+                        }
+                        searchWindow_.setVisible( true );
                     }
                 };
             popper.add( searchAct );
@@ -503,72 +556,37 @@ public class TableViewerWindow extends AuxWindow {
 
     /**
      * Returns a BitSet in which bit <i>i</i> is set if a table view row
-     * corresponding to row <i>i</i> of this viewer's data model has
-     * (or has not) been selected in the GUI.  This BitSet has the
+     * corresponding to row <i>i</i> of this viewer's data model
+     * is currently visible (is present in the current Row Subset)
+     * AND has (or has not) been selected in the GUI.  This BitSet has the
      * same number of bits as the data model has rows.
      *
-     * @param   isInclude  true for an inclusion mask,
-     *                     false for exclusion
+     * @param   isInclude  true for selected visible rows,
+     *                     false for unselected visible rows
      * @return  new bit vector
      */
     private BitSet getSelectionMask( boolean isInclude ) {
-        int nrow = (int) tcModel_.getDataModel().getRowCount();
-        BitSet bits = new BitSet( nrow );
+        int nrow = (int) dataModel_.getRowCount();
         int imin = rowSelectionModel_.getMinSelectionIndex();
         int imax = rowSelectionModel_.getMaxSelectionIndex();
         int[] rowMap = viewModel_.getRowMap();
+        BitSet selectMask = new BitSet( nrow );
         for ( int i = imin; i <= imax; i++ ) {
             if ( rowSelectionModel_.isSelectedIndex( i ) ) {
-                bits.set( rowMap == null ? i : rowMap[ i ] );
+                selectMask.set( rowMap == null ? i : rowMap[ i ] );
             }
         }
         if ( ! isInclude ) {
-            bits.flip( 0, nrow );
-        }
-        return bits;
-    }
-
-    /**
-     * Pops up a window asking for a regular expression and selects the
-     * rows which match it in a given column.
-     *
-     * @param   table column for matching
-     * @param   index of the column index in the view model
-     */
-    private void findRegex( StarTableColumn tcol, int jcol ) {
-        Object[] msg = {
-             "Enter a regular expression (e.g. \".*XYZ.*\")",
-             "to select rows whose " + tcol.getColumnInfo().getName() +
-             " value match it",
-        };
-        String regex = JOptionPane
-                      .showInputDialog( this, msg, "Search Column",
-                                        JOptionPane.QUESTION_MESSAGE );
-        if ( regex != null && regex.trim().length() > 0 ) {
-            Pattern pat = Pattern.compile( regex );
-            int nfound = 0;
-            int first = -1;
-            int nrow = viewModel_.getRowCount();
-            for ( int irow = 0; irow < nrow; irow++ ) {
-                Object cell = viewModel_.getValueAt( irow, jcol );
-                if ( cell instanceof String ) {
-                    if ( pat.matcher( (String) cell ).matches() ) {
-                        if ( nfound == 0 ) {
-                            first = irow;
-                            rowSelectionModel_.clearSelection();
-                        }
-                        rowSelectionModel_.addSelectionInterval( irow, irow );
-                        nfound++;
-                    }
+            selectMask.flip( 0, nrow );
+            if ( rowMap != null && rowMap.length != nrow ) {
+                BitSet visibleMask = new BitSet( nrow );
+                for ( int i = 0; i < rowMap.length; i++ ) {
+                    visibleMask.set( rowMap[ i ] );
                 }
-            }
-            if ( nfound == 1 ) {
-                tcModel_.highlightRow( viewModel_.getBaseRow( first ) );
-            }
-            else if ( nfound > 1 ) {
-                scrollToRow( first );
+                selectMask.and( visibleMask );
             }
         }
+        return selectMask;
     }
 
     /**
@@ -577,7 +595,7 @@ public class TableViewerWindow extends AuxWindow {
      *
      * @param   viewRow  row index in the view model
      */
-    private void scrollToRow( int viewRow ) {
+    public void scrollToRow( int viewRow ) {
         rowManager_.scrollToRow( viewRow );
     }
 
@@ -587,7 +605,7 @@ public class TableViewerWindow extends AuxWindow {
      *
      * @param  viewCol  column index in the view model
      */
-    private void scrollToColumn( int viewCol ) {
+    public void scrollToColumn( int viewCol ) {
         Rectangle viewRect = jtable_.getCellRect( 0, viewCol, false );
         int xMid = viewRect.x + viewRect.width / 2;
         JScrollBar xBar = scroller_.getHorizontalScrollBar();
@@ -635,7 +653,7 @@ public class TableViewerWindow extends AuxWindow {
      *
      * @param   rset  row subset
      */
-    private void setSelection( RowSubset rset ) {
+    public void setSelection( RowSubset rset ) {
         rowSelectionModel_.setValueIsAdjusting( true );
         rowSelectionModel_.clearSelection();
         int nrow = (int) viewModel_.getRowCount();
@@ -665,11 +683,12 @@ public class TableViewerWindow extends AuxWindow {
          */
         public SelectionSubsetAction( boolean isInclude ) {
             super( "Subset From " + ( isInclude ? "Selected" : "Unselected" )
-                                  + "Rows",
+                                  + " Rows",
                    isInclude ? ResourceIcon.INCLUDE_ROWS
                              : ResourceIcon.EXCLUDE_ROWS,
                    "Define a new row subset containing all "
-                 + ( isInclude ? "selected" : "visible unselected" ) + "rows" );
+                 + ( isInclude ? "selected" : "visible unselected" )
+                 + " rows" );
             isInclude_ = isInclude;
         }
 
@@ -698,6 +717,39 @@ public class TableViewerWindow extends AuxWindow {
                         + ": using ViewHugeTableModel" );
             return new EnormoRowManager();
         }
+    }
+
+    /**
+     * Creates a ListSelectionModel for selecting rows in this window's JTable.
+     *
+     * @return  list selection model
+     */
+    private static ListSelectionModel createRowSelectionModel() {
+
+        /* We basically just need a DefaultListSelectionModel here.
+         * However, in at least some implementations
+         * (OpenJDK version 25.171-b11, JRE 1.8 on Debian Stretch,
+         * though not Oracle HotSpot build 1.6.0_41-b02 on SL6)
+         * the default implementation fires ListSelectionEvents following
+         * addSelectionInterval calls even when isAdjusting is set false.
+         * This means that applying a large (even a few 1e4 rows) RowSubset
+         * can lock up the AWT for many seconds, since it does Swing updates
+         * for every included row.  I *think* this is bad JRE implementation
+         * behaviour, though the exact semantics/intended behaviour of
+         * isAdjusting isn't really spelt out in the J2SE API.
+         * In any case, overriding the behaviour here to make sure that
+         * events are not fired when isAdjusting is set seems to fix it.
+         * I can't think of any ill effects that might result, but it's
+         * not impossible. */
+        return new DefaultListSelectionModel() {
+            @Override
+            protected void fireValueChanged( int i1, int i2,
+                                             boolean isAdjusting ) {
+                if ( !isAdjusting ) {
+                    super.fireValueChanged( i1, i2, isAdjusting );
+                }
+            }
+        };
     }
 
     /**

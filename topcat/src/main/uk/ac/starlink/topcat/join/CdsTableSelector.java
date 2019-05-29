@@ -3,6 +3,7 @@ package uk.ac.starlink.topcat.join;
 import cds.moc.HealpixMoc;
 import java.awt.BorderLayout;
 import java.awt.Color;
+import java.awt.Dimension;
 import java.awt.event.ItemEvent;
 import java.awt.event.ItemListener;
 import java.io.IOException;
@@ -25,6 +26,7 @@ import uk.ac.starlink.ttools.cone.CdsUploadMatcher.VizierMeta;
 import uk.ac.starlink.ttools.cone.Coverage;
 import uk.ac.starlink.ttools.cone.MocCoverage;
 import uk.ac.starlink.ttools.cone.UrlMocCoverage;
+import uk.ac.starlink.util.gui.ComboBoxBumper;
 import uk.ac.starlink.util.gui.Downloader;
 
 /**
@@ -63,7 +65,23 @@ public class CdsTableSelector extends JPanel {
         setLayout( new BorderLayout() );
 
         /* Add selector component. */
-        nameSelector_ = new JComboBox();
+        nameSelector_ = new JComboBox() {
+
+            /* If the catalogue names when they are eventually downloaded
+             * are too long for the width of the window, make sure that
+             * the long entries, rather than the combo box itself,
+             * get truncated. */
+            @Override
+            public Dimension getMinimumSize() {
+                return new Dimension( 140, super.getMinimumSize().height );
+            }
+
+            /* No sense making the combo box longer than the longest entry. */
+            @Override
+            public Dimension getMaximumSize() {
+                return super.getPreferredSize();
+            }
+        };
         nameSelector_.setEditable( true );
         nameSelector_.setSelectedItem( null );
 
@@ -97,6 +115,9 @@ public class CdsTableSelector extends JPanel {
         selectorLine.add( new JLabel( "VizieR Table ID/Alias: " ) );
         selectorLine.add( nameSelector_ );
         selectorLine.add( Box.createHorizontalStrut( 5 ) );
+        selectorLine.add( new ComboBoxBumper( nameSelector_ ) );
+        selectorLine.add( Box.createHorizontalStrut( 5 ) );
+        selectorLine.add( Box.createHorizontalGlue() );
         selectorLine.add( aliasDownloader_.createMonitorComponent() );
 
         /* Table metadata. */
@@ -260,24 +281,29 @@ public class CdsTableSelector extends JPanel {
              * But if the name is not available for some reason, fall back
              * to what we have, which is whatever the user entered. */
             String mocName = name == null ? getTableName() : name;
-            mocDownloader_.setTableName( mocName );
-            if ( mocDownloader_.isComplete() ) {
-                setMoc( mocDownloader_.getData() );
-            }
-            else {
-                if ( mocFuture_ != null ) {
-                    mocFuture_.cancel( true );
+            String dlName = mocDownloader_.tableName_;
+            if ( mocName == null ? dlName != null
+                                 : ! mocName.equals( dlName ) ) {
+                mocDownloader_.setTableName( mocName );
+                if ( mocDownloader_.isComplete() ) {
+                    setMoc( mocDownloader_.getData() );
                 }
-                mocFuture_ = mocExecutor_.submit( new Runnable() {
-                    public final void run() {
-                        final MocCoverage moc = mocDownloader_.waitForData();
-                        SwingUtilities.invokeLater( new Runnable() {
-                            public void run() {
-                                setMoc( moc );
-                            }
-                        } );
+                else {
+                    if ( mocFuture_ != null ) {
+                        mocFuture_.cancel( true );
                     }
-                } );
+                    mocFuture_ = mocExecutor_.submit( new Runnable() {
+                        public final void run() {
+                            final MocCoverage moc =
+                                mocDownloader_.waitForData();
+                            SwingUtilities.invokeLater( new Runnable() {
+                                public void run() {
+                                    setMoc( moc );
+                                }
+                            } );
+                        }
+                    } );
+                }
             }
         }
 

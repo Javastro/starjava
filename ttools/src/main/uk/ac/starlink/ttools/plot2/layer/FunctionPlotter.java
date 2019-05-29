@@ -17,7 +17,6 @@ import java.util.regex.Pattern;
 import javax.swing.Icon;
 import uk.ac.starlink.ttools.gui.ResourceIcon;
 import uk.ac.starlink.ttools.jel.JELFunction;
-import uk.ac.starlink.ttools.plot.Range;
 import uk.ac.starlink.ttools.plot.Style;
 import uk.ac.starlink.ttools.plot2.AuxScale;
 import uk.ac.starlink.ttools.plot2.DataGeom;
@@ -27,6 +26,7 @@ import uk.ac.starlink.ttools.plot2.LayerOpt;
 import uk.ac.starlink.ttools.plot2.PlotLayer;
 import uk.ac.starlink.ttools.plot2.PlotUtil;
 import uk.ac.starlink.ttools.plot2.Plotter;
+import uk.ac.starlink.ttools.plot2.Span;
 import uk.ac.starlink.ttools.plot2.Surface;
 import uk.ac.starlink.ttools.plot2.config.BooleanConfigKey;
 import uk.ac.starlink.ttools.plot2.config.ConfigException;
@@ -68,7 +68,8 @@ public class FunctionPlotter extends
     public static final FunctionPlotter PLANE =
             new FunctionPlotter( PlaneAxis.values() );
 
-    private static final ConfigKey<String> XNAME_KEY =
+    /** Config key for the independent variable name. */
+    public static final ConfigKey<String> XNAME_KEY =
         new StringConfigKey(
             new ConfigMeta( "xname", "Independent Variable Name" )
            .setStringUsage( "<name>" )
@@ -85,7 +86,9 @@ public class FunctionPlotter extends
                 "</p>",
             } )
         , "x" );
-    private static final ConfigKey<String> FEXPR_KEY =
+
+    /** Config key for the function expression. */
+    public static final ConfigKey<String> FEXPR_KEY =
         new StringConfigKey(
             new ConfigMeta( "fexpr", "Function Expression" )
            .setStringUsage( "<expr>" )
@@ -100,6 +103,7 @@ public class FunctionPlotter extends
                 "</p>",
             } )
         , null );
+
     private final ConfigKey<FuncAxis> axisKey_;
 
     /**
@@ -122,7 +126,7 @@ public class FunctionPlotter extends
                 } )
                 , FuncAxis.class, axes_, axes_[ 0 ] ) {
             public String valueToString( FuncAxis axis ) {
-                return axis.getAxisName();
+                return axis == null ? null : axis.getAxisName();
             }
             public String getXmlDescription( FuncAxis axis ) {
                 return null;
@@ -200,7 +204,7 @@ public class FunctionPlotter extends
             LayerOpt opt = new LayerOpt( style.getColor(), true );
             return new AbstractPlotLayer( this, null, null, style, opt ) {
                 public Drawing createDrawing( Surface surface,
-                                              Map<AuxScale,Range> auxRanges,
+                                              Map<AuxScale,Span> auxSpans,
                                               PaperType paperType ) {
                     return new FunctionDrawing( style, surface, paperType );
                 }
@@ -361,15 +365,19 @@ public class FunctionPlotter extends
             LineTracer tracer =
                 style_.createLineTracer( g2, surface_.getPlotBounds(), np,
                                          paperType_.isBitmap() );
+            Color color = style_.getColor();
             Point2D.Double gpos = new Point2D.Double();
             double[] dpos = new double[ surface_.getDataDimCount() ];
             for ( int ip = 0; ip < np; ip++ ) {
                 double x = xs[ ip ];
                 double f = function.evaluate( x );
-                if ( axis.xfToData( surface_, x, f, dpos ) &&
+                if ( Double.isNaN( f ) ) {
+                    tracer.flush();
+                }
+                else if ( axis.xfToData( surface_, x, f, dpos ) &&
                      surface_.dataToGraphics( dpos, false, gpos ) &&
                      PlotUtil.isPointReal( gpos ) ) {
-                    tracer.addVertex( gpos.x, gpos.y );
+                    tracer.addVertex( gpos.x, gpos.y, color );
                 }
             }
             tracer.flush();

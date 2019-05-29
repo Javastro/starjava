@@ -21,6 +21,7 @@ import org.astrogrid.samp.Response;
 import org.astrogrid.samp.client.DefaultClientProfile;
 import org.astrogrid.samp.client.SampException;
 import org.astrogrid.samp.httpd.UtilServer;
+import uk.ac.starlink.fits.FitsConstants;
 import uk.ac.starlink.plastic.PlasticHub;
 import uk.ac.starlink.plastic.PlasticUtils;
 import uk.ac.starlink.table.DefaultValueInfo;
@@ -192,8 +193,7 @@ public class Driver {
      */
     private static void runMain( String[] args )
             throws SampException, IOException {
-        VOElementFactory.STRICT_DEFAULT = false;
-        tabfact = new StarTableFactory( true );
+        tabfact = TopcatPreparation.createFactory();
         String cmdname;
         try {
             Loader.loadProperties();
@@ -208,6 +208,7 @@ public class Driver {
                            + TopcatUtils.getVersion() );
         Loader.setDefaultProperty( "java.awt.Window.locationByPlatform",
                                    "true" );
+        FitsConstants.configureHierarch();
 
         /* Fine tune the logging - we don't need HDS or AST here, so 
          * stop them complaining when they can't be loaded. */
@@ -375,6 +376,12 @@ public class Driver {
         /* Install custom URL handlers. */
         URLUtils.installCustomHandlers();
 
+        /* Set up an authenticator for HTTP 401s.  If properties are
+         * supplied, use those, otherwise use one which will pop up a window. */
+        if ( ! PropertyAuthenticator.installInstance( false ) ) {
+            Authenticator.setDefault( new SwingHttpAuthenticator( null ) );
+        }
+
         /* Assemble pairs of (table name, handler name) to be loaded. */
         final List<DataSourceLoader> loaderList =
             new ArrayList<DataSourceLoader>();
@@ -439,12 +446,6 @@ public class Driver {
 
         /* Start up the GUI now. */
         final ControlWindow control = getControlWindow();
-
-        /* Set up an authenticator for HTTP 401s.  If properties are
-         * supplied, use those, otherwise use one which will pop up a window. */
-        if ( ! PropertyAuthenticator.installInstance( false ) ) {
-            Authenticator.setDefault( new SwingHttpAuthenticator( control ) );
-        }
 
         /* Start up with demo data if requested. */
         if ( demo ) {
@@ -579,7 +580,7 @@ public class Driver {
         int ntab = demoNames.length;
         if ( demoTables == null ) {
             demoTables = new StarTable[ ntab ];
-            StarTableFactory demoFactory = new StarTableFactory( true );
+            StarTableFactory demoFactory = TopcatPreparation.createFactory();
             for ( int i = 0; i < ntab; i++ ) {
                 final String demoName = demoNames[ i ];
                 try {

@@ -449,9 +449,9 @@ public class Tables {
                 return null;
             }
         }
-        List labels = new ArrayList();
-        for ( Iterator it = new ShapeIterator( shape ); it.hasNext(); ) {
-            int[] pos = (int[]) it.next();
+        List<String> labels = new ArrayList<String>();
+        for ( Iterator<int[]> it = new ShapeIterator( shape ); it.hasNext(); ) {
+            int[] pos = it.next();
             StringBuffer sbuf = new StringBuffer();
             for ( int i = 0; i < pos.length; i++ ) {
                 sbuf.append( '_' )
@@ -459,7 +459,7 @@ public class Tables {
             }
             labels.add( sbuf.toString() );
         }
-        return (String[]) labels.toArray( new String[ 0 ] );
+        return labels.toArray( new String[ 0 ] );
     }
 
     /**
@@ -498,19 +498,16 @@ public class Tables {
      * @param   info   key giving the value you want
      * @return  matching value  
      */
-    public static Object getValue( Collection dvals, ValueInfo info ) {
+    public static Object getValue( Collection<DescribedValue> dvals,
+                                   ValueInfo info ) {
         String iname = info.getName();
         Class iclazz = info.getContentClass();
         if ( iname != null && iclazz != null ) {
-            for ( Iterator it = dvals.iterator(); it.hasNext(); ) {
-                Object obj = it.next();
-                if ( obj instanceof DescribedValue ) {
-                    DescribedValue dval = (DescribedValue) obj;
-                    ValueInfo dinfo = dval.getInfo();
-                    if ( iname.equals( dinfo.getName() ) &&
-                         iclazz.equals( dinfo.getContentClass() ) ) {
-                        return dval.getValue();
-                    }
+            for ( DescribedValue dval : dvals ) {
+                ValueInfo dinfo = dval.getInfo();
+                if ( iname.equals( dinfo.getName() ) &&
+                     iclazz.equals( dinfo.getContentClass() ) ) {
+                    return dval.getValue();
                 }
             }
         }

@@ -6,10 +6,11 @@
 package uk.ac.starlink.topcat.func;
 
 import java.io.IOException;
+import uk.ac.starlink.topcat.Executor;
 
 /**
- * Executes commands on the local operating system.  These are executed as
- * if typed in from the shell, or command line.
+ * Functions for executing shell commands on the local operating system
+ * and other system-level operations.
  * 
  * @author   Mark Taylor (Starlink)
  * @since    8 Jun 2005
@@ -65,6 +66,28 @@ public class System {
     }
 
     /**
+     * Waits for a specified number of milliseconds.
+     *
+     * @param  millis  number of milliseconds to wait
+     */
+    public static void sleepMillis( int millis ) {
+        try {
+            Thread.sleep( millis );
+        }
+        catch ( InterruptedException e ) {
+        }
+    }
+
+    /**
+     * Waits for a specified number of seconds.
+     *
+     * @param  secs  number of seconds to wait
+     */
+    public static void sleep( int secs ) {
+        sleepMillis( 1000 * secs );
+    }
+
+    /**
      * Performs the actual execution.
      *
      * @param   executor   object which can supply the execution process
@@ -73,7 +96,7 @@ public class System {
     static String execute( Executor executor ) {
         String msg = executor.getLine();
         try {
-            int status = executor.executeSynchronously();
+            int status = executor.executeSynchronously( true );
             String out = executor.getOut();
             String err = executor.getErr();
             if ( out.length() > 0 ) {

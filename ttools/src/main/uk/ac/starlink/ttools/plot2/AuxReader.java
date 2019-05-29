@@ -1,6 +1,6 @@
 package uk.ac.starlink.ttools.plot2;
 
-import uk.ac.starlink.ttools.plot.Range;
+import uk.ac.starlink.table.ValueInfo;
 import uk.ac.starlink.ttools.plot2.data.DataSpec;
 import uk.ac.starlink.ttools.plot2.data.DataStore;
 
@@ -23,11 +23,21 @@ public interface AuxReader {
      * @param  dataSpec    specification for data
      * @param  dataStore   data storage object
      * @param  knownPlans  array of available plan objects; may be empty
-     * @param  range   range object to be updated with range information
+     * @param  ranger   object to be updated with range information
      */
     void adjustAuxRange( Surface surface, DataSpec dataSpec,
                          DataStore dataStore, Object[] knownPlans,
-                         Range range );
+                         Ranger ranger );
+
+    /**
+     * Returns a scaling that will be used on the result of the aux
+     * ranging done by this reader, if any.  If no scaler will be
+     * generated from the resulting Span (no special requirements on
+     * Span behaviour), then null may be returned.
+     *
+     * @return   aux scaling type, or null
+     */
+    Scaling getScaling();
 
     /**
      * Returns the DataSpec index for the coordinate whose value is used
@@ -38,4 +48,14 @@ public interface AuxReader {
      *           or -1
      */
     int getCoordIndex();
+
+    /**
+     * Attempts to provide information suitable for labelling the axis
+     * corresponding to the values ranged by this reader.
+     *
+     * @param  dataSpec  data specification
+     * @return  info corresponding to this reader's scale,
+     *          or null if none known
+     */
+    ValueInfo getAxisInfo( DataSpec dataSpec );
 }

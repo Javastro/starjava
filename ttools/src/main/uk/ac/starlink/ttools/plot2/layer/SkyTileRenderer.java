@@ -7,8 +7,8 @@ import java.awt.Rectangle;
 import java.awt.geom.Point2D;
 import java.awt.image.IndexColorModel;
 import java.util.logging.Logger;
-import uk.ac.starlink.ttools.plot.Range;
 import uk.ac.starlink.ttools.plot.Shader;
+import uk.ac.starlink.ttools.plot2.Ranger;
 import uk.ac.starlink.ttools.plot2.Scaler;
 import uk.ac.starlink.ttools.plot2.geom.Rotation;
 import uk.ac.starlink.ttools.plot2.geom.SkySurface;
@@ -28,10 +28,10 @@ public abstract class SkyTileRenderer {
     /**
      * Modifies the range of aux values found within a given surface.
      *
-     * @param  range   range object to be modified
+     * @param  ranger   range object to be modified
      * @param  binResult   tile bin contents
      */
-    public abstract void extendAuxRange( Range range,
+    public abstract void extendAuxRange( Ranger ranger,
                                          BinList.Result binResult );
 
     /**
@@ -49,11 +49,15 @@ public abstract class SkyTileRenderer {
      * Returns a SkyTileRenderer suitable for use on a given sky surface.
      *
      * @param  surface  sky surface
+     * @param  rotation   view rotation state
+     * @param  viewLevel  HEALPix level for view
+     * @param  binFactor  factor by which all bin values should be multiplied
      * @return   tile renderer
      */
     public static SkyTileRenderer createRenderer( SkySurface surface,
                                                   Rotation rotation,
-                                                  int viewLevel ) {
+                                                  int viewLevel,
+                                                  double binFactor ) {
 
         /* We have two strategies for colouring in the tiles:
          * either paint each one as a polygon or resample the plot
@@ -70,7 +74,7 @@ public abstract class SkyTileRenderer {
             reason = "sky bounds are visible";
         }
         else {
-            double srPerTile = 4 * Math.PI / ( 12 << 2 * viewLevel );
+            double srPerTile = 4 * Math.PI / ( 12L << 2 * viewLevel );
             double srPerPixel = surface.pixelAreaSteradians();
             int pixelsPerTile = (int) ( srPerTile / srPerPixel );
             if ( pixelsPerTile >= MIN_PAINT_PIXELS ) {
@@ -93,8 +97,9 @@ public abstract class SkyTileRenderer {
            .toString();
         logger_.info( msg );
         return isPaint
-             ? new PaintTileRenderer( surface, viewLevel, rotation )
-             : new ResampleTileRenderer( surface, viewLevel, rotation );
+             ? new PaintTileRenderer( surface, viewLevel, rotation, binFactor )
+             : new ResampleTileRenderer( surface, viewLevel, rotation,
+                                         binFactor );
     }
 
     /**
@@ -103,12 +108,14 @@ public abstract class SkyTileRenderer {
      *
      * @param  g  graphics context
      * @param  binResult   histogram containing sky pixel values
+     * @param  binFactor   factor by which all bin values must be multiplied
      * @param  surface   plot surface
      * @param  skyPixer  maps sky positions to HEALPix indices
      * @param  shader   colour shading
      * @param  scaler   value scaling
      */
     public static void paintBins( Graphics g, BinList.Result binResult,
+                                  double binFactor,
                                   SkySurface surface, SkyPixer skyPixer,
                                   Shader shader, Scaler scaler ) {
         Rectangle bounds = surface.getPlotBounds();
@@ -147,7 +154,8 @@ public abstract class SkyTileRenderer {
                     binResult.getBinValue( skyPixer.getIndex( dpos ) );
                 if ( ! Double.isNaN( dval ) ) {
                     pixels[ ip ] =
-                        Math.min( 1 + (int) ( scaler.scaleValue( dval )
+                        Math.min( 1 + (int) ( scaler.scaleValue( binFactor *
+                                                                 dval )
                                               * ncolor ),
                                   ncolor - 1 );
                 }
@@ -171,6 +179,7 @@ public abstract class SkyTileRenderer {
     private static class ResampleTileRenderer extends SkyTileRenderer {
         private final SkySurface surface_;
         private final SkyPixer skyPixer_;
+        private final double binFactor_;
 
         /**
          * Constructor.
@@ -178,11 +187,13 @@ public abstract class SkyTileRenderer {
          * @param  surface  plot surface
          * @param  viewLevel   healpix level of painted tiles
          * @param  rotation  sky rotation to be applied before plotting
+         * @param  binFactor   factor by which all bin values must be multiplied
          */
         ResampleTileRenderer( SkySurface surface, int viewLevel,
-                              Rotation rotation ) {
+                              Rotation rotation, double binFactor ) {
             surface_ = surface;
             final Rotation unrotation = rotation.invert();
+            binFactor_ = binFactor;
             skyPixer_ = new SkyPixer( viewLevel ) {
                 public long getIndex( double[] v3 ) {
                     unrotation.rotate( v3 );
@@ -191,7 +202,7 @@ public abstract class SkyTileRenderer {
             };
         }
 
-        public void extendAuxRange( Range range, BinList.Result binResult ) {
+        public void extendAuxRange( Ranger ranger, BinList.Result binResult ) {
             Rectangle bounds = surface_.getPlotBounds();
             Gridder gridder = new Gridder( bounds.width, bounds.height );
             int npix = gridder.getLength();
@@ -207,7 +218,8 @@ public abstract class SkyTileRenderer {
                     long hpix = skyPixer_.getIndex( dpos );
                     if ( hpix != hpix0 ) {
                          hpix0 = hpix;
-                        range.submit( binResult.getBinValue( hpix ) );
+                        ranger.submitDatum( binFactor_ *
+                                            binResult.getBinValue( hpix ) );
                     }
                 }
             }
@@ -215,7 +227,8 @@ public abstract class SkyTileRenderer {
 
         public void renderBins( Graphics g, BinList.Result binResult,
                                 Shader shader, Scaler scaler ) {
-            paintBins( g, binResult, surface_, skyPixer_, shader, scaler );
+            paintBins( g, binResult, binFactor_, surface_, skyPixer_,
+                       shader, scaler );
         }
     }
 
@@ -226,6 +239,7 @@ public abstract class SkyTileRenderer {
      */
     private static class PaintTileRenderer extends SkyTileRenderer {
         private final SkySurfaceTiler tiler_;
+        private final double binFactor_;
 
         /**
          * Constructor.
@@ -233,18 +247,20 @@ public abstract class SkyTileRenderer {
          * @param  surface  plot surface
          * @param  viewLevel   healpix level of painted tiles
          * @param  rotation  sky rotation to be applied before plotting
+         * @param  binFactor   factor by which all bin values must be multiplied
          */
         PaintTileRenderer( SkySurface surface, int viewLevel,
-                           Rotation rotation ) {
+                           Rotation rotation, double binFactor ) {
             tiler_ = new SkySurfaceTiler( surface, rotation, viewLevel );
+            binFactor_ = binFactor;
         }
 
-        public void extendAuxRange( Range range, BinList.Result binResult ) {
+        public void extendAuxRange( Ranger ranger, BinList.Result binResult ) {
             for ( Long hpxObj : tiler_.visiblePixels() ) {
                 long hpx = hpxObj.longValue();
                 double value = binResult.getBinValue( hpx );
                 if ( ! Double.isNaN( value ) ) {
-                    range.submit( value );
+                    ranger.submitDatum( binFactor_ * value );
                 }
             }
         }
@@ -263,7 +279,8 @@ public abstract class SkyTileRenderer {
                         rgba[ 1 ] = 0.5f;
                         rgba[ 2 ] = 0.5f;
                         rgba[ 3 ] = 1.0f;
-                        float sval = (float) scaler.scaleValue( value );
+                        float sval = (float)
+                                     scaler.scaleValue( binFactor_ * value );
                         shader.adjustRgba( rgba, sval );
                         g.setColor( new Color( rgba[ 0 ], rgba[ 1 ],
                                                rgba[ 2 ], rgba[ 3 ] ) );

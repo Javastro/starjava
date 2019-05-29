@@ -10,7 +10,6 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import uk.ac.starlink.ttools.gui.ResourceIcon;
-import uk.ac.starlink.ttools.plot.Range;
 import uk.ac.starlink.ttools.plot2.Anchor;
 import uk.ac.starlink.ttools.plot2.AuxScale;
 import uk.ac.starlink.ttools.plot2.Captioner;
@@ -23,6 +22,7 @@ import uk.ac.starlink.ttools.plot2.PlotLayer;
 import uk.ac.starlink.ttools.plot2.PlotUtil;
 import uk.ac.starlink.ttools.plot2.PointCloud;
 import uk.ac.starlink.ttools.plot2.ReportMap;
+import uk.ac.starlink.ttools.plot2.Span;
 import uk.ac.starlink.ttools.plot2.SubCloud;
 import uk.ac.starlink.ttools.plot2.Surface;
 import uk.ac.starlink.ttools.plot2.config.CaptionerKeySet;
@@ -40,6 +40,7 @@ import uk.ac.starlink.ttools.plot2.data.InputMeta;
 import uk.ac.starlink.ttools.plot2.data.StringCoord;
 import uk.ac.starlink.ttools.plot2.data.TupleSequence;
 import uk.ac.starlink.ttools.plot2.geom.CubeSurface;
+import uk.ac.starlink.ttools.plot2.geom.GPoint3D;
 import uk.ac.starlink.ttools.plot2.paper.Paper;
 import uk.ac.starlink.ttools.plot2.paper.PaperType;
 import uk.ac.starlink.ttools.plot2.paper.PaperType2D;
@@ -163,7 +164,7 @@ public class LabelPlotter extends AbstractPlotter<LabelStyle> {
         LayerOpt opt = new LayerOpt( style.getColor(), true );
         return new AbstractPlotLayer( this, geom, dataSpec, style, opt ) {
             public Drawing createDrawing( Surface surface,
-                                          Map<AuxScale,Range> auxRanges,
+                                          Map<AuxScale,Span> auxSpans,
                                           PaperType paperType ) {
                 if ( paperType instanceof PaperType2D ) {
                     return new LabelDrawing2D( geom, dataSpec, style, surface,
@@ -457,20 +458,19 @@ public class LabelPlotter extends AbstractPlotter<LabelStyle> {
                                           GridMask gridMask ) {
             Map<Point,DepthString> map = new LinkedHashMap<Point,DepthString>();
             double[] dpos = new double[ surface_.getDataDimCount() ];
-            Point2D.Double gp = new Point2D.Double();
+            GPoint3D gp = new GPoint3D();
             Point gpi = new Point();
-            double[] depthArr = new double[ 1 ];
             CubeSurface surf = (CubeSurface) surface_;
             TupleSequence tseq = dataStore.getTupleSequence( dataSpec_ );
             while ( tseq.next() ) {
                 if ( geom_.readDataPos( tseq, icPos_, dpos ) &&
-                     surf.dataToGraphicZ( dpos, true, gp, depthArr ) ) {
+                     surf.dataToGraphicZ( dpos, true, gp ) ) {
                     PlotUtil.quantisePoint( gp, gpi );
                     if ( gridMask.isFree( gpi ) ) {
                         String label =
                             LABEL_COORD.readStringCoord( tseq, icLabel_ );
                         if ( label != null && label.trim().length() > 0 ) {
-                            double depth = depthArr[ 0 ];
+                            double depth = gp.z;
                             if ( ! map.containsKey( gp ) ||
                                  depth < map.get( gpi ).depth_ ) {
                                 map.put( new Point( gpi ),

@@ -38,6 +38,7 @@ import org.xml.sax.EntityResolver;
 import org.xml.sax.InputSource;
 import org.xml.sax.SAXException;
 import uk.ac.starlink.table.StarTable;
+import uk.ac.starlink.util.ContentType;
 import uk.ac.starlink.util.DOMUtils;
 import uk.ac.starlink.vo.AdqlValidator;
 import uk.ac.starlink.vo.EndpointSet;
@@ -71,17 +72,35 @@ public class ExampleStage implements Stage {
     );
 
     // Permitted MIME type for examples document mandated by TAP 1.1 WD.
-    private static final ContentType CTYPE_XHTML =
-        new ContentType( new String[] { "text/html",
-                                        "application/xhtml+xml" } );
+    private static final ContentTypeOptions CTYPE_XHTML =
+        new ContentTypeOptions( new ContentType[] {
+            new ContentType( "text", "html" ),
+            new ContentType( "application", "xhtml+xml" ),
+        } );
 
-    // Correct value is under discussion at time of writing;
-    // see dal list thread "DALI examples vocab" starting 19 May 2016.
+    // The 'correct' value for the RDFa @vocab attribute is a real mess.
+    // The values listed below have some claim to legitimacy.
+    // The worst problem is that TOPCAT versions 4.4 and earlier
+    // (from 4.3, when TAP examples support was introduced)
+    // required one of the forms TAPNOTE_VOCAB or PRAGMATIC_VOCAB,
+    // and failed to find the example elements otherwise
+    // (including in absence of any @vocab),
+    // so until TOPCAT versions 4.3-4.4 inclusive fall out of use,
+    // services probably need to use one of those forms,
+    // despite the fact that they are not permitted by any REC.
+    // If that's not a concern, the DALI 1.1 value is probably preferred.
+    // See dal list thread "DALI examples vocab" starting 19 May 2016,
+    // also private thread "examples @vocab" between MBT,
+    // Markus Demleitner and Pat Dowler in July 2017.
+    private static final String DALI10_VOCAB;    // DALI 1.0
+    private static final String TAPNOTE_VOCAB;   // TAP Implementation Note
+    private static final String PRAGMATIC_VOCAB; // Common practice mid-2017
+    private static final String DALI11_VOCAB;    // DALI 1.1
     private static final String[] EXAMPLES_VOCABS = new String[] {
-        "ivo://ivoa.net/std/DALI#examples",
-        "ivo://ivoa.net/std/DALI-examples",
-        "ivo://ivoa.net/std/DALI-examples#",
-        "http://www.ivoa.net/rdf/dali-examples",
+        DALI10_VOCAB =    "ivo://ivoa.net/std/DALI#examples",
+        TAPNOTE_VOCAB =   "ivo://ivoa.net/std/DALI-examples",
+        PRAGMATIC_VOCAB = "ivo://ivoa.net/std/DALI-examples#",
+        DALI11_VOCAB =    "http://www.ivoa.net/rdf/examples#",
     };
 
     /**
@@ -191,7 +210,7 @@ public class ExampleStage implements Stage {
      * @return  DOM document or null
      */
     private static Document readXml( Reporter reporter, URL url,
-                                     ContentType reqType )
+                                     ContentTypeOptions reqType )
             throws SAXException, IOException {
         URLConnection conn = url.openConnection();
         conn.connect();
@@ -458,7 +477,7 @@ public class ExampleStage implements Stage {
         private final TestCount syntaxValidCount_;
         private final TestCount symbolValidCount_;
         private final TestCount executedCount_;
-        private final Set<URL> exampleDocUrls_;
+        private final Set<String> exampleDocUrls_;
         private int docCount_;
         private int exampleCount_;
         private AdqlValidatorKit vkit_;
@@ -479,7 +498,7 @@ public class ExampleStage implements Stage {
             tapRunner_ = tapRunner;
             capHolder_ = capHolder;
             metaHolder_ = metaHolder;
-            exampleDocUrls_ = new HashSet<URL>();
+            exampleDocUrls_ = new HashSet<String>();
             syntaxValidCount_ = new TestCount( "Syntax validity" );
             symbolValidCount_ = new TestCount( "Symbol validity" );
             executedCount_ = new TestCount( "Execution" );
@@ -617,16 +636,46 @@ public class ExampleStage implements Stage {
             if ( nvocab == 1 ) {
                 Element examplesEl = vocabEls[ 0 ];
                 String vatt = getAttribute( examplesEl, "vocab" );
-                if ( ! Arrays.asList( EXAMPLES_VOCABS ).contains( vatt ) ) {
+                String msgIntro =
+                    "Examples document vocab attribute \"" + vatt + "\"";
+                String workWithTopcat =
+                    "work with some TOPCAT versions " +
+                    "(v4.3-4.4 require \"" + PRAGMATIC_VOCAB + "\", " +
+                    "later versions don't care)";
+                if ( DALI10_VOCAB.equals( vatt ) ||
+                     DALI11_VOCAB.equals( vatt ) ) {
+                    String daliVersion = DALI11_VOCAB.equals( vatt )
+                                       ? "1.1" : "1.0";
                     String msg = new StringBuffer()
-                       .append( "Incorrect value for sole vocab attribute " )
-                       .append( "in examples document: " )
-                       .append( "\"" )
-                       .append( vatt )
-                       .append( "\"" )
-                       .append( " should probably be one of " )
-                       .append( Arrays.toString( EXAMPLES_VOCABS ) )
-                       .append( " (currently under IVOA discussion)" )
+                       .append( msgIntro )
+                       .append( " is correct according to DALI " )
+                       .append( daliVersion )
+                       .append( ", but won't " )
+                       .append( workWithTopcat )
+                       .append( " :-(." )
+                       .toString();
+                    reporter_.report( FixedCode.W_EXVC, msg );
+                }
+                else if ( TAPNOTE_VOCAB.equals( vatt ) ||
+                          PRAGMATIC_VOCAB.equals( vatt ) ) {
+                    String msg = new StringBuffer()
+                       .append( msgIntro )
+                       .append( " is contrary to DALI, but is required to " )
+                       .append( workWithTopcat )
+                       .append( " :-(." )
+                       .toString();
+                    reporter_.report( FixedCode.W_EXVC, msg );
+                }
+                else {
+                    assert ! Arrays.asList( EXAMPLES_VOCABS ).contains( vatt );
+                    String msg = new StringBuffer()
+                       .append( msgIntro )
+                       .append( " wrong, should probably be one of \"" )
+                       .append( PRAGMATIC_VOCAB )
+                       .append( "\" (to work with some TOPCAT versions)" )
+                       .append( " or \"" )
+                       .append( DALI11_VOCAB )
+                       .append( "\" (DALI 1.1)" )
                        .toString();
                     reporter_.report( FixedCode.E_EXVC, msg );
                 }
@@ -720,7 +769,7 @@ public class ExampleStage implements Stage {
                     reporter_.report( FixedCode.E_EXCH, msg );
                 }
                 if ( url != null ) {
-                    if ( exampleDocUrls_.add( url ) ) {
+                    if ( exampleDocUrls_.add( url.toString() ) ) {
                         urls.add( url );
                     }
                     else {

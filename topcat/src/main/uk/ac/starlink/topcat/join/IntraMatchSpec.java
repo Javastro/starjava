@@ -1,5 +1,6 @@
 package uk.ac.starlink.topcat.join;
 
+import java.awt.BorderLayout;
 import java.awt.Component;
 import java.io.IOException;
 import java.util.logging.Logger;
@@ -40,7 +41,8 @@ public class IntraMatchSpec extends MatchSpec {
     public IntraMatchSpec( MatchEngine engine ) {
         engine_ = engine;
         Box main = Box.createVerticalBox();
-        add( main );
+        setLayout( new BorderLayout() );
+        add( main, BorderLayout.NORTH );
 
         /* Set up a table/column selector panel for the sole table. */
         tupleSelector_ = new TupleSelector( engine_.getTupleInfos() );
@@ -93,8 +95,9 @@ public class IntraMatchSpec extends MatchSpec {
             msgType = JOptionPane.WARNING_MESSAGE;
         }
         else {
+            String name = "match(" + tupleSelector_.getTable().getID() + ")";
             TopcatModel tcModel = ControlWindow.getInstance()
-                                 .addTable( result_, "matched", true );
+                                 .addTable( result_, name, true );
             msg = new String[] { 
                 matchCount_ + " match groups located",
                 "New table created by match: " + tcModel,

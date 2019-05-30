@@ -8,7 +8,7 @@
    <artifactId>starlink-bom</artifactId>
    <name>Starlink Bill of Materials</name>
    <description>A pom that only includes the dependency management to define the release versions of the various modules it can be included</description>
-   <version>2017.1</version>
+   <version>2019.1</version>
    <packaging>pom</packaging>
    <url>http://dev.starlink.ac.uk/</url>
    <issueManagement>
@@ -76,6 +76,7 @@
       <starlink.vo.version>0.2</starlink.vo.version>
       <starlink.votable.version>2.0</starlink.votable.version>
       <starlink.xdoc.version>0.1</starlink.xdoc.version>
+      <starlink.dpac.version>1.0</starlink.dpac.version>
    </properties>
    <dependencyManagement>
       <dependencies>
@@ -298,6 +299,11 @@
             <groupId>uk.ac.starlink</groupId>
             <artifactId>xdoc</artifactId>
             <version>${starlink.xdoc.version}</version>
+         </dependency>
+         <dependency>
+            <groupId>uk.ac.starlink</groupId>
+            <artifactId>dpac</artifactId>
+            <version>${starlink.dpac.version}</version>
          </dependency>
          <dependency>
             <groupId>junit</groupId>

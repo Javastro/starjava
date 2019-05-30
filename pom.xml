@@ -9,7 +9,7 @@
     <parent>
         <artifactId>starlink-base</artifactId> <!-- could split the base from the versions -->
         <groupId>uk.ac.starlink</groupId>
-        <version>2017.1</version>
+        <version>2019.1</version>
         <relativePath>maven/base/pom.xml</relativePath>
     </parent>
     <name>Starlink Build</name>
@@ -26,6 +26,7 @@
 <module>connect</module>
 <module>datanode</module>
 <module>diva</module>
+<module>dpac</module>
 
 <module>fits</module>
 <!-- <module>frog</module> -->

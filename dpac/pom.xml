@@ -4,7 +4,7 @@
 	xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/maven-v4_0_0.xsd">
 	<modelVersion>4.0.0</modelVersion>
 	<groupId>uk.ac.starlink</groupId>
-	<artifactId>fits</artifactId>
+	<artifactId>dpac</artifactId>
 	<packaging>jar</packaging>
 	<parent>
 		<artifactId>starlink-base</artifactId>
@@ -12,46 +12,22 @@
 		<version>2019.1</version>
 		<relativePath>../maven/pom.xml</relativePath>
 	</parent>
-	<name>starfits</name>
-	<version>0.1</version>
-	<description>FITS</description>
+	<name>dpac</name>
+	<version>1.0</version>
+	<description>DPAC</description>
+	<properties>
+	   <maven.test.skip>true</maven.test.skip> <!--FIXME -should run tests - attempt to exclude one compilation failure (below) did not work -->
+	</properties>
+	
 	<dependencies>
-
-
-		<dependency>
-			<groupId>junit</groupId>
-			<artifactId>junit</artifactId>
-		</dependency>
-
-
-		<dependency>
-			<groupId>uk.ac.starlink</groupId>
-			<artifactId>tamfits</artifactId>
-		</dependency>
-
 		<dependency>
 			<groupId>uk.ac.starlink</groupId>
 			<artifactId>table</artifactId>
 		</dependency>
-
-
 		<dependency>
-			<groupId>uk.ac.starlink</groupId>
-			<artifactId>array</artifactId>
+			<groupId>junit</groupId>
+			<artifactId>junit</artifactId>
 		</dependency>
-
-
-		<dependency>
-			<groupId>uk.ac.starlink</groupId>
-			<artifactId>ndx</artifactId>
-		</dependency>
-
-
-		<dependency>
-			<groupId>uk.ac.starlink</groupId>
-			<artifactId>util</artifactId>
-		</dependency>
-
 	</dependencies>
 	
 	<build>

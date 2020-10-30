@@ -94,13 +94,14 @@
 			<artifactId>moc</artifactId>
 			<version>4.7</version>
 		</dependency>
-		<dependency> <!-- for the doclet stuff -->
+		<dependency> <!--  for the doclet stuff - difficult in platform independent way - needs cooperating settings.xml to set - also who knowsfor JDK9+???? -->
 			<groupId>com.sun</groupId>
 			<artifactId>tools</artifactId>
-			<version>1.6.0</version>
+			<version>1.8.0</version>
 			<scope>system</scope>
-			<systemPath>${java.home}/../lib/tools.jar</systemPath>
+			<systemPath>${toolsjar}</systemPath>
 		</dependency>
+      
 
 		<dependency>
 			<groupId>uk.ac.starlink-third</groupId>

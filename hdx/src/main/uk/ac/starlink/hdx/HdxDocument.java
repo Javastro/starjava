@@ -364,103 +364,103 @@ public class HdxDocument
         return null;
     }
 
-//DOM3     /* ** DOM Level 3 Not Implemented ** */
+/* ** DOM Level 3 Not Implemented ** */
 //DOM3 
-//DOM3     /** Not implemented */
-//DOM3     public Node renameNode( Node n, String namespaceURI,
-//DOM3                             String qualifiedName ) {
-//DOM3         throw new DOMException( DOMException.NOT_SUPPORTED_ERR,
-//DOM3                                 "renameNode not implemented" );
-//DOM3     }
+/** Not implemented */
+public Node renameNode( Node n, String namespaceURI,
+                        String qualifiedName ) {
+    throw new DOMException( DOMException.NOT_SUPPORTED_ERR,
+                            "renameNode not implemented" );
+}
 //DOM3 
-//DOM3     /** Not implemented */
-//DOM3     public void normalizeDocument() {
-//DOM3         throw new DOMException( DOMException.NOT_SUPPORTED_ERR,
-//DOM3                                 "normalizeDocument not implemented" );
-//DOM3     }
+/** Not implemented */
+public void normalizeDocument() {
+    throw new DOMException( DOMException.NOT_SUPPORTED_ERR,
+                            "normalizeDocument not implemented" );
+}
 //DOM3 
-//DOM3     /** Not implemented */
-//DOM3     public DOMConfiguration getDomConfig() {
-//DOM3         throw new DOMException( DOMException.NOT_SUPPORTED_ERR,
-//DOM3                                 "getDomConfig not implemented" );
-//DOM3     }
+/** Not implemented */
+public DOMConfiguration getDomConfig() {
+    throw new DOMException( DOMException.NOT_SUPPORTED_ERR,
+                            "getDomConfig not implemented" );
+}
 //DOM3 
-//DOM3     public  Node adoptNode( Node source ) {
-//DOM3         throw new DOMException( DOMException.NOT_SUPPORTED_ERR,
-//DOM3                                 "adoptNode not implemented" );
-//DOM3         // Could be a call to importNode( source, true ),
-//DOM3         // but we need to remove from other document?
-//DOM3     }
+public  Node adoptNode( Node source ) {
+    throw new DOMException( DOMException.NOT_SUPPORTED_ERR,
+                            "adoptNode not implemented" );
+    // Could be a call to importNode( source, true ),
+    // but we need to remove from other document?
+}
 //DOM3 
-//DOM3     public void setDocumentURI( String documentURI ) {
-//DOM3         throw new DOMException( DOMException.NOT_SUPPORTED_ERR,
-//DOM3                                 "setDocumentURI not implemented" );
-//DOM3     }
+public void setDocumentURI( String documentURI ) {
+    throw new DOMException( DOMException.NOT_SUPPORTED_ERR,
+                            "setDocumentURI not implemented" );
+}
 //DOM3 
-//DOM3     public String getDocumentURI() {
-//DOM3         throw new DOMException( DOMException.NOT_SUPPORTED_ERR,
-//DOM3                                 "getDocumentURI not implemented" );
-//DOM3     }
+public String getDocumentURI() {
+    throw new DOMException( DOMException.NOT_SUPPORTED_ERR,
+                            "getDocumentURI not implemented" );
+}
 //DOM3 
-//DOM3     /** Not implemented */
-//DOM3     public void setStrictErrorChecking(boolean check) {
-//DOM3         throw new DOMException( DOMException.NOT_SUPPORTED_ERR,
-//DOM3                       "setStrictErrorChecking not implemented" );
-//DOM3     }
+/** Not implemented */
+public void setStrictErrorChecking(boolean check) {
+    throw new DOMException( DOMException.NOT_SUPPORTED_ERR,
+                  "setStrictErrorChecking not implemented" );
+}
 //DOM3 
-//DOM3     /** Not implemented */
-//DOM3     public boolean getStrictErrorChecking() {
-//DOM3         throw new DOMException( DOMException.NOT_SUPPORTED_ERR,
-//DOM3                       "getStrictErrorChecking not implemented" );
-//DOM3     }
+/** Not implemented */
+public boolean getStrictErrorChecking() {
+    throw new DOMException( DOMException.NOT_SUPPORTED_ERR,
+                  "getStrictErrorChecking not implemented" );
+}
 //DOM3 
-//DOM3     /** Not implemented */
-//DOM3     public void setXmlVersion(String value) {
-//DOM3         throw new DOMException( DOMException.NOT_SUPPORTED_ERR,
-//DOM3                                 "setXmlVersion not implemented" );
-//DOM3     }
+/** Not implemented */
+public void setXmlVersion(String value) {
+    throw new DOMException( DOMException.NOT_SUPPORTED_ERR,
+                            "setXmlVersion not implemented" );
+}
 //DOM3 
-//DOM3     /** Not implemented */
-//DOM3     public String getXmlVersion() {
-//DOM3         throw new DOMException( DOMException.NOT_SUPPORTED_ERR,
-//DOM3                                 "getXmlVersion not implemented" );
-//DOM3     }
+/** Not implemented */
+public String getXmlVersion() {
+    throw new DOMException( DOMException.NOT_SUPPORTED_ERR,
+                            "getXmlVersion not implemented" );
+}
 //DOM3 
-//DOM3     /** Not implemented */
-//DOM3     public void setXmlStandalone(boolean value) {
-//DOM3         throw new DOMException( DOMException.NOT_SUPPORTED_ERR,
-//DOM3                                 "setXmlStandalone not implemented" );
-//DOM3     }
+/** Not implemented */
+public void setXmlStandalone(boolean value) {
+    throw new DOMException( DOMException.NOT_SUPPORTED_ERR,
+                            "setXmlStandalone not implemented" );
+}
 //DOM3 
-//DOM3     /** Not implemented */
-//DOM3     public boolean getXmlStandalone() {
-//DOM3         throw new DOMException( DOMException.NOT_SUPPORTED_ERR,
-//DOM3                                 "getXmlStandalone not implemented" );
-//DOM3     }
+/** Not implemented */
+public boolean getXmlStandalone() {
+    throw new DOMException( DOMException.NOT_SUPPORTED_ERR,
+                            "getXmlStandalone not implemented" );
+}
 //DOM3 
-//DOM3     /** Not implemented */
-//DOM3     public void setXmlEncoding(String value) {
-//DOM3         throw new DOMException( DOMException.NOT_SUPPORTED_ERR,
-//DOM3                                 "setXmlEncoding not implemented" );
-//DOM3     }
+/** Not implemented */
+public void setXmlEncoding(String value) {
+    throw new DOMException( DOMException.NOT_SUPPORTED_ERR,
+                            "setXmlEncoding not implemented" );
+}
 //DOM3 
-//DOM3     /** Not implemented */
-//DOM3     public String getXmlEncoding() {
-//DOM3         throw new DOMException( DOMException.NOT_SUPPORTED_ERR,
-//DOM3                                 "getXmlEncoding not implemented" );
-//DOM3     }
+/** Not implemented */
+public String getXmlEncoding() {
+    throw new DOMException( DOMException.NOT_SUPPORTED_ERR,
+                            "getXmlEncoding not implemented" );
+}
 //DOM3 
-//DOM3     /** Not implemented */
-//DOM3     public String getInputEncoding() {
-//DOM3         throw new DOMException( DOMException.NOT_SUPPORTED_ERR,
-//DOM3                                 "getInputEncoding not implemented" );
-//DOM3     }
+/** Not implemented */
+public String getInputEncoding() {
+    throw new DOMException( DOMException.NOT_SUPPORTED_ERR,
+                            "getInputEncoding not implemented" );
+}
 //DOM3 
-//DOM3     /** Not implemented */
-//DOM3     public void setInputEncoding(String value) {
-//DOM3         throw new DOMException( DOMException.NOT_SUPPORTED_ERR,
-//DOM3                                 "setInputEncoding not implemented" );
-//DOM3     }
+/** Not implemented */
+public void setInputEncoding(String value) {
+    throw new DOMException( DOMException.NOT_SUPPORTED_ERR,
+                            "setInputEncoding not implemented" );
+}
 
 
     private static class HdxFacadeElement
@@ -1008,27 +1008,27 @@ public class HdxDocument
             return "#text";
         }
 
-//DOM3         /* ** DOM Level 3 Not implemented ** */
+    /* ** DOM Level 3 Not implemented ** */
 //DOM3 
-//DOM3         /** Not implemented */
-//DOM3         public Text replaceWholeText(String content)
-//DOM3             throws DOMException
-//DOM3         {
-//DOM3             throw new DOMException( DOMException.NOT_SUPPORTED_ERR,
-//DOM3                                     "replaceWholeText not implemented" );
-//DOM3         }
+    /** Not implemented */
+    public Text replaceWholeText(String content)
+        throws DOMException
+    {
+        throw new DOMException( DOMException.NOT_SUPPORTED_ERR,
+                                "replaceWholeText not implemented" );
+    }
 //DOM3 
-//DOM3         /** Not implemented */
-//DOM3         public String getWholeText() {
-//DOM3             throw new DOMException( DOMException.NOT_SUPPORTED_ERR,
-//DOM3                                     "getWholeText not implemented" );
-//DOM3         }
+    /** Not implemented */
+    public String getWholeText() {
+        throw new DOMException( DOMException.NOT_SUPPORTED_ERR,
+                                "getWholeText not implemented" );
+    }
 //DOM3 
-//DOM3         /** Not implemented */
-//DOM3         public boolean isElementContentWhitespace() {
-//DOM3             throw new DOMException( DOMException.NOT_SUPPORTED_ERR,
-//DOM3                       "isElementContentWhitespace not implemented" );
-//DOM3         }
+    /** Not implemented */
+    public boolean isElementContentWhitespace() {
+        throw new DOMException( DOMException.NOT_SUPPORTED_ERR,
+                  "isElementContentWhitespace not implemented" );
+    }
         
 
     }

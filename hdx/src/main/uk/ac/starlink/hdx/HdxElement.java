@@ -1014,34 +1014,34 @@ class HdxElement
         return el;
     }
 
-//DOM3     /*
-//DOM3      * DOM Level 3 not implemented.
-//DOM3      */
-//DOM3     
-//DOM3     /** Not implemented */
-//DOM3     public void setIdAttributeNode( Attr at, boolean makeId ) {
-//DOM3         throw new DOMException( DOMException.NOT_SUPPORTED_ERR,
-//DOM3                                 "setIdAttributeNode not implemented" );
-//DOM3     }
+/*
+ * DOM Level 3 not implemented.
+ */
+
+/** Not implemented */
+public void setIdAttributeNode( Attr at, boolean makeId ) {
+    throw new DOMException( DOMException.NOT_SUPPORTED_ERR,
+                            "setIdAttributeNode not implemented" );
+}
 //DOM3 
-//DOM3     /** Not implemented */
-//DOM3     public void setIdAttribute( String name, boolean makeId ) {
-//DOM3         throw new DOMException( DOMException.NOT_SUPPORTED_ERR,
-//DOM3                                 "setIdAttribute not implemented" );
-//DOM3     }
+/** Not implemented */
+public void setIdAttribute( String name, boolean makeId ) {
+    throw new DOMException( DOMException.NOT_SUPPORTED_ERR,
+                            "setIdAttribute not implemented" );
+}
 //DOM3 
-//DOM3     /** Not implemented */
-//DOM3     public void setIdAttributeNS( String namespaceURI, String localName,
-//DOM3                                   boolean makeId ) {
-//DOM3         throw new DOMException( DOMException.NOT_SUPPORTED_ERR,
-//DOM3                                 "setIdAttributeNS not implemented" );
-//DOM3     }
+/** Not implemented */
+public void setIdAttributeNS( String namespaceURI, String localName,
+                              boolean makeId ) {
+    throw new DOMException( DOMException.NOT_SUPPORTED_ERR,
+                            "setIdAttributeNS not implemented" );
+}
 //DOM3 
-//DOM3     /** Not implemented */
-//DOM3     public TypeInfo getSchemaTypeInfo() {
-//DOM3         throw new DOMException( DOMException.NOT_SUPPORTED_ERR,
-//DOM3                                 "getSchemaTypeInfo not implemented" );
-//DOM3     }
+/** Not implemented */
+public TypeInfo getSchemaTypeInfo() {
+    throw new DOMException( DOMException.NOT_SUPPORTED_ERR,
+                            "getSchemaTypeInfo not implemented" );
+}
 
 
     /**
@@ -1254,21 +1254,21 @@ class HdxElement
             return getFirstChild();
         }
 
-//DOM3         /*
-//DOM3          * DOM Level 3, not implemented.
-//DOM3          */
+    /*
+     * DOM Level 3, not implemented.
+     */
 //DOM3 
-//DOM3         /** Not implemented */
-//DOM3         public boolean isId() {
-//DOM3             throw new DOMException( DOMException.NOT_SUPPORTED_ERR,
-//DOM3                                     "isId not implemented" );
-//DOM3         }
+    /** Not implemented */
+    public boolean isId() {
+        throw new DOMException( DOMException.NOT_SUPPORTED_ERR,
+                                "isId not implemented" );
+    }
 //DOM3 
-//DOM3         /** Not implemented */
-//DOM3         public TypeInfo getSchemaTypeInfo(){
-//DOM3             throw new DOMException( DOMException.NOT_SUPPORTED_ERR,
-//DOM3                                    "getSchemaTypeInfo not implemented" );
-//DOM3         }
+    /** Not implemented */
+    public TypeInfo getSchemaTypeInfo(){
+        throw new DOMException( DOMException.NOT_SUPPORTED_ERR,
+                               "getSchemaTypeInfo not implemented" );
+    }
 
         public Node cloneNode(boolean deep) { return (Node)clone(); }
         /**

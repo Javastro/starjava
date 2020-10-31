@@ -45,18 +45,18 @@ public class HdxDOMImplementation
         return false;
     }
 
-//DOM3    /** Get the implementation of a specific feature.
-//DOM3     *  <p>
-//DOM3     * At present there are none of these. See {@link #hasFeature}.
-//DOM3     *
-//DOM3     * @param feature the name of the feature to test
-//DOM3     * @param version this is the version number of the feature to test
-//DOM3     * @return null for all cases
-//DOM3     */
-//DOM3    public Object getFeature(String feature,
-//DOM3                             String version) {
-//DOM3        return null;
-//DOM3    }
+/** Get the implementation of a specific feature.
+*  <p>
+* At present there are none of these. See {@link #hasFeature}.
+*
+* @param feature the name of the feature to test
+* @param version this is the version number of the feature to test
+* @return null for all cases
+*/
+public Object getFeature(String feature,
+                        String version) {
+   return null;
+}
 
     /**
      * Does <em>not</em> create an empty <code>DocumentType</code>

@@ -550,72 +550,72 @@ class HdxNode
     }
 
 
-//DOM3     /* ** DOM Level 3 NOT supported ** */
+/* ** DOM Level 3 NOT supported ** */
 //DOM3 
-//DOM3     /** Not implemented */
-//DOM3     public Object setUserData( String key, Object data,
-//DOM3                                UserDataHandler handler ) {
-//DOM3         throw new DOMException( DOMException.NOT_SUPPORTED_ERR,
-//DOM3                                 "setUserData not implemented" );
-//DOM3     }
-//DOM3     
-//DOM3     /** Not implemented */
-//DOM3     public Object getUserData( String key ) {
-//DOM3         throw new DOMException( DOMException.NOT_SUPPORTED_ERR,
-//DOM3                                 "getUserData not implemented" );
-//DOM3     }
+/** Not implemented */
+public Object setUserData( String key, Object data,
+                           UserDataHandler handler ) {
+    throw new DOMException( DOMException.NOT_SUPPORTED_ERR,
+                            "setUserData not implemented" );
+}
+
+/** Not implemented */
+public Object getUserData( String key ) {
+    throw new DOMException( DOMException.NOT_SUPPORTED_ERR,
+                            "getUserData not implemented" );
+}
 //DOM3 
-//DOM3     /** Not implemented */
-//DOM3     public Object getFeature( String feature, String version ) {
-//DOM3         throw new DOMException( DOMException.NOT_SUPPORTED_ERR,
-//DOM3                                 "getFeature not implemented" );
-//DOM3     }
+/** Not implemented */
+public Object getFeature( String feature, String version ) {
+    throw new DOMException( DOMException.NOT_SUPPORTED_ERR,
+                            "getFeature not implemented" );
+}
 //DOM3 
-//DOM3     public boolean isEqualNode( Node node ) {
-//DOM3         return equals( node );
-//DOM3     }
+public boolean isEqualNode( Node node ) {
+    return equals( node );
+}
 //DOM3 
-//DOM3     /** Not implemented */
-//DOM3     public String lookupNamespaceURI( String prefix ) {
-//DOM3         throw new DOMException( DOMException.NOT_SUPPORTED_ERR,
-//DOM3                                 "lookupNamespaceURI not implemented" );
-//DOM3     }
+/** Not implemented */
+public String lookupNamespaceURI( String prefix ) {
+    throw new DOMException( DOMException.NOT_SUPPORTED_ERR,
+                            "lookupNamespaceURI not implemented" );
+}
 //DOM3 
-//DOM3     /** Not implemented */
-//DOM3     public boolean isDefaultNamespace( String namespaceURI ) {
-//DOM3         throw new DOMException( DOMException.NOT_SUPPORTED_ERR,
-//DOM3                                 "isDefaultNamespace not implemented" );
-//DOM3     }
+/** Not implemented */
+public boolean isDefaultNamespace( String namespaceURI ) {
+    throw new DOMException( DOMException.NOT_SUPPORTED_ERR,
+                            "isDefaultNamespace not implemented" );
+}
 //DOM3 
-//DOM3     /** Not implemented */
-//DOM3     public String lookupPrefix( String namespaceURI ) {
-//DOM3         throw new DOMException( DOMException.NOT_SUPPORTED_ERR,
-//DOM3                                 "lookupPrefix not implemented" );
-//DOM3     }
+/** Not implemented */
+public String lookupPrefix( String namespaceURI ) {
+    throw new DOMException( DOMException.NOT_SUPPORTED_ERR,
+                            "lookupPrefix not implemented" );
+}
 //DOM3 
-//DOM3     public boolean isSameNode( Node other ) {
-//DOM3         return this == other;
-//DOM3     }
+public boolean isSameNode( Node other ) {
+    return this == other;
+}
 //DOM3 
-//DOM3     public void setTextContent( String textContent ) {
-//DOM3         setNodeValue( textContent );
-//DOM3     }
+public void setTextContent( String textContent ) {
+    setNodeValue( textContent );
+}
 //DOM3 
-//DOM3     public String getTextContent() {
-//DOM3         return getNodeValue();
-//DOM3     }
+public String getTextContent() {
+    return getNodeValue();
+}
 //DOM3 
-//DOM3     /** Not implemented */
-//DOM3     public short compareDocumentPosition( Node other ) {
-//DOM3         throw new DOMException( DOMException.NOT_SUPPORTED_ERR,
-//DOM3                             "compareDocumentPosition not implemented" );
-//DOM3     }
+/** Not implemented */
+public short compareDocumentPosition( Node other ) {
+    throw new DOMException( DOMException.NOT_SUPPORTED_ERR,
+                        "compareDocumentPosition not implemented" );
+}
 //DOM3 
-//DOM3     /** Not implemented */
-//DOM3     public String getBaseURI() {
-//DOM3         throw new DOMException( DOMException.NOT_SUPPORTED_ERR,
-//DOM3                                 "getBaseURI not implemented" );
-//DOM3     }
+/** Not implemented */
+public String getBaseURI() {
+    throw new DOMException( DOMException.NOT_SUPPORTED_ERR,
+                            "getBaseURI not implemented" );
+}
 
 
 

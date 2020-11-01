@@ -9,11 +9,11 @@
     <parent>
         <artifactId>starlink-base</artifactId> <!-- could split the base from the versions -->
         <groupId>uk.ac.starlink</groupId>
-        <version>2019.1</version>
-        <relativePath>maven/base/pom.xml</relativePath>
+        <version>2019.1.1</version>
+        <relativePath>maven/pom.xml</relativePath>
     </parent>
     <name>Starlink Build</name>
-    <description>The Starjava build in maven</description>
+    <description>The Starjava build in maven - aggregates the sub-projects</description>
  
     <modules>
     <!--  
@@ -31,7 +31,7 @@
 <module>fits</module>
 <!-- <module>frog</module> -->
 <module>hds</module>
-<!-- <module>hdx</module> --> <!-- does not build because of missing DOM implementations.... -->
+<module>hdx</module>
 <module>help</module>
 <!-- <module>jaiutil</module> -->
 <!--<module>jetty</module> -->
@@ -50,7 +50,7 @@
 <module>registry</module>
 
 <!--  <module>scripts</module>-->
-<!-- <module>soapserver</module>  -->
+<module>soapserver</module>
 <!-- <module>sog</module> -->
 <!-- <module>splat</module> -->
 <!-- module>srb</module -->

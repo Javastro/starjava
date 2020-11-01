@@ -11,6 +11,24 @@ http://agdevel.jb.man.ac.uk:8080/nexus/content/repositories/thirdparty/uk/ac/sta
 
 The standard qbuild could try <https://maven.apache.org/ant-tasks/>
 
+Use of properties
+-----------------
+The current solution tries to use properties to set versions - it seems to mostly work (see later) -
+however, various utilities and advice forbids this - an alternative would be to define version
+both in bom and in each individual pom - not too bad.
+
+
+
+
+Version Numbering
+-----------------
+
+The starjava numbering has  3.1-1, 3.1-2
+
+still not entirely sure that they are considered chronological by maven see
+https://stackoverflow.com/questions/13004443/how-does-maven-sort-version-numbers
+
+
 Updating
 --------
 

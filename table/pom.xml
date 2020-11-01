@@ -9,8 +9,7 @@
 	<parent>
 		<artifactId>starlink-base</artifactId>
 		<groupId>uk.ac.starlink</groupId>
-		<version>2019.1</version>
-		<relativePath>../maven/pom.xml</relativePath>
+		<version>2019.1.1</version>
 	</parent>
 	<properties>
 	 <maven.test.skip>true</maven.test.skip> <!--FIXME -should run tests - attempt to exclude one compilation failure (below) did not work -->

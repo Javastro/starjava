@@ -10,7 +10,7 @@
 	<parent>
 		<artifactId>starlink-base</artifactId>
 		<groupId>uk.ac.starlink</groupId>
-		<version>2019.1</version>
+		<version>2019.1.1</version>
 		<relativePath>../maven/pom.xml</relativePath>
 	</parent>
 	<name>startask</name>
